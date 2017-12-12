@@ -1,0 +1,9 @@
+{
+  "name": "example-service1",
+  "dependencies": {
+    "micro-js": "0.0.x"
+  },
+  "scripts": {
+    "start": "export SERVICE_REGISTRY_HOST=localhost:10000 && node index.js"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "example-service2",
+  "dependencies": {
+    "micro-js": "0.0.x"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "micro-js-all-in-one-example",
+  "dependencies": {
+    "micro-js": "file:../.."
+  },
+  "scripts": {
+    "start": "export SERVICE_REGISTRY_HOST=localhost:10000 && node index.js"
+  }
+}
