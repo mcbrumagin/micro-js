@@ -1,16 +1,4 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-nginx-svc
-  labels:
-    app: nginx
-spec:
-  type: LoadBalancer
-  ports:
-  - port: 80
-  selector:
-    app: nginx
----
+
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
@@ -23,7 +11,43 @@ spec:
         app: nginx
     spec:
       containers:
-      - name: nginx
-        image: nginx:1.7.9
+      - name: registry
+        image: gcr.io/micro-js/registry
         ports:
-        - containerPort: 80
+        - containerPort: 10000
+      - name: service1
+        image: gcr.io/micro-js/service1
+        ports:
+        - containerPort: 10001
+      - name: service2
+        image: gcr.io/micro-js/service2
+        ports:
+        - containerPort: 10002
+      - name: service3
+        image: gcr.io/micro-js/service3
+        ports:
+        - containerPort: 10003
+---
+apiVersion: apps/v1beta1
+kind: Ingress
+metadata:
+  name: micro-js
+  labels:
+    app: nginx
+spec:
+  rules:
+  - host: mcbrumagin.com
+    http:
+      paths:
+      - backend:
+          serviceName: registry
+          servicePort: 10000
+      - backend:
+          serviceName: service1
+          servicePort: 10001
+      - backend:
+          serviceName: service2
+          servicePort: 10002
+      - backend:
+          serviceName: service3
+          servicePort: 10003
