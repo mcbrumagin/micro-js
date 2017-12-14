@@ -62,6 +62,7 @@ const defaultStartPort = 10000 || registryPort && (Number(registryPort)+1) || 10
 
 async function setup (payload) {
   let { service, domain } = payload
+  console.log(`setup service "${service}" at domain "${domain}"`)
 
   if (!domainPorts[domain]) domainPorts[domain] = defaultStartPort
   let port = domainPorts[domain]++
@@ -72,6 +73,7 @@ async function setup (payload) {
 
 async function register (payload) {
   let { service, location } = payload
+  console.log(`register service "${service}" at location "${location}"`)
 
   if (!services[service]) services[service] = new Set()
   addresses[location] = service
@@ -90,6 +92,7 @@ async function register (payload) {
 
 async function unregister (payload) {
   let { service, location } = payload
+  console.log(`unregister service "${service}" at location "${location}"`)
 
   delete addresses[location]
   services[service].delete(location)
@@ -97,10 +100,19 @@ async function unregister (payload) {
 }
 
 async function lookup (service) {
-  // console.log(`lookup service "${service}"`)
-  if (!services[service]) {
+  console.log(`lookup service (${service}) addresses`)
+  if (service === 'all') {
+    let servicesMap = {}
+    for (let service in services) {
+      let addresses = services[service].map(s => s)
+      servicesMap[service] = addresses
+    }
+    return servicesMap
+  }
+  else if (!services[service]) {
     throw new Error(`No service by name "${service}"`)
   }
+
   let addresses = services[service].map(s => s)
   let len = addresses.length
   let ind = Math.floor(Math.random() * len)

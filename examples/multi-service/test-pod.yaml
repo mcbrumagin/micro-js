@@ -1,0 +1,39 @@
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: registry
+#   labels:
+#     name: registry
+# spec:
+#   hostNetwork: true
+#   containers:
+#     - name: registry
+#       image: gcr.io/micro-188415/registry
+#       env:
+#         - name: "SERVICE_REGISTRY_HOST"
+#           value: "0.0.0.0:10000"
+# ---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: services
+  labels:
+    name: services
+spec:
+  hostNetwork: true
+  containers:
+    - name: service1
+      image: gcr.io/micro-188415/service1
+      env:
+        - name: "SERVICE_REGISTRY_HOST"
+          value: "35.227.106.175:10000"
+    - name: service2
+      image: gcr.io/micro-188415/service2
+      env:
+        - name: "SERVICE_REGISTRY_HOST"
+          value: "35.227.106.175:10000"
+    - name: service3
+      image: gcr.io/micro-188415/service3
+      env:
+        - name: "SERVICE_REGISTRY_HOST"
+          value: "35.227.106.175:10000"

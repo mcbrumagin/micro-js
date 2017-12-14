@@ -4,6 +4,7 @@
     "micro-js": "file:../.."
   },
   "scripts": {
-    "start": "export SERVICE_REGISTRY_HOST=localhost:10000 && node index.js"
+    "start": "export SERVICE_REGISTRY_HOST=localhost:10000 && node index.js",
+    "build": "docker build -f Dockerfile ../.."
   }
 }

@@ -1,6 +1,7 @@
 const {
   registryServer,
-  createService
+  createService,
+  callService
 } = require('micro-js')
 
 Promise.all([
@@ -18,4 +19,8 @@ Promise.all([
     return payload
   })
 ])
+.then(async () => {
+  let result = await callService('service1', { test: 'payload' })
+  console.log(`RESULT: ${JSON.stringify(result, null, 2)}`)
+})
 .catch(err => console.error(err))

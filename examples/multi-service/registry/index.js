@@ -1,6 +1,4 @@
 const { registryServer } = require('micro-js')
-console.log({process.argv})
 const args = Array.prototype.slice.call(process.argv)
-if (!args[2]) throw new Error('Specify "port" as first argument')
-registryServer(args[2])
+registryServer(args[2] || 10000)
 .catch(err => console.error(err))

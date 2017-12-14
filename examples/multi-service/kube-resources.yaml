@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: my-nginx
 spec:
-  replicas: 3
+  replicas: 1
   template:
     metadata:
       labels:
@@ -13,20 +13,12 @@ spec:
       containers:
       - name: registry
         image: gcr.io/micro-js/registry
-        ports:
-        - containerPort: 10000
       - name: service1
         image: gcr.io/micro-js/service1
-        ports:
-        - containerPort: 10001
       - name: service2
         image: gcr.io/micro-js/service2
-        ports:
-        - containerPort: 10002
       - name: service3
         image: gcr.io/micro-js/service3
-        ports:
-        - containerPort: 10003
 ---
 apiVersion: apps/v1beta1
 kind: Ingress
@@ -36,18 +28,27 @@ metadata:
     app: nginx
 spec:
   rules:
-  - host: mcbrumagin.com
+  - host: registry
     http:
       paths:
       - backend:
           serviceName: registry
           servicePort: 10000
+  - host: service1
+    http:
+      paths:
       - backend:
           serviceName: service1
           servicePort: 10001
+  - host: service2
+    http:
+      paths:
       - backend:
           serviceName: service2
           servicePort: 10002
+  - host: service3
+    http:
+      paths:
       - backend:
           serviceName: service3
           servicePort: 10003

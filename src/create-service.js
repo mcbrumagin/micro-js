@@ -1,3 +1,4 @@
+const os = require('os')
 const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
 
@@ -28,7 +29,7 @@ module.exports = async function createService (name, fn) {
   let location = await httpRequest(registryHost, {
     setup: {
       service: name,
-      domain: 'localhost' // TODO
+      domain: os.hostname()
     }
   })
 
