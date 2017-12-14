@@ -1,6 +1,6 @@
 {
   "name": "example-registry",
   "dependencies": {
-    "micro-js": "0.0.x"
+    "micro-js": "0.0.1"
   }
 }
