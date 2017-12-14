@@ -122,9 +122,9 @@ async function lookup (service) {
 const roundRobin = {}
 // TODO bind local cache locations in order to skip initial httpRequest to registry
 async function call ({ name, payload }) {
-  if (!name) throw new Error('Proxy call requires service "name" property')
-  if (!payload) throw new Error('Proxy call requires service "payload" property')
-  let registryHost = process.env.SERVICE_REGISTRY_HOST
+  if (!name) throw new Error(`Proxy call requires service "name" property`)
+  if (!payload) throw new Error(`Proxy call requires service "payload" property`)
+  if (!services[name]) throw new Error(`No service by name "${name}"`)
 
   let addresses = services[name].map(s => s)
   let ind

@@ -1,6 +1,6 @@
 {
   "name": "example-service1",
   "dependencies": {
-    "micro-js": "0.0.2"
+    "micro-js": "0.0.3"
   }
 }
