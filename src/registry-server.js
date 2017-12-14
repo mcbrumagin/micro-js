@@ -119,6 +119,27 @@ async function lookup (service) {
   return addresses[ind]
 }
 
+const roundRobin = {}
+// TODO bind local cache locations in order to skip initial httpRequest to registry
+async function call ({ name, payload }) {
+  if (!name) throw new Error('Proxy call requires service "name" property')
+  if (!payload) throw new Error('Proxy call requires service "payload" property')
+  let registryHost = process.env.SERVICE_REGISTRY_HOST
+
+  let addresses = services[name].map(s => s)
+  let ind
+  if (!roundRobin[name]) {
+    ind = Math.floor(Math.random() * addresses.length)
+  } else {
+    ind = roundRobin[name] + 1
+    if (ind >= addresses.length) ind = 0
+  }
+  roundRobin[name] = ind
+  let location = addresses[ind]
+  let result = await httpRequest(location, payload)
+  return result
+}
+
 module.exports = async function createServer(port) {
   if (!port) {
     let registryHost = process.env.SERVICE_REGISTRY_HOST
@@ -128,7 +149,7 @@ module.exports = async function createServer(port) {
     port = registryHost.split(':')[1]
   }
 
-  return httpServer(port, async function pubSub(payload) {
+  return httpServer(port, async function registryServer(payload) {
     if (payload.publish) return publish(payload.publish)
     else if (payload.subscribe) return subscribe(payload.subscribe)
     else if (payload.unsubscribe) return unsubscribe(payload.unsubscribe)
@@ -138,6 +159,17 @@ module.exports = async function createServer(port) {
     else if (payload.register) return register(payload.register)
     else if (payload.unregister) return unregister(payload.unregister)
     else if (payload.lookup) return lookup(payload.lookup)
-    else throw new Error('Missing "publish", "subscribe", "unsubscribe", "get", "set", "register", "unregister"')
+    else if (payload.call) return call(payload.call)
+    else {
+      let message = registryServer.toString()
+      try {
+        message = registryServer.toString()
+          .match(/payload\.(.+?)\) return/ig)
+          .join('\n')
+          .replace(/payload\./ig,'')
+          .replace(/\) return/ig, '')
+      } catch (err) {}
+      return message
+    }
   })
 }
