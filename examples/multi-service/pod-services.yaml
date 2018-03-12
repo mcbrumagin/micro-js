@@ -1,24 +1,67 @@
-apiVersion: v1
-kind: Pod
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: services
+#   labels:
+#     name: services
+# spec:
+#   hostNetwork: true
+#   containers:
+#     - name: service1
+#       image: gcr.io/micro-188415/service1
+#       env:
+#         - name: "SERVICE_REGISTRY_HOST"
+#           value: "35.196.159.8:10000" # TODO kubernetes config map (create config map from literal values)
+#     - name: service2
+#       image: gcr.io/micro-188415/service2
+#       env:
+#         - name: "SERVICE_REGISTRY_HOST"
+#           value: "35.196.159.8:10000"
+#     - name: service3
+#       image: gcr.io/micro-188415/service3
+#       env:
+#         - name: "SERVICE_REGISTRY_HOST"
+#           value: "35.196.159.8:10000"
+# ---
+apiVersion: apps/v1beta2 # for versions before 1.8.0 use apps/v1beta1
+kind: Deployment
 metadata:
   name: services
   labels:
     name: services
 spec:
-  hostNetwork: true
-  containers:
-    - name: service1
-      image: gcr.io/micro-188415/service1
-      env:
-        - name: "SERVICE_REGISTRY_HOST"
-          value: "35.227.106.175:10000" # TODO kubernetes config map (create config map from literal values)
-    - name: service2
-      image: gcr.io/micro-188415/service2
-      env:
-        - name: "SERVICE_REGISTRY_HOST"
-          value: "35.227.106.175:10000"
-    - name: service3
-      image: gcr.io/micro-188415/service3
-      env:
-        - name: "SERVICE_REGISTRY_HOST"
-          value: "35.227.106.175:10000"
+  replicas: 2
+  selector:
+    matchLabels:
+      name: services
+  template:
+    metadata:
+      labels:
+        name: services
+    spec:
+      hostNetwork: true
+      containers:
+        - name: service1
+          image: gcr.io/micro-188415/service1
+          env:
+            - name: "SERVICE_REGISTRY_HOST"
+              valueFrom:
+              configMapKeyRef:
+                name: micro
+                key: serviceRegistryHost
+        - name: service2
+          image: gcr.io/micro-188415/service2
+          env:
+            - name: "SERVICE_REGISTRY_HOST"
+              valueFrom:
+              configMapKeyRef:
+                name: micro
+                key: serviceRegistryHost
+        - name: service3
+          image: gcr.io/micro-188415/service3
+          env:
+            - name: "SERVICE_REGISTRY_HOST"
+              valueFrom:
+              configMapKeyRef:
+                name: micro
+                key: serviceRegistryHost

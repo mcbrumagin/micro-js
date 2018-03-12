@@ -4,5 +4,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "export SERVICE_REGISTRY_HOST=localhost:10000 && node src/test.js"
+  },
+  "dependencies": {
+    "request": "^2.83.0",
+    "request-promise-native": "^1.0.5",
+    "username": "^3.0.0"
   }
 }

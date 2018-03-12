@@ -5,7 +5,11 @@ while (--i) {
   argv[i] = argv[i].replace(/\ /ig, '___')
 }
 
+console.log({argv})
+
 let argsString = argv.join(' ')
+
+console.log({argsString})
 
 let flags = {}
 
@@ -14,9 +18,20 @@ const optionRegex = /(?:^|\s)--(.+?)(?:=|\s)(.+?)(?:\s|$)/i
 let matchResult
 while ((matchResult = argsString.match(optionRegex)) != null) {
   let [match, flag, value] = Array.prototype.slice.call(matchResult)
+  console.log({match, flag, value})
   flags[flag] = value.trim()
   match = match.slice(0, match.length-1)
   argsString = argsString.replace(match, '')
+  /* TODO FIX BUG
+  { argv: [ 'service1', '5', '--threads', '2' ] }
+  { argsString: 'service1 5 --threads 2' }
+  { match: ' --threads 2', flag: 'threads', value: '2' }
+  { argsString: 'service1 52' }
+  { argsAndChars: [ 'service1', '52' ] }
+  { flags: { threads: '2' } }
+  { args: [ 'service1', '52' ], flags: { threads: '2' } }
+  */
+  console.log({argsString})
 }
 
 let argsAndChars = argsString.split(' ')
@@ -26,10 +41,14 @@ while (--i) {
   argsAndChars[i] = argsAndChars[i].replace(/___/ig, ' ')
 }
 
+console.log({argsAndChars})
+
 for (let flag in flags) {
   let val = flags[flag]
   flags[flag] = val.replace(/___/ig, ' ')
 }
+
+console.log({flags})
 
 let args = []
 

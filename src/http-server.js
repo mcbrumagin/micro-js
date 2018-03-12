@@ -16,8 +16,8 @@ module.exports = async function createServer(port, fn) {
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(JSON.stringify(result))
       } catch (err) {
-        response.writeHead(500)
         console.error(err.stack)
+        response.writeHead(500)
         response.end(err.message)
       }
     })
