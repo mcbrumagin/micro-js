@@ -12,7 +12,7 @@ async function request(address, body) {
         headers
       }, async res => {
         let result = await readStream(res)
-        if (res.statusCode >= 400) reject(new Error(result))
+        if (res.statusCode >= 400) reject(new Error(result.replace('Error: ', ''))) // TODO keep
         else {
           try {
             result = JSON.parse(result)

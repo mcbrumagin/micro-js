@@ -18,7 +18,7 @@ module.exports = async function createServer(port, fn) {
       } catch (err) {
         console.error(err.stack)
         response.writeHead(500)
-        response.end(err.message)
+        response.end(err.stack) // TODO keep
       }
     })
 
