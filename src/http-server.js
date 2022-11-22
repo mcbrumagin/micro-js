@@ -12,13 +12,15 @@ module.exports = async function createServer(port, fn) {
       try {
         let body = await readStream(request)
         try { body = JSON.parse(body) } catch (err) { /* don't care */ }
-        let result = await fn(body)
-        response.writeHead(200, { 'content-type': 'application/json' })
-        response.end(JSON.stringify(result))
+        let result = await fn(body, request, response)
+        if (result !== false) {
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify(result))
+        }
       } catch (err) {
         console.error(err.stack)
         response.writeHead(500)
-        response.end(err.stack) // TODO keep
+        response.end(err.stack)
       }
     })
 
@@ -31,5 +33,11 @@ module.exports = async function createServer(port, fn) {
       // console.log(`server "${fn.name}" failed to start`)
       reject(err)
     })
+
+    server.terminate = () => new Promise(resolve => {
+      server.close().once('close', resolve)
+    })
+
+    return server
   })
 }

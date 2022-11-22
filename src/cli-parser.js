@@ -5,11 +5,11 @@ while (--i) {
   argv[i] = argv[i].replace(/\ /ig, '___')
 }
 
-console.log({argv})
+//console.log({argv})
 
 let argsString = argv.join(' ')
 
-console.log({argsString})
+//console.log({argsString})
 
 let flags = {}
 
@@ -31,7 +31,7 @@ while ((matchResult = argsString.match(optionRegex)) != null) {
   { flags: { threads: '2' } }
   { args: [ 'service1', '52' ], flags: { threads: '2' } }
   */
-  console.log({argsString})
+  //console.log({argsString})
 }
 
 let argsAndChars = argsString.split(' ')
@@ -41,14 +41,14 @@ while (--i) {
   argsAndChars[i] = argsAndChars[i].replace(/___/ig, ' ')
 }
 
-console.log({argsAndChars})
+//console.log({argsAndChars})
 
 for (let flag in flags) {
   let val = flags[flag]
   flags[flag] = val.replace(/___/ig, ' ')
 }
 
-console.log({flags})
+//console.log({flags})
 
 let args = []
 
@@ -64,5 +64,5 @@ args = args.filter(a => !!a)
 
 const result = { args, flags }
 
-console.log(result)
+//console.log(result)
 module.exports = result

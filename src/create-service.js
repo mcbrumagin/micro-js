@@ -3,8 +3,11 @@ const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
 
 // TODO bind local cache locations in order to skip initial httpRequest to registry
+// TODO move to call-service?
 async function callService (name, payload) {
-  let registryHost = process.env.SERVICE_REGISTRY_HOST
+  // name could be the function if called "locally", or a noop of the same name for code-completion
+  name = name.name || name
+  let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
 
   let addresses = cache.services[name].map(s => s)
   let len = addresses.length
@@ -14,7 +17,7 @@ async function callService (name, payload) {
   return result
 }
 
-const cache = {}
+let cache = {}
 
 module.exports = async function createService (name, fn) {
   if (!fn && name.name) {
@@ -22,14 +25,14 @@ module.exports = async function createService (name, fn) {
     name = fn.name
   }
 
-  let registryHost = process.env.SERVICE_REGISTRY_HOST
+  let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
   // TODO
   // get current domain from environment variable?
   // service registry may be able to get domain from req/res objects?
   let location = await httpRequest(registryHost, {
     setup: {
       service: name,
-      domain: os.hostname()
+      domain: registryHost && registryHost.split(':')[0] || os.hostname()
     }
   })
 
@@ -47,9 +50,10 @@ module.exports = async function createService (name, fn) {
     } else return fn(payload)
   }
 
+  let server
   try {
     Object.defineProperty(handler, 'name', { value: name, writable: false })
-    await httpServer(port, handler)
+    server = await httpServer(port, handler)
   } catch (err) {
     if (err.message.indexOf('listen EADDRINUSE') !== -1) {
       return createService(name, fn)
@@ -67,4 +71,5 @@ module.exports = async function createService (name, fn) {
   cache.services = result.services
 
   console.log(`service "${name}" registered at ${registryHost}`)
+  return server
 }

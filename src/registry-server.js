@@ -1,6 +1,21 @@
 const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
 
+let services
+let addresses
+let routes
+let controllerRoutes
+let domainPorts
+
+// TODO REMOVE cache?
+let cache
+async function set (key, val) {
+  cache[key] = val
+}
+async function get (key) {
+  return cache[key]
+}
+
 const subscriptions = {}
 
 async function publish (payload) {
@@ -36,29 +51,14 @@ async function unsubscribe (payload) {
   if (!subscriptions[type].size) delete subscriptions[type]
 }
 
-
-const cache = {}
-
-async function set (key, val) {
-  cache[key] = val
-}
-
-async function get (key) {
-  return cache[key]
-}
-
 Set.prototype.map = function (fn) {
   let result = []
   this.forEach(item => result.push(fn(item)))
   return result
 }
 
-const services = {}
-const addresses = {}
-const domainPorts = {}
-
-const registryPort = process.env.SERVICE_REGISTRY_HOST.split(':')[1]
-const defaultStartPort = 10000 || registryPort && (Number(registryPort)+1) || 10000
+const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[1]
+const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
 async function setup (payload) {
   let { service, domain } = payload
@@ -72,22 +72,38 @@ async function setup (payload) {
 }
 
 async function register (payload) {
-  let { service, location } = payload
-  console.log(`register service "${service}" at location "${location}"`)
+  let { type = 'service' } = payload
 
-  if (!services[service]) services[service] = new Set()
-  addresses[location] = service
-  services[service].add(location)
+  if (type === 'service') {
+    //console.log('REGISTER SERVICE', payload)
+    let { service, location } = payload
+    console.log(`service "${service}" registered for location "${location}"`)
 
-  // TODO subscribe to new service locations and addresses
-  await publish({ type: 'register', message: payload })
-  await subscribe({ type: 'register', location })
+    if (!services[service]) services[service] = new Set()
+    addresses[location] = service
+    services[service].add(location)
 
-  let mappedServices = {}
-  for (let service in services) {
-    mappedServices[service] = services[service].map(s => s)
+    // TODO subscribe to new service locations and addresses
+    await publish({ type: 'register', message: payload })
+    await subscribe({ type: 'register', location })
+
+    let mappedServices = {}
+    for (let service in services) {
+      mappedServices[service] = services[service].map(s => s)
+    }
+    return { services: mappedServices, addresses }
+  } else if (type === 'route') {
+    let { service, path, dataType = 'text/html' } = payload
+    if (path.includes('*')) {
+      controllerRoutes[path.replace('*', '')] = { service, dataType }
+      console.log(`route controller "${path}" registered for service "${service}"`)
+    } else {
+      routes[path] = { service, dataType }
+      console.log(`route "${path}" registered for service "${service}"`)
+    }
+  } else {
+    throw new Error('Invalid type')
   }
-  return { services: mappedServices, addresses }
 }
 
 async function unregister (payload) {
@@ -122,9 +138,14 @@ async function lookup (service) {
 const roundRobin = {}
 // TODO bind local cache locations in order to skip initial httpRequest to registry
 async function call ({ name, payload }) {
-  if (!name) throw new Error(`Proxy call requires service "name" property`)
-  if (!payload) throw new Error(`Proxy call requires service "payload" property`)
-  if (!services[name]) throw new Error(`No service by name "${name}"`)
+  let err
+  if (!name) err = new Error(`Proxy call requires service "name" property`)
+  if (!payload) err = new Error(`Proxy call requires service "payload" property`)
+  if (!services[name]) err = new Error(`No service by name "${name}"`)
+  if (err) {
+    err.details = { name, payload }
+    throw err
+  }
 
   let addresses = services[name].map(s => s)
   let ind
@@ -141,28 +162,70 @@ async function call ({ name, payload }) {
 }
 
 module.exports = async function createServer(port) {
+  cache = {} // TODO REMOVE?
+  services = {}
+  addresses = {}
+  routes = {}
+  controllerRoutes = {}
+  domainPorts = {}
+
   if (!port) {
-    let registryHost = process.env.SERVICE_REGISTRY_HOST
-    if (!registryHost) {
-      throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_HOST" env variable')
-    }
-    port = registryHost.split(':')[1]
+    let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
+    if (registryHost) {
+      port = registryHost.split(':')[1]
+      if (!port || isNaN(port)) {
+        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
+      }
+    } 
   }
 
-  return httpServer(port, async function registryServer(payload) {
-    if (payload.publish) return publish(payload.publish)
-    else if (payload.subscribe) return subscribe(payload.subscribe)
-    else if (payload.unsubscribe) return unsubscribe(payload.unsubscribe)
-    else if (payload.get) return get(payload.get)
-    else if (payload.set) return set(...payload.set)
-    else if (payload.setup) return setup(payload.setup)
-    else if (payload.register) return register(payload.register)
-    else if (payload.unregister) return unregister(payload.unregister)
-    else if (payload.lookup) return lookup(payload.lookup)
-    else if (payload.call) return call(payload.call)
-    else {
+  return httpServer(port, async function registryServer(payload, request, response) {
+    const findControllerRoute = url => {
+      for (let basePath in controllerRoutes) {
+        let reg = new RegExp(`^${basePath}`, 'i')
+        //console.log({ reg, url, test: reg.test(url) })
+        if (reg.test(url)) {
+          return controllerRoutes[basePath]
+        }
+      }
+    }
+
+    const resolvePossibleRoute = async () => {
+      let { url } = request
+      let { service, dataType } = routes[url] || {}
+      if (service) {
+        let result = await call({ name: service, payload: {}})
+        response.writeHead(200, { 'content-type': dataType })
+        response.end(result)
+        return false // skip default response write/end
+      }
+      
+      let controllerTarget = findControllerRoute(url)
+      if (controllerTarget) {
+        let { service, dataType } = controllerTarget
+        
+        // TODO try/catch res(500) etc
+        let result = await call({ name: service, payload: { url }})
+        
+        let { status } = result
+        dataType = result.dataType || dataType
+        if (dataType) response.writeHead(status || 200, { 'content-type': dataType })
+        
+        if (typeof result === 'object') response.end(result.payload)
+        else response.end(result)
+        
+        return false // skip default response write/end
+      }
+
+      if (url) {
+        return Object.keys(routes).join('\n')
+      }
+    }
+
+    const printRegistryFunctions = () => {
       let message = registryServer.toString()
       try {
+        // TODO why is this like this? for cli call?
         message = registryServer.toString()
           .match(/payload\.(.+?)\) return/ig)
           .join('\n')
@@ -170,6 +233,24 @@ module.exports = async function createServer(port) {
           .replace(/\) return/ig, '')
       } catch (err) {}
       return message
+    }
+
+    try {
+      if (payload.publish) return publish(payload.publish)
+      else if (payload.subscribe) return subscribe(payload.subscribe)
+      else if (payload.unsubscribe) return unsubscribe(payload.unsubscribe)
+      else if (payload.get) return get(payload.get)
+      else if (payload.set) return set(...payload.set)
+      else if (payload.setup) return setup(payload.setup)
+      else if (payload.register) return register(payload.register)
+      else if (payload.unregister) return unregister(payload.unregister)
+      else if (payload.lookup) return lookup(payload.lookup)
+      else if (payload.call) return call(payload.call)
+      else if (request.url && request.url !== '/') return resolvePossibleRoute()
+      else return printRegistryFunctions()
+    } catch (err) {
+      response.writeHead(500)
+      response.end(err.stack)
     }
   })
 }

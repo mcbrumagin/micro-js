@@ -1,5 +1,5 @@
-import { promisify } from 'util'
-import fs from 'fs'
+const { promisify } = require('util')
+const fs = require('fs')
 
 let readAsync = promisify(fs.readFile)
 let writeAsync = promisify(fs.writeFile)
@@ -17,4 +17,4 @@ function stat(path) {
     return statAsync(path)
 }
 
-export { read, write, stat }
+module.exports = { read, write, stat }
