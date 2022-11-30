@@ -108,7 +108,7 @@ async function register (payload) {
 
 async function unregister (payload) {
   let { service, location } = payload
-  console.log(`unregister service "${service}" at location "${location}"`)
+  console.log(`service "${service}" unregistered for location "${location}"`)
 
   delete addresses[location]
   services[service].delete(location)

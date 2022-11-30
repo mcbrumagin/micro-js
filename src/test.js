@@ -54,7 +54,7 @@ async function testCreateService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:10000'
   let registry = await startRegistry()
   let server = await createService('test', function testService(payload) {
-    console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
+    // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
     return 'TEST SERVICE RESULT'
   })
 
@@ -73,7 +73,7 @@ async function testCallService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:10000'
   let registry = await startRegistry()
   let server = await createService('test', function testService(payload) {
-    console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
+    // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
     return 'TEST SERVICE RESULT'
   })
 

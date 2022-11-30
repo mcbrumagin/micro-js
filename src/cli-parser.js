@@ -18,7 +18,7 @@ const optionRegex = /(?:^|\s)--(.+?)(?:=|\s)(.+?)(?:\s|$)/i
 let matchResult
 while ((matchResult = argsString.match(optionRegex)) != null) {
   let [match, flag, value] = Array.prototype.slice.call(matchResult)
-  console.log({match, flag, value})
+  // console.log({match, flag, value})
   flags[flag] = value.trim()
   match = match.slice(0, match.length-1)
   argsString = argsString.replace(match, '')
