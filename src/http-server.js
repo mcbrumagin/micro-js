@@ -35,7 +35,8 @@ module.exports = async function createServer(port, fn) {
     })
 
     server.terminate = () => new Promise(resolve => {
-      server.close().once('close', resolve)
+      server.on('close', resolve)
+      server.close()
     })
 
     return server

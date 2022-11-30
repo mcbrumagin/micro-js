@@ -3,11 +3,14 @@
   "version": "0.0.3",
   "main": "src/index.js",
   "scripts": {
-    "test": "export SERVICE_REGISTRY_ENDPOINT=localhost:10000 && node src/test.js"
+    "test": "cross-env SERVICE_REGISTRY_ENDPOINT=localhost:10000 && node src/test.js"
   },
   "dependencies": {
     "request": "^2.83.0",
     "request-promise-native": "^1.0.5"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
 }
