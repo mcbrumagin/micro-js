@@ -3,13 +3,15 @@ const httpRequest = require('./http-request.js')
 
 const subscriptions = {}
 
-async function publish (payload) {
+async function publish(payload) {
   let { type, message } = payload
+  // console.log('publish', {type, message, subscriptions})
 
   let results = []
   let errors = []
   for (let location of subscriptions[type]) {
     try {
+      // console.log({location, message})
       let result = await httpRequest(location, message)
       results.push(result)
     } catch (err) {
@@ -19,13 +21,14 @@ async function publish (payload) {
   return { results, errors }
 }
 
-async function subscribe (payload) {
+async function subscribe(payload) {
   let { type, location } = payload
+  // console.log('subscribe', { type, location })
   if (!subscriptions[type]) subscriptions[type] = new Set()
   subscriptions[type].add(location)
 }
 
-async function unsubscribe (payload) {
+async function unsubscribe(payload) {
   let { type, location } = payload
   if (!subscriptions[type]) throw new Error(`No type "${type}"`)
   let success = subscriptions[type].delete(location)
@@ -37,6 +40,6 @@ module.exports = async function createServer(port) {
     if (payload.publish) await publish(payload.publish)
     else if (payload.subscribe) await subscribe(payload.subscribe)
     else if (payload.unsubscribe) await unsubscribe(payload.unsubscribe)
-    else throw new Error('Missing "publish", "subscribe", and "unsubscribe" property')
+    else throw new Error('Missing "publish", "subscribe", or "unsubscribe" property')
   })
 }

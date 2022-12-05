@@ -24,6 +24,7 @@ module.exports = async function createServer(port, fn) {
       }
     })
 
+    // console.log({port, fn})
     server.listen(port, () => {
       // console.log(`server "${fn.name}" listening on ${port}`)
       resolve(server)

@@ -6,7 +6,7 @@ async function runCommand() {
     let [service, jsonString] = args
     let payload = JSON.parse(jsonString)
     let result = await callService(service, payload)
-    console.log(result)
+    // console.log(result)
   }
 }
 

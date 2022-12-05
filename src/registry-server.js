@@ -57,7 +57,7 @@ Set.prototype.map = function (fn) {
   return result
 }
 
-const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[1]
+const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
 const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
 async function setup (payload) {
@@ -68,6 +68,7 @@ async function setup (payload) {
   let port = domainPorts[domain]++
   let location = `${domain}:${port}`
 
+  // console.log('resistry-server.setup', location)
   return location
 }
 
@@ -172,7 +173,8 @@ module.exports = async function createServer(port) {
   if (!port) {
     let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
     if (registryHost) {
-      port = registryHost.split(':')[1]
+      port = registryHost.split(':')[2]
+      // console.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
         throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
       }

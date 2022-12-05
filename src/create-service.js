@@ -29,14 +29,24 @@ module.exports = async function createService (name, fn) {
   // TODO
   // get current domain from environment variable?
   // service registry may be able to get domain from req/res objects?
+  // console.log({
+  //   registryHost,
+  //   allbutport: registryHost.split(':').slice(0,2).join(':')
+  // })
   let location = await httpRequest(registryHost, {
     setup: {
       service: name,
-      domain: registryHost && registryHost.split(':')[0] || os.hostname()
+      domain: registryHost
+      && (
+        registryHost.split(':').slice(0,2).join(':')
+      ) || os.hostname()
     }
   })
 
-  let [domain, port] = location.split(':')
+  // console.log({location})
+
+  let [protocol, domain, port] = location.split(':')
+  // console.log({protocol, domain, port})
   let context = { call: callService }
   // TODO build context with full service method names
   fn = fn.bind(context)

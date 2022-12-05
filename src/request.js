@@ -1,3 +1,4 @@
+// TODO remove this lib? use native fetch API?
 const vanillaRequest = require('request')
 const request = require('request-promise-native')
 const errors = require('request-promise-native/errors')

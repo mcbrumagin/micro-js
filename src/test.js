@@ -10,12 +10,12 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function testHttpServer () {
   let server = await httpServer(10000, function test(payload) {
     console.log(`in test httpServer, got payload "${JSON.stringify(payload)}"`)
-    return 'TEST ' + Math.random()
+    return Date.now()
   })
   try {
-    let result = await httpRequest('127.0.0.1:10000', { testPayload: 'testPayload' })
+    let result = await httpRequest('http://localhost:10000', { testPayload: 'testPayload' })
     //console.log('httpRequest result', result)
-    return result
+    return new Date() - Number(result) + 'ms request/response time'
   } finally {
     await server.terminate()
   }
@@ -32,11 +32,15 @@ async function testPubSubServer() {
     console.log(`Got published message [2]: ${JSON.stringify(payload)}`)
   })
   try {
-    await httpRequest('127.0.0.1:10000', { subscribe: '127.0.0.1:10001' })
-    await httpRequest('127.0.0.1:10000', { subscribe: '127.0.0.1:10002' })
-    await httpRequest('127.0.0.1:10000', { publish: 'TEST [1]' })
-    await httpRequest('127.0.0.1:10000', { unsubscribe: '127.0.0.1:10002' })
-    await httpRequest('127.0.0.1:10000', { publish: 'TEST [2]' })
+    let start = Date.now()
+    // TODO commit/push then reset to before type/location (see if/how it worked)
+    await httpRequest('http://localhost:10000', { subscribe: { type: 'test', location: 'http://localhost:10001' }})
+    await httpRequest('http://localhost:10000', { subscribe: { type: 'test', location: 'http://localhost:10002' }})
+    await httpRequest('http://localhost:10000', { publish: { type: 'test', message: 'TEST [1]' }})
+    await httpRequest('http://localhost:10000', { unsubscribe: { type: 'test', location: 'http://localhost:10002' }})
+    await httpRequest('http://localhost:10000', { publish: { type: 'test', message: 'TEST [2]' }})
+    // TODO assert on req results
+    return Date.now() - start + 'ms - for various pubSubServer requests'
   } finally {
     server && await server.terminate()
     subServer1 && await subServer1.terminate()
@@ -45,23 +49,30 @@ async function testPubSubServer() {
 }
 
 async function startRegistry() {
-  let port = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[1]
+  let port = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
   let server = await registryServer(port)
   return server
 }
 
 async function testCreateService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:10000'
+  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
   let registry = await startRegistry()
-  let server = await createService('test', function testService(payload) {
+  let name = 'test'
+  let server = await createService(name, function testService(payload) {
     // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
-    return 'TEST SERVICE RESULT'
+    payload.prop3 = 'test'
+    return payload
   })
 
   try {
-    let test = 'test'
-    let result = await httpRequest('127.0.0.1:10000', { prop1: test, prop2: test })
+    let result = await httpRequest('http://localhost:10000', {
+      call: {
+        name,
+        payload: { prop1: 'test', prop2: 'test' }
+      }
+    })
     //console.log(`GOT httpRequest result: ${JSON.stringify(result, null, 2)}`)
+    console.log({result})
     return result
   } finally {
     await registry.terminate()
@@ -70,7 +81,7 @@ async function testCreateService() {
 }
 
 async function testCallService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:10000'
+  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
   let registry = await startRegistry()
   let server = await createService('test', function testService(payload) {
     // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
@@ -89,7 +100,7 @@ async function testCallService() {
 
 
 async function testDependentService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:14000'
+  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:14000'
   let registry, server1, server2, server3, server4
   try {
     registry = await startRegistry()
@@ -123,7 +134,7 @@ async function testDependentService() {
 }
 
 async function testDependentServiceWithEagerLookup() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = '127.0.0.1:15000'
+  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:15000'
   let registry, server1, server2, server3, server4
   try {
     regsitry = await startRegistry()
@@ -155,6 +166,8 @@ async function testDependentServiceWithEagerLookup() {
   }
 }
 
+// TODO test fail count
+// TODO logger w/ console levels
 async function test() {
   let testFns = [
     testHttpServer,
@@ -171,7 +184,7 @@ async function test() {
       console.log(`\nRunning ${fn.name}`)
       try {
         let result = await fn()
-        console.log(`Test completed with result ${result}`)
+        console.log(`Test completed with result ${ typeof result === 'object' ? JSON.stringify(result) : result}`)
       } catch (err) {
         console.log(`Test failed with error: ${err.stack}`)
       }
