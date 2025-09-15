@@ -2,6 +2,10 @@ const os = require('os')
 const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const tryRegisterLimit = 3
+
 // TODO bind local cache locations in order to skip initial httpRequest to registry
 // TODO move to call-service?
 async function callService (name, payload) {
@@ -17,7 +21,7 @@ async function callService (name, payload) {
   return result
 }
 
-let cache = {}
+let cache = {} // TODO need to invalidate services that are terminated
 
 module.exports = async function createService (name, fn) {
   if (!fn && name.name) {
@@ -33,26 +37,46 @@ module.exports = async function createService (name, fn) {
   //   registryHost,
   //   allbutport: registryHost.split(':').slice(0,2).join(':')
   // })
-  let location = await httpRequest(registryHost, {
-    setup: {
-      service: name,
-      domain: registryHost
-      && (
-        registryHost.split(':').slice(0,2).join(':')
-      ) || os.hostname()
+
+  let tryRegisterCount = 0
+  let location
+  let port
+  do {
+    tryRegisterCount++
+    try {
+      location = await httpRequest(registryHost, {
+        setup: {
+          service: name,
+          domain: registryHost
+          && (
+            registryHost.split(':').slice(0,2).join(':')
+          ) || os.hostname()
+        }
+      })
+
+      // console.log({location})
+
+      port = location.split(':')[2]
+      // console.log({protocol, domain, port})
+      let context = { call: callService }
+      // IMPORTANT TODO build context with full service method names
+      fn = fn.bind(context)
+    } catch (err) {
+      
+      await sleep(20 * tryRegisterCount)
+      // if (err instanceof TypeError) {
+      // }
+      if (tryRegisterCount > tryRegisterLimit) throw new Error('Retry register exceeded attempts')
     }
-  })
+  } while (tryRegisterCount < tryRegisterLimit)
 
-  // console.log({location})
-
-  let [protocol, domain, port] = location.split(':')
-  // console.log({protocol, domain, port})
-  let context = { call: callService }
-  // TODO build context with full service method names
-  fn = fn.bind(context)
+  
 
   function handler(payload) {
+    console.log(`IN SERVICE ${name} HTTP HANDLER`, payload)
+    // TODO probably need a more definitive check for the cache update
     if (payload.service && payload.location) {
+      // for now, assume this is from the registry and the data is correct
       let { service, location } = payload
       cache.addresses[location] = service
       if (!cache.services[service]) cache.services[service] = []
@@ -70,6 +94,9 @@ module.exports = async function createService (name, fn) {
     } else throw err
   }
 
+  console.log(server.address())
+  // process.exit(0)
+  console.log('SERVER STARTED... REGISTERING', { address: server.address(), name, location, registryHost })
   let result = await httpRequest(registryHost, {
     register: {
       service: name,
@@ -81,5 +108,24 @@ module.exports = async function createService (name, fn) {
   cache.services = result.services
 
   console.log(`service "${name}" registered at ${registryHost}`)
+  server.service = name
+  server.location = location
+
+  let httpServerTerminate = server.terminate.bind(server)
+  server.terminate = async () => {
+    console.log('CLEANING CACHE BEFORE TERMINATE', {name, services: cache.services, location, addresses: cache.addresses})
+    
+    if (cache.services) delete cache.services[name]
+    if (cache.addresses) delete cache.addresses[location]
+    // cache = {}
+
+    // Remove from registry gracefully
+    await httpRequest(registryHost, {
+      unregister: { service: name, location }
+    })
+    console.log('UNREGISTERED BEFORE TERMINATING SERVICE', {name, location, cache})
+
+    await httpServerTerminate()
+  }
   return server
 }

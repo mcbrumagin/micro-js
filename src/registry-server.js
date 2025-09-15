@@ -16,7 +16,7 @@ async function get (key) {
   return cache[key]
 }
 
-const subscriptions = {}
+let subscriptions = {}
 
 async function publish (payload) {
   let { type, message } = payload
@@ -95,6 +95,7 @@ async function register (payload) {
     return { services: mappedServices, addresses }
   } else if (type === 'route') {
     let { service, path, dataType = 'text/html' } = payload
+    console.log({ path, service, dataType })
     if (path.includes('*')) {
       controllerRoutes[path.replace('*', '')] = { service, dataType }
       console.log(`route controller "${path}" registered for service "${service}"`)
@@ -141,7 +142,8 @@ const roundRobin = {}
 async function call ({ name, payload }) {
   let err
   if (!name) err = new Error(`Proxy call requires service "name" property`)
-  if (!payload) err = new Error(`Proxy call requires service "payload" property`)
+  // if (!payload) err = new Error(`Proxy call requires service "payload" property`)
+  if (!payload) payload = {}
   if (!services[name]) err = new Error(`No service by name "${name}"`)
   if (err) {
     err.details = { name, payload }
@@ -163,12 +165,16 @@ async function call ({ name, payload }) {
 }
 
 module.exports = async function createServer(port) {
-  cache = {} // TODO REMOVE?
-  services = {}
-  addresses = {}
-  routes = {}
-  controllerRoutes = {}
-  domainPorts = {}
+  const initState = () => {
+    cache = {} // TODO REMOVE?
+    services = {}
+    addresses = {}
+    routes = {}
+    controllerRoutes = {}
+    domainPorts = {}
+  }
+
+  initState()
 
   if (!port) {
     let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
@@ -178,10 +184,13 @@ module.exports = async function createServer(port) {
       if (!port || isNaN(port)) {
         throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
       }
-    } 
+    }
   }
 
-  return httpServer(port, async function registryServer(payload, request, response) {
+  let server = await httpServer(port, async function registryServer(payload, request, response) {
+    // initState() // TODO VERIFY
+    // cache = {} // TODO VERIFY // reset cache for terminated registry servers // TODO create proper registry server terminate fn?
+
     const findControllerRoute = url => {
       for (let basePath in controllerRoutes) {
         let reg = new RegExp(`^${basePath}`, 'i')
@@ -201,21 +210,21 @@ module.exports = async function createServer(port) {
         response.end(result)
         return false // skip default response write/end
       }
-      
+
       let controllerTarget = findControllerRoute(url)
       if (controllerTarget) {
         let { service, dataType } = controllerTarget
-        
+
         // TODO try/catch res(500) etc
         let result = await call({ name: service, payload: { url }})
-        
+
         let { status } = result
         dataType = result.dataType || dataType
         if (dataType) response.writeHead(status || 200, { 'content-type': dataType })
-        
+
         if (typeof result === 'object') response.end(result.payload)
         else response.end(result)
-        
+
         return false // skip default response write/end
       }
 
@@ -238,7 +247,8 @@ module.exports = async function createServer(port) {
     }
 
     try {
-      if (payload.publish) return publish(payload.publish)
+      if (payload.health) return { status: 'ready', timestamp: Date.now() }
+      else if (payload.publish) return publish(payload.publish)
       else if (payload.subscribe) return subscribe(payload.subscribe)
       else if (payload.unsubscribe) return unsubscribe(payload.unsubscribe)
       else if (payload.get) return get(payload.get)
@@ -255,4 +265,13 @@ module.exports = async function createServer(port) {
       response.end(err.stack)
     }
   })
+  
+  let httpServerTerminate = server.terminate.bind(server)
+  server.terminate = async () => {
+    console.log('CLEANING UP REGISTRY SERVER BEFORE TERMINATE')
+    initState()
+    subscriptions = {}
+    await httpServerTerminate()
+  }
+  return server
 }

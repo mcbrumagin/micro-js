@@ -42,17 +42,22 @@ async function testPubSubServer() {
     // TODO assert on req results
     return Date.now() - start + 'ms - for various pubSubServer requests'
   } finally {
-    server && await server.terminate()
-    subServer1 && await subServer1.terminate()
-    subServer2 && await subServer2.terminate()
+    await subServer1.terminate()
+    await subServer2.terminate()
+    await server.terminate()
   }
 }
 
 async function startRegistry() {
   let port = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
   let server = await registryServer(port)
+  // console.log('waited for registry server in test helper: ', server)
+  console.log('registry server terminate: ', server.terminate)
   return server
 }
+
+// let lastTestPort = 10000
+// let getTestPortRange
 
 async function testCreateService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
@@ -75,29 +80,67 @@ async function testCreateService() {
     console.log({result})
     return result
   } finally {
-    await registry.terminate()
     await server.terminate()
+    await registry.terminate()
   }
 }
 
 async function testCallService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
+  console.log('START')
   let registry = await startRegistry()
+  // there's a race condition in the registry server starting before create service calls to register
+  // await sleep(500)
+  console.log('CREATE SERVICE TEST')
   let server = await createService('test', function testService(payload) {
     // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
     return 'TEST SERVICE RESULT'
   })
 
   try {
+    console.log('CALL SERVICE TEST')
     let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
     //console.log(`GOT callService result: ${JSON.stringify(result, null, 2)}`)
     return result
+  } catch (err) {
+    console.log('ERR IN testCallService', err.stack)
+    throw err
   } finally {
-    await registry.terminate()
     await server.terminate()
+    await registry.terminate()
+    console.log({registry})
   }
 }
 
+
+async function testBasicDependentService() {
+  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
+  registry = await startRegistry()
+  // await sleep(500)
+  console.log({registry})
+
+  server2 = await createService('test2', async function testService(payload) {
+    return payload + ' plus test2 call'
+  })
+
+  server1 = await createService('test', function testService(payload) {
+    return this.call('test2', payload + ' plus test call') 
+  })
+
+  try {
+    console.log('CALL SERVICE TEST')
+    let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
+    //console.log(`GOT callService result: ${JSON.stringify(result, null, 2)}`)
+    return result
+  } catch (err) {
+    console.log('ERR IN testCallService', err.stack)
+    throw err
+  } finally {
+    await server1.terminate()
+    await server2.terminate()
+    await registry.terminate()
+  }
+}
 
 async function testDependentService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:14000'
@@ -108,6 +151,7 @@ async function testDependentService() {
       let result = await this.call('test3', payload)
       return result
     })
+
     server1 = await createService('test', function testService(payload) {
       return 'TEST SERVICE RESULT'
     })
@@ -124,46 +168,77 @@ async function testDependentService() {
     })
     result = await callService('test4', {})
     return result
+  } catch (err) {
+    console.log(err.stack)
   } finally {
-    server1 && await server1.terminate()
-    server2 && await server2.terminate()
-    server3 && await server3.terminate()
-    server4 && await server4.terminate()
-    registry && await registry.terminate()
+    await server1.terminate()
+    await server2.terminate()
+    await server3.terminate()
+    await server4.terminate()
+    await registry.terminate()
+    console.log('CLEANED UP SERVERS')
   }
 }
 
+// TODO what makes this an eager lookup?
 async function testDependentServiceWithEagerLookup() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:15000'
+  process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000' // this just gets used in our startRegistry fn
   let registry, server1, server2, server3, server4
   try {
-    regsitry = await startRegistry()
+    registry = await startRegistry()
     server2 = await createService('test2', async payload => await callService('test3', payload))
-    server1 = await createService('test', async payload => 'TEST SERVICE RESULT')
 
+    // TODO create test logger fn that logs the current line number by pulling from an err stack
+    var { service, location } = server2
+    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
+
+    server1 = await createService('test', async payload => `TEST SERVICE RESULT... ${payload}`)
+    
+    // TODO create test logger fn that logs the current line number by pulling from an err stack
+    var { service, location } = server1
+    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
+    
+
+    // await sleep(5)
     let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
+    // TODO assert result
 
     server3 = await createService(async function test3(payload) {
-      let result = await callService('test', 'YEAH')
-      return result + ' YEAH BABY'
+      let result = await callService('test', 'HELL')
+      return result + ' YEAH BABY' // should be right before " DUDE!"
     })
 
+    // TODO create test logger fn that logs the current line number by pulling from an err stack
+    var { service, location } = server3
+    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
+
+    // await sleep(5)
     result = await callService('test2', {})
+    // TODO assert result
 
     server4 = await createService(async function test4(payload) {
       let result = await callService('test2', 'YAY!')
-      return result + ' DUDE!'
+      return result + ', DUDE!' // final result ends with DUDE (1st service call, last append)
     })
 
-    result = await callService('test4', {})
+    // TODO create test logger fn that logs the current line number by pulling from an err stack
+    var { service, location } = server4
+    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
+
+    result = await callService('test4')
     return result
   } finally {
-    server1 && await server1.terminate()
-    server2 && await server2.terminate()
-    server3 && await server3.terminate()
-    server4 && await server4.terminate()
-    registry && await registry.terminate()
+    await server1.terminate()
+    await server2.terminate()
+    await server3.terminate()
+    await server4.terminate()
+    await registry.terminate()
   }
+}
+
+
+async function raceHelper() {
+  return sleep(500)
 }
 
 // TODO test fail count
@@ -172,26 +247,52 @@ async function test() {
   let testFns = [
     testHttpServer,
     testPubSubServer,
+    // raceHelper,
     testCreateService,
+    // raceHelper,
     testCallService,
+    // raceHelper,
+    testBasicDependentService,
     testDependentService,
-    testDependentServiceWithEagerLookup
+    testCallService,
+    testCallService,
+    // // raceHelper,
+    testDependentServiceWithEagerLookup,
+    // testDependentServiceWithEagerLookup
     // TODO negative test cases (bad port/env/etc)
   ]
 
+  let testSuccess = 0
+  let testFail = 0
+  let failedCases = []
   testFns = testFns.map(fn => {
     return async () => {
       console.log(`\nRunning ${fn.name}`)
       try {
         let result = await fn()
-        console.log(`Test completed with result ${ typeof result === 'object' ? JSON.stringify(result) : result}`)
+        console.log(`\n\n+++++ TEST COMPLETED WITH RESULT: ${ typeof result === 'object' ? JSON.stringify(result) : result} +++++\n`)
+        testSuccess++
       } catch (err) {
-        console.log(`Test failed with error: ${err.stack}`)
+        console.log(`\n\n----- TEST FAILED WITH ERROR: ${err.stack} -----\n`)
+        testFail++
+        failedCases.push(fn.name)
       }
     }
   })
 
   for (let test of testFns) await test()
+
+  if (failedCases.length > 0) failedCases.unshift('FAILURE CASES:')
+  console.log(`TEST RUN FINISHED...
+    TOTAL: ${testSuccess + testFail}
+    SUCCESS: ${testSuccess}
+    FAIL: ${testFail}
+    
+    ${failedCases.length > 0 ? `\n${failedCases.join('\n    ')}` : ''}`
+  )
+
+  // failedCases.unshift('')
+  // console.log(failedCases.join('\n    '))
 }
 
 test()

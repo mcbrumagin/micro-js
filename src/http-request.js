@@ -32,7 +32,7 @@ async function request(address, body) {
       headers,
       body: JSON.stringify(body)
     }
-    // console.log({options})
+    // console.log({address,options})
     let response = await fetch(address, options)
 
     // console.log({response})
@@ -49,7 +49,7 @@ async function request(address, body) {
     // console.log('http-request', {result})
     return result
   } catch (err) {
-    console.error(err.stack) // TODO
+    console.error(`Error making request to address: ${address} with payload: ${JSON.stringify(body)}. Stack: ${err.stack}`)
     throw err
   }
 }

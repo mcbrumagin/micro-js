@@ -11,7 +11,7 @@ async function publish(payload) {
   let errors = []
   for (let location of subscriptions[type]) {
     try {
-      // console.log({location, message})
+      console.log({location, message})
       let result = await httpRequest(location, message)
       results.push(result)
     } catch (err) {

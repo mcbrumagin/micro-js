@@ -3,11 +3,8 @@
   "version": "0.0.3",
   "main": "src/index.js",
   "scripts": {
-    "test": "cross-env SERVICE_REGISTRY_ENDPOINT=http://localhost:10000 node --experimental-fetch src/test.js"
-  },
-  "dependencies": {
-    "request": "^2.83.0",
-    "request-promise-native": "^1.0.5"
+    "test": "node src/test.js",
+    "test-OLD": "cross-env SERVICE_REGISTRY_ENDPOINT=http://127.0.0.1:10000 node src/test.js"
   },
   "license": "MIT",
   "devDependencies": {

@@ -10,6 +10,7 @@
 - possibly call into rust or other polyglot services
 - possibly ML processes
 
+
 ## General Notes
 - easily create functional microservices
 - registry server tracks all microservice locations
