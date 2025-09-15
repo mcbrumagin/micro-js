@@ -4,6 +4,13 @@ const pubSubServer = require('./pub-sub-server.js')
 const registryServer = require('./registry-server.js')
 const createService = require('./create-service.js')
 const callService = require('./call-service.js')
+const Logger = require('./logger.js')
+
+const logger = new Logger({
+  serviceName: 'test',
+  overrideConsoleLog: true,
+  includeLogLineNumbers: true
+})
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -68,6 +75,8 @@ async function testCreateService() {
     payload.prop3 = 'test'
     return payload
   })
+
+  console.log({registry, name, server})
 
   try {
     let result = await httpRequest('http://localhost:10000', {
@@ -197,7 +206,6 @@ async function testDependentServiceWithEagerLookup() {
     // TODO create test logger fn that logs the current line number by pulling from an err stack
     var { service, location } = server1
     console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
-    
 
     // await sleep(5)
     let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
@@ -225,6 +233,8 @@ async function testDependentServiceWithEagerLookup() {
     var { service, location } = server4
     console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
 
+    // throw new Error('TESTING WHAT ERRS LOOK LIKE')
+
     result = await callService('test4')
     return result
   } finally {
@@ -247,7 +257,7 @@ async function test() {
   let testFns = [
     testHttpServer,
     testPubSubServer,
-    // raceHelper,
+    // // raceHelper,
     testCreateService,
     // raceHelper,
     testCallService,
@@ -256,9 +266,9 @@ async function test() {
     testDependentService,
     testCallService,
     testCallService,
-    // // raceHelper,
+    // raceHelper,
     testDependentServiceWithEagerLookup,
-    // testDependentServiceWithEagerLookup
+    testDependentServiceWithEagerLookup
     // TODO negative test cases (bad port/env/etc)
   ]
 
@@ -270,10 +280,10 @@ async function test() {
       console.log(`\nRunning ${fn.name}`)
       try {
         let result = await fn()
-        console.log(`\n\n+++++ TEST COMPLETED WITH RESULT: ${ typeof result === 'object' ? JSON.stringify(result) : result} +++++\n`)
+        console.info(`\n\n+++++ TEST COMPLETED WITH RESULT: ${ typeof result === 'object' ? JSON.stringify(result) : result} +++++\n`)
         testSuccess++
       } catch (err) {
-        console.log(`\n\n----- TEST FAILED WITH ERROR: ${err.stack} -----\n`)
+        console.error(`\n\n----- TEST FAILED WITH ERROR: ${err.stack} -----\n`)
         testFail++
         failedCases.push(fn.name)
       }
@@ -283,13 +293,11 @@ async function test() {
   for (let test of testFns) await test()
 
   if (failedCases.length > 0) failedCases.unshift('FAILURE CASES:')
-  console.log(`TEST RUN FINISHED...
-    TOTAL: ${testSuccess + testFail}
-    SUCCESS: ${testSuccess}
-    FAIL: ${testFail}
-    
-    ${failedCases.length > 0 ? `\n${failedCases.join('\n    ')}` : ''}`
-  )
+  console.info(`TEST RUN FINISHED...`)
+  console.info(logger.writeColor('magenta', `    TOTAL: ${testSuccess + testFail}`))
+  console.info(logger.writeColor('green', `    SUCCESS: ${testSuccess}`))
+  console.info(logger.writeColor('red', `    FAIL: ${testFail}`))
+  console.info(logger.writeColor('red', failedCases.length > 0 ? `\n${failedCases.join('\n    ')}` : ''))
 
   // failedCases.unshift('')
   // console.log(failedCases.join('\n    '))
