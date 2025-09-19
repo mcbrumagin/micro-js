@@ -9,7 +9,7 @@ const tryRegisterLimit = 3
 
 const cache = {}
 
-// TODO bind local cache locations in order to skip initial httpRequest to registry
+// TODO!!! bind local cache locations in order to skip initial httpRequest to registry
 // TODO move to call-service?
 async function callService (name, payload) {
   // name could be the function if called "locally", or a noop of the same name for code-completion
@@ -88,7 +88,7 @@ module.exports = async function createService (name, fn) {
     Object.defineProperty(handler, 'name', { value: name, writable: false })
     server = await httpServer(port, handler)
   } catch (err) {
-    if (err.message.indexOf('listen EADDRINUSE') !== -1) {
+    if (err.message.includes('listen EADDRINUSE')) {
       return createService(name, fn)
     } else throw err
   }

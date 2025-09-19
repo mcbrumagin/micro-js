@@ -17,10 +17,7 @@ async function request(address, body) {
   let result = await response.text()
   
   if (status >= 400 && status < 600) {
-    // console.log({httpres: result, split: result.split('\n')})
-    // let [newResult, ...stack] = result.split('\n')
-    // console.log({newResult, stack})
-    // throw new HttpError(status, newResult, '\n' + stack.join('\n'))
+    // TODO should cascading error messages be cleaned up here instead?
     throw new HttpError(status, result)
   }
 

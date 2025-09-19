@@ -7,6 +7,29 @@ const callService = require('./call-service.js')
 const Logger = require('./logger.js')
 const HttpError = require('./http-error.js')
 
+class MultipleAssertError extends Error {
+  constructor(val, errors) {
+    super('Multiple Assert Errors')
+    this.val = val
+    this.errors = errors
+    this.name = 'MultipleAssertError'
+    this.stack = this.name + '\n' + JSON.stringify(val) + '\n\n' + errors.map(e => e.stack).join('\n\n')
+  }
+}
+
+
+class MultipleErrorAssertError extends Error {
+  constructor(err, errors) {
+    super('Multiple Error Assert Errors')
+    this.err = err
+    this.errors = errors
+    this.name = 'MultipleErrorAssertError'
+
+    errors.unshift(err)
+    this.stack = this.name + '\n\n' + errors.map(e => e.stack).join('\n\n')
+  }
+}
+
 const logger = new Logger({
   // serviceName: 'test',
   overrideConsoleLog: true,
@@ -28,7 +51,7 @@ async function assert(valOrFn, assertFn) {
   )
 }
 
-async function assertErr(errOrFn, assertFn) {
+async function assertErr(errOrFn, ...assertFns) {
   let err
   if (typeof errOrFn === 'function') await errOrFn().catch(e => err = e)
   else err = errOrFn
@@ -39,10 +62,18 @@ async function assertErr(errOrFn, assertFn) {
     throw new Error(message)
   }
 
-  let assertResult = await assertFn(err)
-  if (assertResult != true) throw new Error(
-    `Assert failed for \nerr: ${err}\nassertFn: ${assertFn.toString()}`
-  )
+  let errors = await Promise.all(assertFns.map(async assertFn => {
+    let assertResult = await assertFn(err)
+    // console.log({assertResult, assertFn})
+    if (assertResult != true) return new Error(
+      `Assert failed for \nerr: ${err}\nassertFn: ${assertFn.toString()}`
+    )
+  }))
+  // console.log(...errors)
+
+  errors = errors.filter(e => e instanceof Error)
+  if (errors.length > 1) throw new MultipleErrorAssertError(err, errors)
+  else if (errors.length === 1) throw errors[0]
 }
 
 
@@ -221,7 +252,7 @@ async function testMissingService() {
   try {
     await assertErr(
       () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
-      err => err.message.includes('No service by name "test"')
+      err => err.message.includes('No service by name "test"') && !console.error(err)
     )
   } finally {
     await registry.terminate()
@@ -286,7 +317,7 @@ async function testDependentService() {
   }
 }
 
-// TODO what makes this an eager lookup?
+// callService (instead of using this.call) forces an eager lookup
 async function testDependentServiceWithEagerLookup() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000' // this just gets used in our startRegistry fn
   let registry, server1, server2, server3, server4
@@ -339,12 +370,20 @@ async function testDependentServiceThrowsError() {
   await terminateAfter(
     await startRegistry(),
     await createService('test', async function testService(payload) {
-      throw new Error('Test error from inside service fn')
+      return await this.call('test2', payload)
+    }),
+    await createService('test2', async function testService2(payload) {
+      throw new Error('Test error from inside test2 service')
     }),
     async () => {
       await assertErr(
         () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
-        err => err.message.includes('Test error from inside service fn')
+        err => err.message.includes('Test error from inside test2 service'),
+        err => err.stack.includes('in service "test"'),
+        err => err.stack.includes('at test2'),
+        err => err.status === 500,
+        err => err.isServerError,
+        err => err.name.includes('HttpServerError')
       )
     }
   )

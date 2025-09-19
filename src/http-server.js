@@ -4,6 +4,19 @@ const HttpError = require('./http-error.js')
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+function prependServiceNameToErrorStack(err, serviceName) {
+  // helpful for cascading errors
+
+  // console.log({err, serviceName})
+  let errFrags = err.stack.split('\n')
+  errFrags.splice(1, 0, `in service "${serviceName}"`)
+  err.stack = errFrags.join('\n')
+  // if (err.stack.includes('Object.testService2')) {
+    // console.log({err, serviceName})
+    // process.exit(1)
+  // }
+}
+
 module.exports = async function createServer(port, fn) {
   if (!port) throw new Error('"port" is required')
   if (!fn) throw new Error('"fn" is required')
@@ -24,11 +37,10 @@ module.exports = async function createServer(port, fn) {
           response.end(JSON.stringify(result))
         }
       } catch (err) {
-        // console.error(err.stack)
-        // if (err instanceof HttpError) throw err
         if (err instanceof HttpError) {
-          response.writeHead(err.status)
-          // TODO something we can serialize into multiple cascading error stacks
+          prependServiceNameToErrorStack(err, fn.name)
+          // response.setHeader('x-correlation-id', generateId()) // TODO?
+          response.writeHead(err.status || 500)
           response.end(err.stack)
         } else {
           response.writeHead(500)

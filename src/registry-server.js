@@ -129,7 +129,7 @@ async function lookup (service) {
 }
 
 const roundRobin = {}
-// TODO bind local cache locations in order to skip initial httpRequest to registry
+// TODO!!! bind local cache locations in order to skip initial httpRequest to registry
 async function call ({ name, payload }) {
   let err
   if (!name) err = new HttpError(400, `Proxy call requires service "name" property`)
