@@ -15,10 +15,13 @@ function stringify(obj) {
   let string = ''
   for (let prop in obj) {
     if (obj[prop] instanceof Error) string += obj[prop].stack
-    else if (typeof obj[prop] === 'object') string += JSON.stringify(obj[prop]) // TODO formatJSON option
-    else if (typeof obj[prop] === 'function') string += obj[prop].name || '[anonymous fn]'
-    else string += obj[prop]
+    else if (typeof obj[prop] === 'object') string += 
+      `\n  ${prop}: ${JSON.stringify(obj[prop], null, 2)}`
+    else if (typeof obj[prop] === 'function') string +=
+      `\n  ${prop}: ${obj[prop]?.toString() || obj[prop]?.name || '[anonymous fn]'}`
+    else string += `\n  ${prop}: ${obj[prop]}`
   }
+  return string
 }
 
 const colors = {
@@ -78,9 +81,11 @@ module.exports = class Logger {
       logFileRetainLineLimit: 0, // no retention limit
       includeLogLineNumbers: false,
       includeLogLevelInOutput: false,
-      formatJson: true,
+      // formatJson: true,
       noWarn: false
     }, options)
+    // consol.log({options})
+    // process.exit(0)
 
     // this.logLevels = logLevels
 
@@ -106,7 +111,7 @@ module.exports = class Logger {
 
   createLogFn(level) {
     let {
-      formatJson,
+      // formatJson,
       includeLogLineNumbers,
       serviceName
      } = this.options
@@ -117,19 +122,22 @@ module.exports = class Logger {
     else this[level] = function log(...args) {
       // consol.log("activeLogLevels.indexOf(level)",activeLogLevels.indexOf(level) >= 0)
       if (activeLogLevels.indexOf(level) >= 0) {
-        let color = getColorForLogLevel(level)
-        // consol.log({ color, args })
-        if (includeLogLineNumbers) args.unshift(writeColor('white', getLogLineNumber(args), color))
-        if (serviceName) args.unshift(writeColor('white', serviceName, color))
+        let color = getColorForLogLevel(level) || '' // use default terminal color
+        args.unshift(color) // start with color code string
+        
+        if (includeLogLineNumbers) args.unshift(writeColor('white', getLogLineNumber(args), colors.reset))
+        if (serviceName) args.unshift(writeColor('white', serviceName), colors.reset)
 
         // consol.log({args})
         let logContent = ''
         for (let arg of args) {
+          // consol.log({args})
+          // process.exit(0)
           if (arg instanceof Error) logContent += arg.stack
-          else if (typeof arg === 'object' && formatJson) logContent += stringify(arg) //JSON.stringify(arg, null, 2)
           else if (typeof arg === 'object') logContent += stringify(arg) // JSON.stringify(arg)
           else logContent += arg
-          logContent += ' | '
+
+          if (arg !== color) logContent += ' | ' // TODO?
         }
         logContent = logContent.slice(0, logContent.length - 3) + colors.reset
         if (consol[level]) consol[level](logContent)

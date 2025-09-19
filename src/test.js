@@ -13,10 +13,11 @@ const logger = new Logger({
   // includeLogLineNumbers: true
 })
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 // TODO move assert fns to own module
 
 async function assert(valOrFn, assertFn) {
-  console.log({valOrFn, assertFn})
   let result
   if (typeof valOrFn === 'function') result = await valOrFn()
   else result = valOrFn
@@ -28,7 +29,6 @@ async function assert(valOrFn, assertFn) {
 }
 
 async function assertErr(errOrFn, assertFn) {
-  console.log({errOrFn, assertFn})
   let err
   if (typeof errOrFn === 'function') await errOrFn().catch(e => err = e)
   else err = errOrFn
@@ -45,7 +45,6 @@ async function assertErr(errOrFn, assertFn) {
   )
 }
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function terminateAfter(...args /* ...serverFns, testFn */) {
   args.unshift(args.pop()) // rearrange for spread
@@ -60,7 +59,8 @@ async function terminateAfter(...args /* ...serverFns, testFn */) {
     let registryIndex = servers.findIndex(s => s.isRegistry)
     if (registryIndex > -1) {
       let registryServer = servers[registryIndex]
-      let servers = servers.slice(0, registryIndex).concat(servers.slice(registryIndex + 1))
+      // TODO verify
+      servers = servers.slice(0, registryIndex).concat(servers.slice(registryIndex + 1))
       for (let server of servers) await server.terminate()
       await registryServer.terminate()
     } else for (let server of servers) await server.terminate()
@@ -68,16 +68,16 @@ async function terminateAfter(...args /* ...serverFns, testFn */) {
 }
 
 async function testHttpServer () {
-  let server = await httpServer(10000, function test(payload) {
-    console.log(`in test httpServer, got payload "${JSON.stringify(payload)}"`)
-    return Date.now()
-  })
-  try {
-    let result = await httpRequest('http://localhost:10000', { testPayload: 'testPayload' })
-    return new Date() - Number(result) + 'ms request/response time'
-  } finally {
-    await server.terminate()
-  }
+  await terminateAfter(
+    await httpServer(10000, function test(payload) {
+      console.log(`in test httpServer, got payload "${JSON.stringify(payload)}"`)
+      return Date.now()
+    }),
+    async () => {
+      let result = await httpRequest('http://localhost:10000', { testPayload: 'testPayload' })
+      return new Date() - Number(result) + 'ms request/response time'
+    }
+  )
 }
 
 async function testPubSubServer() {
@@ -194,11 +194,11 @@ async function testBasicDependentService() {
   registry = await startRegistry()
 
   server2 = await createService('test2', async function testService(payload) {
-    return payload + ' plus test2 call'
+    return { ...payload, test2: 'called test2' }
   })
 
   server1 = await createService('test', function testService(payload) {
-    return this.call('test2', payload + ' plus test call') 
+    return this.call('test2', { ...payload, test: 'called test' }) 
   })
 
   try {
@@ -335,12 +335,23 @@ async function testDependentServiceWithEagerLookup() {
   }
 }
 
+async function testDependentServiceThrowsError() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test', async function testService(payload) {
+      throw new Error('Test error from inside service fn')
+    }),
+    async () => {
+      await assertErr(
+        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        err => err.message.includes('Test error from inside service fn')
+      )
+    }
+  )
+}
+
 // TODO basic negative test cases
 
-
-async function raceHelper() {
-  return sleep(500)
-}
 
 async function test() {
   let testFns = [
@@ -356,6 +367,7 @@ async function test() {
     testDependentServiceWithEagerLookup,
     testMissingService,
     testMissingDependentService,
+    testDependentServiceThrowsError,
     // TODO negative test cases (bad port/env/etc)
   ]
 
@@ -365,16 +377,16 @@ async function test() {
   let failedCases = []
   testFns = testFns.map(fn => {
     return async () => {
-      console.log(`- - - Running ${fn.name} - - -`)
+      console.log(`\n- - - RUNNING ${fn.name} - - -`)
       try {
         let result = await fn()
-        console.info(logger.writeColor('green', `\n\n+ + + TEST SUCCEEDED WITH RESULT: ${
-          typeof result === 'object' ? JSON.stringify(result) : result
+        console.info(logger.writeColor('green', `+ + + ${fn.name} SUCCEEDED ${
+          result !== undefined ? `WITH RESULT: ${JSON.stringify(result)}` : ''
         } + + +\n`))
         testSuccess++
         successCases.push(fn.name)
       } catch (err) {
-        console.error(logger.writeColor('red', `\n\nx x x TEST FAILED WITH ERROR: ${err.message} x x x\n`))
+        console.error(logger.writeColor('red', `\n\nx x x ${fn.name} FAILED WITH ERROR: ${err.message} x x x\n`))
         testFail++
         failedCases.push({name: fn.name, err})
       }

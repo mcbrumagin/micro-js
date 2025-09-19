@@ -7,16 +7,6 @@ let addresses
 let routes
 let controllerRoutes
 let domainPorts
-
-// TODO REMOVE cache?
-let cache
-async function set (key, val) {
-  cache[key] = val
-}
-async function get (key) {
-  return cache[key]
-}
-
 let subscriptions = {}
 
 async function publish (payload) {
@@ -167,7 +157,6 @@ async function call ({ name, payload }) {
 
 module.exports = async function createServer(port) {
   const initState = () => {
-    cache = {} // TODO REMOVE?
     services = {}
     addresses = {}
     routes = {}
@@ -183,15 +172,12 @@ module.exports = async function createServer(port) {
       port = registryHost.split(':')[2]
       // console.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
-        throw new HttpError(400, 'Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
+        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
       }
     }
   }
 
   let server = await httpServer(port, async function registryServer(payload, request, response) {
-    // initState() // TODO VERIFY
-    // cache = {} // TODO VERIFY // reset cache for terminated registry servers // TODO create proper registry server terminate fn?
-
     const findControllerRoute = url => {
       for (let basePath in controllerRoutes) {
         let reg = new RegExp(`^${basePath}`, 'i')
@@ -252,8 +238,6 @@ module.exports = async function createServer(port) {
       else if (payload.publish) return publish(payload.publish)
       else if (payload.subscribe) return subscribe(payload.subscribe)
       else if (payload.unsubscribe) return unsubscribe(payload.unsubscribe)
-      else if (payload.get) return get(payload.get)
-      else if (payload.set) return set(...payload.set)
       else if (payload.setup) return setup(payload.setup)
       else if (payload.register) return register(payload.register)
       else if (payload.unregister) return unregister(payload.unregister)
@@ -269,10 +253,14 @@ module.exports = async function createServer(port) {
   
   let httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    // console.log('CLEANING UP REGISTRY SERVER BEFORE TERMINATE')
+    console.log('registry terminating')
     initState()
     subscriptions = {}
     await httpServerTerminate()
+
+    // TODO call registered services to ask them to unreg/rereg with new server?
   }
+
+  server.isRegistry = true
   return server
 }

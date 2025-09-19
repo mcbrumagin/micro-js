@@ -21,7 +21,7 @@ class HttpError extends Error {
       : status ? `Error [${status}]`
       : 'Error'
     
-    this.stack += stack.trim()
+    this.stack += '\n' + stack.trim()
   }
 }
 

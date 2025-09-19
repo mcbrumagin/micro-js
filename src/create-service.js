@@ -32,9 +32,7 @@ module.exports = async function createService (name, fn) {
   }
 
   let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
-  // TODO
-  // get current domain from environment variable?
-  // service registry may be able to get domain from req/res objects?
+  if (!registryHost) throw new Error('Please define "SERVICE_REGISTRY_ENDPOINT" env variable')
 
   let tryRegisterCount = 0
   let location
@@ -62,12 +60,11 @@ module.exports = async function createService (name, fn) {
 
       await sleep(20 * tryRegisterCount)
       if (tryRegisterCount > tryRegisterLimit) {
-        retryErr.lastErr = err
-
         let retryErr = new Error('Retry register exceeded attempts - '
           + `lastErr message: ${retryErr.lastErr.message}`
         )
-        
+
+        retryErr.lastErr = err
         throw retryErr
       }
     }
