@@ -1,5 +1,6 @@
 const http = require('http')
 const readStream = require('./read-stream.js')
+const HttpError = require('./http-error.js')
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -23,13 +24,18 @@ module.exports = async function createServer(port, fn) {
           response.end(JSON.stringify(result))
         }
       } catch (err) {
-        console.error(err.stack)
-        response.writeHead(500)
-        response.end(err.stack)
+        // console.error(err.stack)
+        // if (err instanceof HttpError) throw err
+        if (err instanceof HttpError) {
+          response.writeHead(err.status)
+          // TODO something we can serialize into multiple cascading error stacks
+          response.end(err.stack)
+        } else {
+          response.writeHead(500)
+          response.end(err.stack)
+        }
       }
     })
-
-    let isListening = false
 
     server.on('error', err => {
       // console.log(`server "${fn.name}" failed to start`)
@@ -41,25 +47,15 @@ module.exports = async function createServer(port, fn) {
         // I hate this, but for some reason, in tests,
         // terminating and restarting causes subsequent create-service registrations to fail.
         // This should permit whatever outlying OS network freeing outside nodejs
-        // await sleep(5) // TODO REMOVE? IS THIS FIXED?
+        await sleep(5) // TODO
         resolve()
       })
       server.close()
     })
 
-
-
-    server.on('clientError', err => {
-      // console.log(`server "${fn.name}" failed to start`)
-      if (isListening) {
-        console.log('HTTP SERVER CLIENT ERR:', err.stack)
-      } else reject(err)
-    })
-
     // console.log({port, fn})
     server.listen(port, () => {
       console.log(`server "${fn.name}" listening on ${port}`)
-      isListening = true
       resolve(server)
     })
   })

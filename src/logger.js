@@ -6,6 +6,21 @@ const consol = {
   error: console.error.bind(console)
 }
 
+// TODO handle other js built-ins such as Error more gracefully
+// handle up to a certain object depth with recursion (default 3?)
+// other objects?
+// create custom stringify fn
+
+function stringify(obj) {
+  let string = ''
+  for (let prop in obj) {
+    if (obj[prop] instanceof Error) string += obj[prop].stack
+    else if (typeof obj[prop] === 'object') string += JSON.stringify(obj[prop]) // TODO formatJSON option
+    else if (typeof obj[prop] === 'function') string += obj[prop].name || '[anonymous fn]'
+    else string += obj[prop]
+  }
+}
+
 const colors = {
   red: '\x1b[31m',
   green: '\x1b[32m',
@@ -81,7 +96,7 @@ module.exports = class Logger {
       this.createLogFn(level)
     }
 
-    if (!this.options.noWarn) consol.warn(this.writeColor('yellow', `Log level = ${logLevel}\nActive levels: ${this.activeLogLevels.join(', ')}`))
+    if (!this.options.noWarn) consol.warn(this.writeColor('yellow', `Log level = ${logLevel} | Active levels: ${this.activeLogLevels.join(', ')}\n`))
     if (this.options.overrideConsoleLog) this.overrideConsoleLog()
   }
 
@@ -110,8 +125,9 @@ module.exports = class Logger {
         // consol.log({args})
         let logContent = ''
         for (let arg of args) {
-          if (typeof arg === 'object' && formatJson) logContent += JSON.stringify(arg, null, 2)
-          else if (typeof arg === 'object') logContent += JSON.stringify(arg)
+          if (arg instanceof Error) logContent += arg.stack
+          else if (typeof arg === 'object' && formatJson) logContent += stringify(arg) //JSON.stringify(arg, null, 2)
+          else if (typeof arg === 'object') logContent += stringify(arg) // JSON.stringify(arg)
           else logContent += arg
           logContent += ' | '
         }

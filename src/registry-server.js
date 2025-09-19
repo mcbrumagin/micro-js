@@ -1,5 +1,6 @@
 const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
+const HttpError = require('./http-error.js')
 
 let services
 let addresses
@@ -45,9 +46,9 @@ async function subscribe (payload) {
 
 async function unsubscribe (payload) {
   let { type, location } = payload
-  if (!subscriptions[type]) throw new Error(`No type "${type}"`)
+  if (!subscriptions[type]) throw new HttpError(404, `No type "${type}"`)
   let success = subscriptions[type].delete(location)
-  if (!success) throw new Error(`No location "${location}" for type "${type}"`)
+  if (!success) throw new HttpError(404, `No location "${location}" for type "${type}"`)
   if (!subscriptions[type].size) delete subscriptions[type]
 }
 
@@ -95,7 +96,7 @@ async function register (payload) {
     return { services: mappedServices, addresses }
   } else if (type === 'route') {
     let { service, path, dataType = 'text/html' } = payload
-    console.log({ path, service, dataType })
+    // console.log({ path, service, dataType })
     if (path.includes('*')) {
       controllerRoutes[path.replace('*', '')] = { service, dataType }
       console.log(`route controller "${path}" registered for service "${service}"`)
@@ -104,7 +105,7 @@ async function register (payload) {
       console.log(`route "${path}" registered for service "${service}"`)
     }
   } else {
-    throw new Error('Invalid type')
+    throw new HttpError(400, 'Invalid type')
   }
 }
 
@@ -128,7 +129,7 @@ async function lookup (service) {
     return servicesMap
   }
   else if (!services[service]) {
-    throw new Error(`No service by name "${service}"`)
+    throw new HttpError(404, `No service by name "${service}"`)
   }
 
   let addresses = services[service].map(s => s)
@@ -141,10 +142,10 @@ const roundRobin = {}
 // TODO bind local cache locations in order to skip initial httpRequest to registry
 async function call ({ name, payload }) {
   let err
-  if (!name) err = new Error(`Proxy call requires service "name" property`)
-  // if (!payload) err = new Error(`Proxy call requires service "payload" property`)
+  if (!name) err = new HttpError(400, `Proxy call requires service "name" property`)
+  // if (!payload) err = new HttpError(400, `Proxy call requires service "payload" property`)
   if (!payload) payload = {}
-  if (!services[name]) err = new Error(`No service by name "${name}"`)
+  if (!services[name]) err = new HttpError(404, `No service by name "${name}"`)
   if (err) {
     err.details = { name, payload }
     throw err
@@ -182,7 +183,7 @@ module.exports = async function createServer(port) {
       port = registryHost.split(':')[2]
       // console.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
-        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
+        throw new HttpError(400, 'Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
       }
     }
   }
@@ -268,7 +269,7 @@ module.exports = async function createServer(port) {
   
   let httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    console.log('CLEANING UP REGISTRY SERVER BEFORE TERMINATE')
+    // console.log('CLEANING UP REGISTRY SERVER BEFORE TERMINATE')
     initState()
     subscriptions = {}
     await httpServerTerminate()
