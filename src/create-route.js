@@ -11,6 +11,7 @@ module.exports = async function createRoute (path, service, dataType) {
   }
 
   let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
+  // console.log({ registryHost, path, service, dataType })
   await httpRequest(registryHost, {
     register: { type: 'route', service, path, dataType }
   })

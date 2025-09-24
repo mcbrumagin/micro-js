@@ -26,6 +26,11 @@ async function callService (name, payload) {
 }
 
 module.exports = async function createService (name, fn) {
+  if (!(typeof name === 'string' && name&& typeof fn === 'function')
+   && !(typeof name === 'function' && typeof name.name === 'string' && name.name)) throw new Error(
+    'Please provide a named function, or a service name and its function separately'
+  )
+
   if (!fn && name.name) {
     fn = name
     name = fn.name
@@ -37,6 +42,7 @@ module.exports = async function createService (name, fn) {
   let tryRegisterCount = 0
   let location
   let port
+
   do {
     tryRegisterCount++
     try {
@@ -56,20 +62,18 @@ module.exports = async function createService (name, fn) {
       // TODO build context with full service method names
       fn = fn.bind(context)
     } catch (err) {
-      console.warn('\n\nCREATE SERVICE SETUP HTTP REQ ERR\n\n')
+      console.warn('createService setup http request error', err.stack)
 
       await sleep(20 * tryRegisterCount)
       if (tryRegisterCount > tryRegisterLimit) {
         let retryErr = new Error('Retry register exceeded attempts - '
-          + `lastErr message: ${retryErr.lastErr.message}`
+          + `recent error message: ${err.message}`
         )
 
-        retryErr.lastErr = err
         throw retryErr
       }
     }
   } while (!port)
-
   
 
   function handler(payload) {
@@ -81,11 +85,17 @@ module.exports = async function createService (name, fn) {
       if (!cache.services[service]) cache.services[service] = []
       cache.services[service].push(location)
     } else return fn(payload)
+    // } else { // TODO cleanup
+    //   let result = fn(payload)
+    //   console.log({name, payload, result})
+    //   return result
+    // }
   }
 
   let server
   try {
     Object.defineProperty(handler, 'name', { value: name, writable: false })
+    // console.log({name, handler})
     server = await httpServer(port, handler)
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) {

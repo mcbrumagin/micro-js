@@ -3,6 +3,7 @@ const httpServer = require('./http-server.js')
 const pubSubServer = require('./pub-sub-server.js')
 const registryServer = require('./registry-server.js')
 const createService = require('./create-service.js')
+const createRoute = require('./create-route.js')
 const callService = require('./call-service.js')
 const Logger = require('./logger.js')
 const HttpError = require('./http-error.js')
@@ -16,7 +17,6 @@ class MultipleAssertError extends Error {
     this.stack = this.name + '\n' + JSON.stringify(val) + '\n\n' + errors.map(e => e.stack).join('\n\n')
   }
 }
-
 
 class MultipleErrorAssertError extends Error {
   constructor(err, errors) {
@@ -33,28 +33,51 @@ class MultipleErrorAssertError extends Error {
 const logger = new Logger({
   // serviceName: 'test',
   overrideConsoleLog: true,
-  // includeLogLineNumbers: true
+  includeLogLineNumbers: true
 })
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // TODO move assert fns to own module
 
-async function assert(valOrFn, assertFn) {
+async function assert(valOrFn, ...assertFns) {
   let result
   if (typeof valOrFn === 'function') result = await valOrFn()
   else result = valOrFn
 
-  let assertResult = await assertFn(result)
-  if (assertResult != true) throw new Error(
-    `Assert failed for \nval: ${result}\nassertFn: ${assertFn.toString()}`
-  )
+  // Handle single assertion function (backward compatibility)
+  if (assertFns.length === 1) {
+    let assertResult = await assertFns[0](result)
+    if (assertResult != true) throw new Error(
+      `Assert failed for \nval: ${JSON.stringify(result)}\nassertFn: ${assertFns[0].toString()}`
+    )
+    return
+  }
+
+  // Handle multiple assertion functions
+  let errors = await Promise.all(assertFns.map(async assertFn => {
+    let assertResult = await assertFn(result)
+    if (assertResult != true) return new Error(
+      `Assert failed for \nval: ${JSON.stringify(result)}\nassertFn: ${assertFn.toString()}`
+    )
+  }))
+
+  errors = errors.filter(e => e instanceof Error)
+  if (errors.length > 1) throw new MultipleAssertError(result, errors)
+  else if (errors.length === 1) throw errors[0]
 }
 
 async function assertErr(errOrFn, ...assertFns) {
   let err
-  if (typeof errOrFn === 'function') await errOrFn().catch(e => err = e)
-  else err = errOrFn
+  if (typeof errOrFn === 'function' /*&& errOrFn.catch*/) {
+    try {
+      await errOrFn()
+        .catch(e => err = e)
+        .then(val => err = val)
+    } catch (e) {
+      err = e
+    }
+  } else err = errOrFn
 
   if (!(err instanceof Error)) {
     let message = `Assert expected an error but received \nval: ${err}`
@@ -66,7 +89,7 @@ async function assertErr(errOrFn, ...assertFns) {
     let assertResult = await assertFn(err)
     // console.log({assertResult, assertFn})
     if (assertResult != true) return new Error(
-      `Assert failed for \nerr: ${err}\nassertFn: ${assertFn.toString()}`
+      `Assert failed for \nerr: ${err.toString()}\nassertFn: ${assertFn.toString()}`
     )
   }))
   // console.log(...errors)
@@ -85,7 +108,9 @@ async function terminateAfter(...args /* ...serverFns, testFn */) {
   // TODO handle setup error early and prevent full test run?
 
   try {
-    await testFn(servers)
+    let result = await testFn(servers)
+    // console.log({result})
+    return result
   } finally {
     let registryIndex = servers.findIndex(s => s.isRegistry)
     if (registryIndex > -1) {
@@ -175,195 +200,141 @@ async function startRegistry() {
 // let getTestPortRange
 
 async function testCreateService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
-  let registry = await startRegistry()
-  let name = 'test'
-  let server = await createService(name, function testService(payload) {
-    // console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
-    payload.prop3 = 'test'
-    return payload
-  })
-
-  try {
-    let result = await httpRequest('http://localhost:10000', {
-      call: {
-        name,
-        payload: { prop1: 'test', prop2: 'test' }
-      }
-    })
-    console.log(`GOT httpRequest result: ${JSON.stringify(result, null, 2)}`)
-    return result
-  } finally {
-    await server.terminate()
-    await registry.terminate()
-  }
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test', function testService(payload) {
+      payload.prop3 = 'test'
+      return payload
+    }),
+    async ([registry, server]) => {
+      let result = await httpRequest(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}`, {
+        call: {
+          name: 'test',
+          payload: { prop1: 'test', prop2: 'test' }
+        }
+      })
+      
+      await assert(result,
+        r => r.prop1 === 'test',
+        r => r.prop2 === 'test', 
+        r => r.prop3 === 'test'
+      )
+      
+      return result
+    }
+  )
 }
 
 async function testCallService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
-  let registry = await startRegistry()
-  let server = await createService('test', function testService(payload) {
-    console.log(`GOT PAYLOAD: ${JSON.stringify(payload, null, 2)}`)
-    return 'TEST SERVICE RESULT'
-  })
-
-  try {
-    let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
-    return result
-  } catch (err) {
-    console.log('ERR IN testCallService', err.stack)
-    throw err
-  } finally {
-    await server.terminate()
-    await registry.terminate()
-  }
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test', function testService(payload) {
+      return 'TEST SERVICE RESULT'
+    }),
+    async () => {
+      let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
+      await assert(result, r => r === 'TEST SERVICE RESULT')
+      return result
+    }
+  )
 }
 
 
 async function testBasicDependentService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
-  registry = await startRegistry()
-
-  server2 = await createService('test2', async function testService(payload) {
-    return { ...payload, test2: 'called test2' }
-  })
-
-  server1 = await createService('test', function testService(payload) {
-    return this.call('test2', { ...payload, test: 'called test' }) 
-  })
-
-  try {
-    console.log('CALL SERVICE TEST')
-    let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
-    console.log(`GOT callService result: ${JSON.stringify(result, null, 2)}`)
-    return result
-  } catch (err) {
-    console.log('ERR IN testCallService', err.stack)
-    throw err
-  } finally {
-    await server1.terminate()
-    await server2.terminate()
-    await registry.terminate()
-  }
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test2', async function testService2(payload) {
+      return { ...payload, test2: 'called test2' }
+    }),
+    await createService('test', function testService(payload) {
+      return this.call('test2', { ...payload, test: 'called test' }) 
+    }),
+    async () => {
+      let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
+      await assert(result,
+        r => r.prop1 === 'wow',
+        r => r.prop2 === 'it works',
+        r => r.test === 'called test',
+        r => r.test2 === 'called test2'
+      )
+      return result
+    }
+  )
 }
 
 async function testMissingService() {
-  let registry = await startRegistry()
-  try {
-    await assertErr(
-      () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
-      err => err.message.includes('No service by name "test"') && !console.error(err)
-    )
-  } finally {
-    await registry.terminate()
-  }
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      await assertErr(
+        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        err => err.message.includes('No service by name "test"')
+      )
+    }
+  )
 }
 
 
 async function testMissingDependentService() {
-  // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000'
-  registry = await startRegistry()
-
-  server1 = await createService('test', function testService(payload) {
-    return this.call('test2', payload + ' plus bad call') 
-  })
-
-  try {
-    await assertErr(
-      () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
-      err => err.message.includes('No service by name "test2" in cache')
-    )
-  } finally {
-    await server1.terminate()
-    await registry.terminate()
-  }
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test', function testService(payload) {
+      return this.call('test2', payload + ' plus bad call') 
+    }),
+    async () => {
+      await assertErr(
+        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        err => err.message.includes('No service by name "test2" in cache')
+      )
+    }
+  )
 }
 
 async function testDependentService() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:14000'
-  let registry, server1, server2, server3, server4
-  try {
-    registry = await startRegistry()
-    server2 = await createService('test2', async function testService(payload) {
-      let result = await this.call('test3', payload)
+  return terminateAfter(
+    startRegistry(),
+    createService('test', payload => `|TEST| ${payload}`),
+    createService('test2', async payload => await callService('test', `test2 payload: ${payload}`) + ' test2 result'),
+    createService('test3', async payload => await callService('test2', `test3 payload: ${payload}`) + ' test3 result'),
+    createService('test4', async () => await callService('test3', 'test4 payload') + ' test4 result'),
+    async () => {
+      let result = await callService('test4')
+      await assert(result, r => r.includes('|TEST|'))
+      await assert(result, r => r.includes('test2 payload'))
+      await assert(result, r => r.includes('test2 result'))
+      await assert(result, r => r.includes('test3 payload'))
+      await assert(result, r => r.includes('test3 result'))
+      await assert(result, r => r.includes('test4 payload'))
+      await assert(result, r => r.includes('test4 result'))
       return result
-    })
-
-    server1 = await createService('test', function testService(payload) {
-      return 'TEST SERVICE RESULT'
-    })
-
-    let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
-    server3 = await createService('test3', async function testService(payload) {
-      let res = await this.call('test', 'YEAH!')
-      return res + ' SWEET!'
-    })
-    result = await callService('test2', {})
-    server4 = await createService('test4', async function testService(payload) {
-      let res = await this.call('test2', 'YAY!')
-      return res + ' DUDE!'
-    })
-    result = await callService('test4', {})
-    return result
-  } catch (err) {
-    console.log('ERR IN testDependentService', err.stack)
-  } finally {
-    // TODO termination helper for multiple services, always do registry last
-    await server1.terminate()
-    await server2.terminate()
-    await server3.terminate()
-    await server4.terminate()
-    await registry.terminate()
-  }
+    }
+  )
 }
 
 // callService (instead of using this.call) forces an eager lookup
 async function testDependentServiceWithEagerLookup() {
   // process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:10000' // this just gets used in our startRegistry fn
-  let registry, server1, server2, server3, server4
-  try {
-    registry = await startRegistry()
-    server2 = await createService('test2', async payload => await callService('test3', payload))
-
-    var { service, location } = server2
-    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
-
-    server1 = await createService('test', async payload => `TEST SERVICE RESULT... ${payload}`)
-    
-    var { service, location } = server1
-    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
-
-    let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
-    // TODO assert result
-
-    server3 = await createService(async function test3(payload) {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test2', async payload => await callService('test3', payload)),
+    await createService('test', async payload => `TEST SERVICE RESULT... ${payload}`),
+    await createService(async function test3(payload) {
       let result = await callService('test', 'HELL')
       return result + ' YEAH BABY' // should be right before " DUDE!"
-    })
-
-    var { service, location } = server3
-    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
-
-    result = await callService('test2', {})
-    // TODO assert result
-
-    server4 = await createService(async function test4(payload) {
+    }),
+    await createService(async function test4(payload) {
       let result = await callService('test2', 'YAY!')
       return result + ', DUDE!' // final result ends with DUDE (1st service call, last append)
-    })
-
-    var { service, location } = server4
-    console.log(`IN TEST CREATED SERVICE ${service} AT LOCATION ${location}`)
-
-    result = await callService('test4')
-    return result
-  } finally {
-    await server1.terminate()
-    await server2.terminate()
-    await server3.terminate()
-    await server4.terminate()
-    await registry.terminate()
-  }
+    }),
+    async () => {
+      let result = await callService('test4')
+      await assert(result, r => r.includes('TEST SERVICE RESULT...'))
+      await assert(result, r => r.includes('HELL YEAH BABY'))
+      await assert(result, r => r.includes('DUDE!'))
+      return result
+    }
+  )
 }
 
 async function testDependentServiceThrowsError() {
@@ -389,24 +360,464 @@ async function testDependentServiceThrowsError() {
   )
 }
 
+// ===== ROUTE TESTS =====
+
+async function testBasicRoute() {
+  await terminateAfter(
+    await startRegistry(),
+    async ([registry]) => {
+      await createRoute('/hello', async function helloService() {
+        return 'Hello World!'
+      })
+
+      // Test direct HTTP request to route
+      let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/hello`)
+      let result = await response.text()
+      
+      await assert(result, r => r === 'Hello World!')
+      await assert(response.status, s => s === 200)
+      return result
+    }
+  )
+}
+
+async function testRouteWithService() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('greetingService', function greetingService(payload) {
+      return `Hello ${payload.name || 'World'}!`
+    }),
+    async ([registry, service]) => {
+      await createRoute('/greet', 'greetingService')
+
+      let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/greet`)
+      let result = await response.text()
+      
+      await assert(result, r => r.includes('Hello World!'))
+      await assert(response.status, s => s === 200)
+      return result
+    }
+  )
+}
+
+async function testRouteControllerWildcard() {
+  await terminateAfter(
+    await startRegistry(),
+    async ([registry]) => {
+      await createRoute('/api/*', async function apiController(payload) {
+        return {
+          status: 200,
+          dataType: 'application/json',
+          payload: JSON.stringify({ path: payload.url, message: 'API response' })
+        }
+      })
+
+      let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/api/users`)
+      let result = await response.text()
+      let parsed = JSON.parse(result)
+      
+      await assert(parsed,
+        p => p.path === '/api/users',
+        p => p.message === 'API response'
+      )
+      await assert(response.status, s => s === 200)
+      return parsed
+    }
+  )
+}
+
+async function testRouteMissingService() {
+  await terminateAfter(
+    await startRegistry(),
+    async ([registry]) => {
+      await createRoute('/broken', 'nonExistentService')
+
+      await assertErr(
+        async () => {
+          let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/broken`)
+          if (response.status >= 400 && response.status < 600) {
+            throw new HttpError(response.status, await response.text())
+          } else return await response.text()
+        },
+        err => err.message.includes('No service by name "nonExistentService"')
+      )
+    }
+  )
+}
+
+async function testRouteValidation() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      await assertErr(
+        () => createRoute('', 'someService'),
+        err => err.message.includes('Route path and service name are required')
+      )
+      
+      await assertErr(
+        () => createRoute('/test', ''),
+        err => err.message.includes('Route path and service name are required')
+      )
+    }
+  )
+}
+
+// ===== ERROR HANDLING TESTS =====
+
+async function testServiceRegistrationFailure() {
+  // Test what happens when registry is not available
+  let originalEndpoint = process.env.SERVICE_REGISTRY_ENDPOINT
+  process.env.SERVICE_REGISTRY_ENDPOINT = 'http://localhost:11000'
+  
+  try {
+    logger.muteWarn()
+    await assertErr(
+      () => createService('testService', () => 'test'),
+      err => err.message.includes('fetch failed')
+        || err.message.includes('ECONNREFUSED')
+    )
+  } finally {
+    process.env.SERVICE_REGISTRY_ENDPOINT = originalEndpoint
+    logger.unmuteWarn()
+  }
+}
+
+async function testCallServiceWithInvalidPayload() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('payloadTest', function payloadTestService(payload) {
+      if (!payload || !payload.required) {
+        throw new HttpError(400, 'Missing required field')
+      }
+      return { success: true, received: payload.required }
+    }),
+    async () => {
+      // Test successful call
+      let result = await callService('payloadTest', { required: 'value' })
+      await assert(result.success, s => s === true)
+      
+      // Test missing payload
+      await assertErr(
+        () => callService('payloadTest', {}),
+        err => err.message.includes('Missing required field')
+      )
+    }
+  )
+}
+
+async function testServicePortConflict() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      // Create two services quickly to potentially trigger port conflict handling
+      let [service1, service2] = await Promise.all([
+        createService('conflict1', function test1() { return 'service1' }),
+        createService('conflict2', function test2() { return 'service2' })
+      ])
+      
+      // Both should be created successfully on different ports
+      let result1 = await callService('conflict1')
+      let result2 = await callService('conflict2')
+      
+      await assert(result1, r => r === 'service1')
+      await assert(result2, r => r === 'service2')
+      
+      return { service1: service1.location, service2: service2.location }
+    }
+  )
+}
+
+// ===== LOAD BALANCING TESTS =====
+
+async function testLoadBalancing() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('loadTest', function loadTestService1() { return 'instance1' }),
+    await createService('loadTest', function loadTestService2() { return 'instance2' }),
+    await createService('loadTest', function loadTestService3() { return 'instance3' }),
+    async () => {
+      let start = Date.now()
+      let results = new Set()
+      
+      // Call service multiple times to test round-robin
+      while (results.size < 3 && (Date.now() - start) < 1000) {
+        let result = await callService('loadTest')
+        results.add(result)
+        await sleep(50)
+      }
+      
+      // Should hit all three instances
+      await assert(results,
+        r => r.size === 3,
+        r => r.has('instance1') === true,
+        r => r.has('instance2') === true,
+        r => r.has('instance3') === true
+      )
+      
+      return Array.from(results)
+    }
+  )
+}
+
+// ===== REGISTRY SERVER HEALTH TESTS =====
+
+async function testRegistryHealth() {
+  await terminateAfter(
+    await startRegistry(),
+    async ([registry]) => {
+      let result = await httpRequest(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}`, {
+        health: true
+      })
+      
+      await assert(result,
+        r => r.status === 'ready',
+        r => typeof r.timestamp === 'number',
+        r => (Date.now() - r.timestamp) < 1000 // Within last second
+      )
+      
+      return result
+    }
+  )
+}
+
+async function testServiceLookup() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('lookup1', function test1() { return 'test1' }),
+    await createService('lookup2', function test2() { return 'test2' }),
+    async ([registry]) => {
+      // Test lookup single service
+      let service1Location = await httpRequest(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}`, {
+        lookup: 'lookup1'
+      })
+      
+      await assert(service1Location, l => typeof l === 'string' && l.includes(':'))
+      
+      // Test lookup all services
+      let allServices = await httpRequest(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}`, {
+        lookup: 'all'
+      })
+      
+      await assert(allServices,
+        s => Array.isArray(s.lookup1) && s.lookup1.length > 0,
+        s => Array.isArray(s.lookup2) && s.lookup2.length > 0
+      )
+      
+      return { single: service1Location, all: allServices }
+    }
+  )
+}
+
+// ===== EDGE CASE TESTS =====
+
+async function testEmptyServiceName() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      await assertErr(
+        () => createService('', function test() { return 'test' }),
+        // err => err.message.includes('Server handler cannot not be an anonymous function') // passes but should it?
+        err => err.message.includes('service') || err.message.includes('name')
+      )
+    }
+  )
+}
+
+async function testServiceWithSpecialCharacters() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      // Test service names with special characters
+      await createService('test-service', function testDashService() { return 'dash' })
+      await createService('test_service', function testUnderscoreService() { return 'underscore' })
+      
+      let result1 = await callService('test-service')
+      let result2 = await callService('test_service')
+      
+      await assert([result1, result2],
+        results => results[0] === 'dash',
+        results => results[1] === 'underscore'
+      )
+      
+      return { dash: result1, underscore: result2 }
+    }
+  )
+}
+
+async function testLargePayload() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('largePayload', function largePayloadService(payload) {
+      return { received: payload.data.length, echo: payload.data.substring(0, 10) + '...' }
+    }),
+    async () => {
+      let largeData = 'x'.repeat(10000) // 10KB string
+      let result = await callService('largePayload', { data: largeData })
+      
+      await assert(result,
+        r => r.received === 10000,
+        r => r.echo === 'xxxxxxxxxx...'
+      )
+      
+      return result
+    }
+  )
+}
+
+// ===== DEMONSTRATION TEST FOR MULTIPLE ASSERTIONS =====
+
+async function testMultipleAssertionFailures() {
+  // This test is designed to demonstrate multiple assertion failures
+  // Comment out to avoid test suite failures, but useful for debugging
+  
+  try {
+    await assert({status: 'error', code: 500, message: 'Server Error'},
+      obj => obj.status === 'success',  // Will fail
+      obj => obj.code === 200,          // Will fail  
+      obj => obj.message === 'OK',      // Will fail
+      obj => obj.timestamp !== undefined // Will fail
+    )
+  } catch (err) {
+    console.log('Multiple assertion demo - caught errors:', err.message)
+    console.log('Error details:', err.stack.substring(0, 300) + '...')
+  }
+  
+  return 'Multiple assertion demo (commented out)'
+}
+
+// ===== LOGGER TESTS =====
+
+async function testLoggerStringify() {
+  let logObj = {a: 1, b: 2, c: 3}
+  let logFn = () => 'hey anon'
+  let logStr = 'hello string'
+  let logErr = new Error('test error')
+  await assert(
+    logger.warn({logObj, logFn, logStr, logErr}),
+    s => s.includes('{\"a\":1,\"b\":2,\"c\":3}'),
+    s => s.includes('() => \'hey anon\''),
+    s => s.includes('hello string'),
+    s => s.includes('test error')
+  )
+}
+
+async function testLoggerError() {
+  await assert(
+    // regular assert since the logger doesn't throw this error
+    () => logger.error(new Error('test error log fn')),
+    res => res.includes('test error')
+  )
+}
+
+async function testLoggerNoLevel() {
+  new Logger({ overrideConsoleLog: true }, null, ['info'])
+  await assert(
+    console.log('test'),
+    s => s.includes('test')
+  )
+}
+
+async function testLoggerColors() {
+  /*
+  writeColor(color = colors.white, logContent, endColor = colors.reset) {
+    return (colors[color] || color) + logContent + (colors[endColor] || endColor)
+  }
+  */
+
+  let paintTestColor = color => logger.writeColor(color, ` ${color} |`)
+  let paintTestColors = () => paintTestColor('white')
+    + paintTestColor('green')
+    + paintTestColor('magenta')
+    + paintTestColor('red')
+    + paintTestColor('blue')
+    + paintTestColor('yellow')
+    + paintTestColor('cyan')
+    + paintTestColor('reset')
+
+  await assert(
+    logger.info(paintTestColors()),
+    s => s.includes('\x1b[31m'),
+    s => s.includes('\x1b[32m'),
+    s => s.includes('\x1b[33m'),
+    s => s.includes('\x1b[34m'),
+    s => s.includes('\x1b[35m'),
+    s => s.includes('\x1b[36m'),
+    s => s.includes('\x1b[0m'),
+    s => s.includes('test')
+  )
+}
+
+async function testLoggerDuplicateLevel() {
+  await assertErr(
+    () => new Logger({}, null, ['info', 'info']),
+    err => err.message.includes('Already created log fn for level info')
+  )
+}
+
 // TODO basic negative test cases
 
 
 async function test() {
   let testFns = [
-    testHttpServer,
+    // solo test
+    // testServiceRegistrationFailure,
+    // process.exit,
+
+    // Pub/Sub tests
     testPubSubServer,
     testPubSubBadSubscribe,
     testPubSubBadPublish,
     testPubSubBadUnsubscribe,
+
+    // Core functionality tests
+    testHttpServer,
     testCreateService,
     testCallService,
     testBasicDependentService,
     testDependentService,
     testDependentServiceWithEagerLookup,
+    
+    // Route tests (previously untested!)
+    testBasicRoute,
+    testRouteWithService,
+    testRouteControllerWildcard,
+    testRouteMissingService,
+    testRouteValidation,
+    
+    // Error handling tests
     testMissingService,
     testMissingDependentService,
     testDependentServiceThrowsError,
+    testServiceRegistrationFailure,
+    testCallServiceWithInvalidPayload,
+    
+    // Load balancing and scaling tests
+    testLoadBalancing,
+    testServicePortConflict,
+    
+    // Registry server tests
+    testRegistryHealth,
+    testServiceLookup,
+    
+    // TODO these fail for some reason... bad teardown?
+    // // Pub/Sub tests
+    // testPubSubServer,
+    // testPubSubBadSubscribe,
+    // testPubSubBadPublish,
+    // testPubSubBadUnsubscribe,
+    
+    // Edge case tests
+    testEmptyServiceName,
+    testServiceWithSpecialCharacters,
+    testLargePayload,
+    testMultipleAssertionFailures,
+
+    // Logger tests
+    testLoggerStringify,
+    testLoggerError,
+    testLoggerNoLevel,
+    testLoggerColors,
+    testLoggerDuplicateLevel
     // TODO negative test cases (bad port/env/etc)
   ]
 

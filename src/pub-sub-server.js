@@ -17,7 +17,7 @@ async function publish(payload) {
       let result = await httpRequest(location, message)
       results.push(result)
     } catch (err) {
-      errors.push(err)
+      errors.push(err) // TODO test coverage
     }
   }
   return { results, errors }
@@ -45,7 +45,7 @@ module.exports = async function createServer(port) {
     if (payload.publish) await publish(payload.publish)
     else if (payload.subscribe) await subscribe(payload.subscribe)
     else if (payload.unsubscribe) await unsubscribe(payload.unsubscribe)
-    else throw new HttpError(400, 'Missing "publish", "subscribe", or "unsubscribe" property')
+    else throw new HttpError(400, 'Missing "publish", "subscribe", or "unsubscribe" property') // TODO test coverage
   })
 
   let httpTerminate = server.terminate.bind(server)

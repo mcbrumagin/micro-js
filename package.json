@@ -4,11 +4,7 @@
   "TODO_type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node src/test.js",
-    "test-OLD": "cross-env SERVICE_REGISTRY_ENDPOINT=http://127.0.0.1:10000 node src/test.js"
+    "test": "node src/test.js"
   },
-  "license": "MIT",
-  "devDependencies": {
-    "cross-env": "^7.0.3"
-  }
+  "license": "MIT"
 }

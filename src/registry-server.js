@@ -1,6 +1,15 @@
 const httpServer = require('./http-server.js')
 const httpRequest = require('./http-request.js')
 const HttpError = require('./http-error.js')
+const { Buffer } = require('node:buffer')
+
+
+if (!process.env.SERVICE_REGISTRY_ENDPOINT) {
+  throw new Error('Please define "SERVICE_REGISTRY_ENDPOINT" env variable')
+}
+
+const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
+const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
 let services
 let addresses
@@ -22,7 +31,7 @@ async function publish (payload) {
       let result = await httpRequest(location, message)
       results.push(result)
     } catch (err) {
-      errors.push(err)
+      errors.push(err) // TODO test coverage
     }
   }
   return { results, errors }
@@ -34,6 +43,7 @@ async function subscribe (payload) {
   subscriptions[type].add(location)
 }
 
+// TODO test coverage
 async function unsubscribe (payload) {
   let { type, location } = payload
   if (!subscriptions[type]) throw new HttpError(404, `No type "${type}"`)
@@ -47,9 +57,6 @@ Set.prototype.map = function (fn) {
   this.forEach(item => result.push(fn(item)))
   return result
 }
-
-const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
-const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
 async function setup (payload) {
   let { service, domain } = payload
@@ -65,6 +72,7 @@ async function setup (payload) {
 
 async function register (payload) {
   let { type = 'service' } = payload
+  // console.log({ payload, type })
 
   if (type === 'service') {
     //console.log('REGISTER SERVICE', payload)
@@ -95,7 +103,7 @@ async function register (payload) {
       console.log(`route "${path}" registered for service "${service}"`)
     }
   } else {
-    throw new HttpError(400, 'Invalid type')
+    throw new HttpError(400, 'Invalid type') // TODO test coverage
   }
 }
 
@@ -119,7 +127,7 @@ async function lookup (service) {
     return servicesMap
   }
   else if (!services[service]) {
-    throw new HttpError(404, `No service by name "${service}"`)
+    throw new HttpError(404, `No service by name "${service}"`) // TODO test coverage
   }
 
   let addresses = services[service].map(s => s)
@@ -166,13 +174,13 @@ module.exports = async function createServer(port) {
 
   initState()
 
-  if (!port) {
+  if (!port) { // TODO test coverage
     let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
     if (registryHost) {
       port = registryHost.split(':')[2]
       // console.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
-        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including port number')
+        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including protocol and port number')
       }
     }
   }
@@ -181,7 +189,6 @@ module.exports = async function createServer(port) {
     const findControllerRoute = url => {
       for (let basePath in controllerRoutes) {
         let reg = new RegExp(`^${basePath}`, 'i')
-        //console.log({ reg, url, test: reg.test(url) })
         if (reg.test(url)) {
           return controllerRoutes[basePath]
         }
@@ -195,7 +202,7 @@ module.exports = async function createServer(port) {
         let result = await call({ name: service, payload: {}})
         response.writeHead(200, { 'content-type': dataType })
         response.end(result)
-        return false // skip default response write/end
+        return false // skip default response write/end // TODO cleaner/idiomatic way of doing this
       }
 
       let controllerTarget = findControllerRoute(url)
@@ -205,35 +212,72 @@ module.exports = async function createServer(port) {
         // TODO try/catch res(500) etc
         let result = await call({ name: service, payload: { url }})
 
-        let { status } = result
+        let { status, headers } = result
+        // console.log({ headers })
         dataType = result.dataType || dataType
-        if (dataType) response.writeHead(status || 200, { 'content-type': dataType })
+        headers = Object.assign({}, { 'content-type': dataType }, headers)
+        // console.log({ headers })
+        if (dataType) response.writeHead(status || 200, headers)
+        // console.log({
+        //   "typeof result === 'object'": typeof result === 'object',
+        //   "result.payload": !!result.payload,
+        //   "buff?": result.payload instanceof Buffer,
+        //   wtf: true
+        // })
 
-        if (typeof result === 'object') response.end(result.payload)
-        else response.end(result)
+        // TODO add isBuffer flag to return payload to make this conditional
+        try {
+          // NOTE seems to work but should maybe only be situational
+          result.payload = result.payload ? Buffer.from(result.payload) : ''
+          // console.log('PDF Debug:', {
+          //   'result is Buffer': Buffer.isBuffer(result.payload),
+          //   'result length': result.payload?.length,
+          //   // 'first few bytes': result.payload.slice(0, 10),
+          //   // 'PDF header check': result.payload?.slice(0, 4).toString() === '%PDF'
+          // })
+        } catch (err) {
+          console.warn(err.stack)
+          // throw err
+        }
 
+        // console.log({result})
+        if (typeof result === 'object' && result.payload) response.end(result.payload)
+        else response.end(result) // TODO test coverage
         return false // skip default response write/end
       }
 
-      if (url) {
-        return Object.keys(routes).join('\n')
+      if (url) { // TODO test coverage
+        if (!url.endsWith('/')) {
+          url += '/'
+          response.writeHead(301, { 'Location': url })
+          response.end()
+          return false // skip default response write/end
+        } else {
+          // console.log('DEFALT URL', routes)
+          return Object.keys(routes).join('\n')
+        }
       }
     }
 
+    // TODO test coverage
     const printRegistryFunctions = () => {
       let message = registryServer.toString()
       try {
+        // TODO print routemap as well
         // TODO why is this like this? for cli call?
         message = registryServer.toString()
           .match(/payload\.(.+?)\) return/ig)
           .join('\n')
           .replace(/payload\./ig,'')
           .replace(/\) return/ig, '')
-      } catch (err) {}
+      } catch (err) {
+        console.warn('error parsing registry server fn')
+      }
       return message
     }
 
     try {
+      // console.log({ payload, url: request.url, '?': request.url !== '/' })
       if (payload.health) return { status: 'ready', timestamp: Date.now() }
       else if (payload.publish) return publish(payload.publish)
       else if (payload.subscribe) return subscribe(payload.subscribe)
@@ -246,6 +290,8 @@ module.exports = async function createServer(port) {
       else if (request.url && request.url !== '/') return resolvePossibleRoute()
       else return printRegistryFunctions()
     } catch (err) {
+      // TODO test coverage
+      console.error(err.stack)
       response.writeHead(500)
       response.end(err.stack)
     }

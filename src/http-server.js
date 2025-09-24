@@ -20,7 +20,7 @@ function prependServiceNameToErrorStack(err, serviceName) {
 module.exports = async function createServer(port, fn) {
   if (!port) throw new Error('"port" is required')
   if (!fn) throw new Error('"fn" is required')
-  if (!fn.name) throw new Error('Server handler cannot not be an anonymous function')
+  // if (!fn.name) throw new Error('Server handler cannot not be an anonymous function')
 
   // console.log(`starting "${fn.name}" on ${port}`)
   return new Promise((resolve, reject) => {
@@ -35,8 +35,9 @@ module.exports = async function createServer(port, fn) {
             // 'access-control-allow-origin': '*' // TODO REMOVE?
           })
           response.end(JSON.stringify(result))
-        }
+        } // else console.warn('nothing returned from server handler', {port, name: fn.name})
       } catch (err) {
+        // console.log({ err })
         if (err instanceof HttpError) {
           prependServiceNameToErrorStack(err, fn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?

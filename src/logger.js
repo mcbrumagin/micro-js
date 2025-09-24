@@ -11,14 +11,15 @@ const consol = {
 // other objects?
 // create custom stringify fn
 
+// TODO stringify recursively, option to output strict json/yaml
 function stringify(obj) {
   let string = ''
   for (let prop in obj) {
     if (obj[prop] instanceof Error) string += obj[prop].stack
     else if (typeof obj[prop] === 'object') string += 
-      `\n  ${prop}: ${JSON.stringify(obj[prop], null, 2)}`
+      `\n  ${prop}: ${JSON.stringify(obj[prop])}`
     else if (typeof obj[prop] === 'function') string +=
-      `\n  ${prop}: ${obj[prop]?.toString() || obj[prop]?.name || '[anonymous fn]'}`
+      `\n  ${prop}: ${obj[prop]?.toString()}`
     else string += `\n  ${prop}: ${obj[prop]}`
   }
   return string
@@ -118,10 +119,12 @@ module.exports = class Logger {
 
      let { activeLogLevels, writeColor } = this
 
+    let isMuted = false
     if (this[level]) throw new Error(`Already created log fn for level ${level}`)
     else this[level] = function log(...args) {
       // consol.log("activeLogLevels.indexOf(level)",activeLogLevels.indexOf(level) >= 0)
-      if (activeLogLevels.indexOf(level) >= 0) {
+      // consol.log({activeLogLevels, level, isMuted})
+      if (activeLogLevels.indexOf(level) >= 0 && !isMuted) {
         let color = getColorForLogLevel(level) || '' // use default terminal color
         args.unshift(color) // start with color code string
         
@@ -129,10 +132,11 @@ module.exports = class Logger {
         if (serviceName) args.unshift(writeColor('white', serviceName), colors.reset)
 
         // consol.log({args})
+        
+        // TODO stringify recursively
+
         let logContent = ''
         for (let arg of args) {
-          // consol.log({args})
-          // process.exit(0)
           if (arg instanceof Error) logContent += arg.stack
           else if (typeof arg === 'object') logContent += stringify(arg) // JSON.stringify(arg)
           else logContent += arg
@@ -141,8 +145,18 @@ module.exports = class Logger {
         }
         logContent = logContent.slice(0, logContent.length - 3) + colors.reset
         if (consol[level]) consol[level](logContent)
-        else consol.log(...args)
+        else consol.log(...args) // should only ever happen for console.log override
+        // warning lines for branches in code coverage after manually rigging the above line to trigger
+        // 109,131,149
+
+        return logContent // mostly for testing but who knows
       }
+    }
+
+    if (this[level]) {
+      let bigLevel = level.charAt(0).toUpperCase() + level.slice(1)
+      this[`mute${bigLevel}`] = () => isMuted = true
+      this[`unmute${bigLevel}`] = () => isMuted = false
     }
   }
 

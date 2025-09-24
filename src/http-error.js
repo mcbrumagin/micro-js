@@ -9,8 +9,6 @@ class HttpError extends Error {
     if (message.includes('HttpClientError')
     || message.includes('HttpServerError') ) {
       message = message.replace(/^Http.+Error\s\[[0-9]+\]\:/ig,'')
-    } else if (message.includes('Error [')) {
-      message = message.replace(/^Error\s\[[0-9]+\]\:/ig,'')
     } else if (message.includes('Error:')) {
       message = message.replace(/^Error:\s/ig,'')
     }
