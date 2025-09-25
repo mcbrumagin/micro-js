@@ -211,39 +211,22 @@ export default async function createServer(port) {
       if (controllerTarget) {
         let { service, dataType } = controllerTarget
 
-        // TODO try/catch res(500) etc
         let result = await call({ name: service, payload: { url }})
 
         let { status, headers } = result
-        // console.log({ headers })
         dataType = result.dataType || dataType
         headers = Object.assign({}, { 'content-type': dataType }, headers)
-        // console.log({ headers })
         if (dataType) response.writeHead(status || 200, headers)
-        // console.log({
-        //   "typeof result === 'object'": typeof result === 'object',
-        //   "result.payload": !!result.payload,
-        //   "buff?": result.payload instanceof Buffer,
-        //   wtf: true
-        // })
 
-        // TODO add isBuffer flag to return payload to make this conditional
+        // TODO add isBuffer flag to return payload to make this cleaner
         try {
-          // NOTE seems to work but should maybe only be situational
           result.payload = result.payload ? Buffer.from(result.payload) : ''
-          // console.log('PDF Debug:', {
-          //   'result is Buffer': Buffer.isBuffer(result.payload),
-          //   'result length': result.payload?.length,
-          //   // 'first few bytes': result.payload.slice(0, 10),
-          //   // 'PDF header check': result.payload?.slice(0, 4).toString() === '%PDF'
-          // })
         } catch (err) {
           logger.warn(err.stack)
-          // throw err
         }
 
-        // console.log({result})
         if (typeof result === 'object' && result.payload) response.end(result.payload)
+        else if (typeof result === 'object') response.end(JSON.stringify(result))
         else response.end(result) // TODO test coverage
         return false // skip default response write/end
       }
@@ -255,7 +238,6 @@ export default async function createServer(port) {
           response.end()
           return false // skip default response write/end
         } else {
-          // console.log('DEFALT URL', routes)
           return Object.keys(routes).join('\n')
         }
       }

@@ -10,14 +10,9 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 function prependServiceNameToErrorStack(err, serviceName) {
   // helpful for cascading errors
 
-  // console.log({err, serviceName})
   let errFrags = err.stack.split('\n')
   errFrags.splice(1, 0, `in service "${serviceName}"`)
   err.stack = errFrags.join('\n')
-  // if (err.stack.includes('Object.testService2')) {
-    // console.log({err, serviceName})
-    // process.exit(1)
-  // }
 }
 
 export default async function createServer(port, serverFn) {
@@ -49,15 +44,23 @@ export default async function createServer(port, serverFn) {
           response.end(JSON.stringify(result))
         } // else console.warn('nothing returned from server handler', {port, name: serverFn.name})
       } catch (err) {
-        // console.log({ err })
+        logger.error(err.stack)
         if (err instanceof HttpError) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
-          response.writeHead(err.status || 500)
-          response.end(err.stack)
+          if (!response.writableEnded) {
+            response.writeHead(err.status || 500)
+            response.end(err.stack)
+          } else {
+            logger.warn('response already ended', {port, name: serverFn.name})
+          }
         } else {
-          response.writeHead(500)
-          response.end(err.stack)
+          if (!response.writableEnded) {
+            response.writeHead(500)
+            response.end(err.stack)
+          } else {
+            logger.warn('response already ended', {port, name: serverFn.name})
+          }
         }
       }
     })
@@ -77,8 +80,7 @@ export default async function createServer(port, serverFn) {
       })
       server.close()
     })
-
-    // console.log({port, serverFn})
+    
     server.listen(port, () => {
       logger.trace(`server "${serverFn.name}" listening on ${port}`)
       resolve(server)
