@@ -1,12 +1,12 @@
-const httpRequest = require('./http-request.js')
-const httpServer = require('./http-server.js')
-const pubSubServer = require('./pub-sub-server.js')
-const registryServer = require('./registry-server.js')
-const createService = require('./create-service.js')
-const createRoute = require('./create-route.js')
-const callService = require('./call-service.js')
-const Logger = require('./logger.js')
-const HttpError = require('./http-error.js')
+import httpRequest from './http-request.js'
+import httpServer from './http-server.js'
+import pubSubServer from './pub-sub-server.js'
+import registryServer from './registry-server.js'
+import createService from './create-service.js'
+import createRoute from './create-route.js'
+import callService from './call-service.js'
+import Logger from './logger.js'
+import HttpError from './http-error.js'
 
 class MultipleAssertError extends Error {
   constructor(val, errors) {
@@ -31,9 +31,9 @@ class MultipleErrorAssertError extends Error {
 }
 
 const logger = new Logger({
-  // serviceName: 'test',
-  overrideConsoleLog: true,
-  includeLogLineNumbers: true
+  // serviceName: 'test', // TODO this has ugly formatting in the logs
+  includeLogLineNumbers: true,
+  warnLevel: true
 })
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -126,7 +126,7 @@ async function terminateAfter(...args /* ...serverFns, testFn */) {
 async function testHttpServer () {
   await terminateAfter(
     await httpServer(10000, function test(payload) {
-      console.log(`in test httpServer, got payload "${JSON.stringify(payload)}"`)
+      logger.info(`in test httpServer, got payload "${JSON.stringify(payload)}"`)
       return Date.now()
     }),
     async () => {
@@ -140,10 +140,10 @@ async function testPubSubServer() {
   await terminateAfter(
     await pubSubServer(10000),
     await httpServer(10001, function subscriber(payload) {
-      console.log(`Got published message [1]: ${JSON.stringify(payload)}`)
+      logger.info(`Got published message [1]: ${JSON.stringify(payload)}`)
     }),
     await httpServer(10002, function subscriber(payload) {
-      console.log(`Got published message [2]: ${JSON.stringify(payload)}`)
+      logger.info(`Got published message [2]: ${JSON.stringify(payload)}`)
     }),
     async () => {
       let start = Date.now()
@@ -192,7 +192,7 @@ async function testPubSubBadUnsubscribe() {
 async function startRegistry() {
   let port = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
   let server = await registryServer(port)
-  console.log(`waited for registry server in test helper, at port: ${port}`)
+  logger.info(`waited for registry server in test helper, at port: ${port}`)
   return server
 }
 
@@ -451,12 +451,12 @@ async function testRouteValidation() {
     async () => {
       await assertErr(
         () => createRoute('', 'someService'),
-        err => err.message.includes('Route path and service name are required')
+        err => err.message.includes('Route path and service fn or name are required')
       )
       
       await assertErr(
         () => createRoute('/test', ''),
-        err => err.message.includes('Route path and service name are required')
+        err => err.message.includes('Route path and service fn or name are required')
       )
     }
   )
@@ -678,8 +678,8 @@ async function testMultipleAssertionFailures() {
       obj => obj.timestamp !== undefined // Will fail
     )
   } catch (err) {
-    console.log('Multiple assertion demo - caught errors:', err.message)
-    console.log('Error details:', err.stack.substring(0, 300) + '...')
+    logger.info('Multiple assertion demo - caught errors:', err.message)
+    logger.info('Error details:', err.stack.substring(0, 300) + '...')
   }
   
   return 'Multiple assertion demo (commented out)'
@@ -688,18 +688,22 @@ async function testMultipleAssertionFailures() {
 // ===== LOGGER TESTS =====
 
 async function testLoggerStringify() {
-  let logObj = {a: 1, b: 2, c: 3}
-  let logFn = () => 'hey anon'
+  let escape = 'escape test'
+  let logObj = {a: 1, b: "2", d: true, e: null}
+  let logFn = () => console.log(`hey ${escape}`)
   let logStr = 'hello string'
   let logErr = new Error('test error')
   await assert(
     logger.warn({logObj, logFn, logStr, logErr}),
-    s => s.includes('{\"a\":1,\"b\":2,\"c\":3}'),
-    s => s.includes('() => \'hey anon\''),
-    s => s.includes('hello string'),
-    s => s.includes('test error')
+    s => s.includes('a: 1,'),
+    s => s.includes('b: "2",'),
+    s => s.includes('d: true,'),
+    s => s.includes('e: null,'),
+    s => s.includes('`() => console.log(\\`hey ${escape}\\`)`'),
+    s => s.includes('"hello string"'),
+    s => s.includes('`Error: test error')
   )
-}
+} 
 
 async function testLoggerError() {
   await assert(
@@ -710,20 +714,15 @@ async function testLoggerError() {
 }
 
 async function testLoggerNoLevel() {
-  new Logger({ overrideConsoleLog: true }, null, ['info'])
+  // Test creating a logger with limited levels
+  const testLogger = new Logger({}, 'info', ['info'])
   await assert(
-    console.log('test'),
-    s => s.includes('test')
+    testLogger.info('test'),
+    s => s === undefined || s.includes('test')
   )
 }
 
 async function testLoggerColors() {
-  /*
-  writeColor(color = colors.white, logContent, endColor = colors.reset) {
-    return (colors[color] || color) + logContent + (colors[endColor] || endColor)
-  }
-  */
-
   let paintTestColor = color => logger.writeColor(color, ` ${color} |`)
   let paintTestColors = () => paintTestColor('white')
     + paintTestColor('green')
@@ -754,13 +753,116 @@ async function testLoggerDuplicateLevel() {
   )
 }
 
+async function testLoggerDepthLimit() {
+  // Test default depth limit of 2
+  let deepObj = {
+    level0: {
+      level1: {
+        level2: {
+          level3: 'too deep'
+        }
+      }
+    }
+  }
+  
+  let testLogger = new Logger()
+  let result = await testLogger.info(deepObj)
+  
+  await assert(
+    result,
+    s => s.includes('level1'),
+    s => s.includes('level2'),
+    s => !s.includes('level3'),
+    s => s.includes('[object depth limit reached]')
+  )
+}
+
+async function testLoggerCustomDepthLimit() {
+  // Test custom depth limit of 3
+  let deepObj = {
+    level0: {
+      level1: {
+        level2: {
+          level3: {
+            level4: 'too deep to see'
+          }
+        }
+      }
+    }
+  }
+  
+  let testLogger = new Logger({ maxDepth: 3 })
+  let result = await testLogger.info(deepObj)
+  
+  await assert(
+    result,
+    s => s.includes('level1'),
+    s => s.includes('level2'),
+    s => s.includes('level3'),
+    s => !s.includes('level4'),
+    s => s.includes('[object depth limit reached]')
+  )
+}
+
+async function testLoggerDepthWarning() {
+  // Test depth exceeded warning
+  let deepObj = {
+    level1: {
+      level2: {
+        level3: 'exceeded'
+      }
+    }
+  }
+  
+  let testLogger = new Logger({ maxDepth: 1 })
+  let result = await testLogger.info(deepObj)
+  
+  await assert(
+    result,
+    s => s.includes('level1'),
+    s => s.includes('\x1b[33m'), // yellow color code
+    s => s.includes('[object depth limit reached]')
+  )
+}
+
+async function testLoggerEnvironmentConfig() {
+  // Test environment variable configuration for log lines
+  const originalEnv = process.env.LOG_INCLUDE_LINES
+  
+  // Test with environment variable enabled
+  process.env.LOG_INCLUDE_LINES = 'true'
+  let testLogger1 = new Logger({ warnLevel: false })
+  await assert(
+    testLogger1.options.includeLogLineNumbers,
+    val => val === true
+  )
+  
+  // Test with environment variable disabled
+  process.env.LOG_INCLUDE_LINES = 'false'
+  let testLogger2 = new Logger({ warnLevel: false })
+  await assert(
+    testLogger2.options.includeLogLineNumbers,
+    val => val === false
+  )
+  
+  // Restore original environment
+  if (originalEnv !== undefined) {
+    process.env.LOG_INCLUDE_LINES = originalEnv
+  } else {
+    delete process.env.LOG_INCLUDE_LINES
+  }
+}
+
 // TODO basic negative test cases
 
 
 async function test() {
   let testFns = [
-    // solo test
-    // testServiceRegistrationFailure,
+    // quick test
+    // testCreateService,
+    // testLoggerStringify,
+    // testLoggerDepthLimit,
+    // testLoggerCustomDepthLimit,
     // process.exit,
 
     // Pub/Sub tests
@@ -817,7 +919,11 @@ async function test() {
     testLoggerError,
     testLoggerNoLevel,
     testLoggerColors,
-    testLoggerDuplicateLevel
+    testLoggerDuplicateLevel,
+    testLoggerDepthLimit,
+    testLoggerCustomDepthLimit,
+    testLoggerDepthWarning,
+    testLoggerEnvironmentConfig
     // TODO negative test cases (bad port/env/etc)
   ]
 
@@ -827,16 +933,16 @@ async function test() {
   let failedCases = []
   testFns = testFns.map(fn => {
     return async () => {
-      console.log(`\n- - - RUNNING ${fn.name} - - -`)
+      logger.info(`\n- - - RUNNING ${fn.name} - - -`)
       try {
         let result = await fn()
-        console.info(logger.writeColor('green', `+ + + ${fn.name} SUCCEEDED ${
+        logger.info(logger.writeColor('green', `+ + + ${fn.name} SUCCEEDED ${
           result !== undefined ? `WITH RESULT: ${JSON.stringify(result)}` : ''
         } + + +\n`))
         testSuccess++
         successCases.push(fn.name)
       } catch (err) {
-        console.error(logger.writeColor('red', `\n\nx x x ${fn.name} FAILED WITH ERROR: ${err.message} x x x\n`))
+        logger.error(logger.writeColor('red', `\n\nx x x ${fn.name} FAILED WITH ERROR: ${err.message} x x x\n`))
         testFail++
         failedCases.push({name: fn.name, err})
       }
@@ -845,22 +951,22 @@ async function test() {
 
   for (let test of testFns) await test()
 
-  console.info('\n')
-  console.info(`| - - - - -  TESTING COMPLETE  - - - - - |`)
-  console.info(`    TOTAL: ${testSuccess + testFail}`
+  logger.info('\n')
+  logger.info(`| - - - - -  TESTING COMPLETE  - - - - - |`)
+  logger.info(`    TOTAL: ${testSuccess + testFail}`
     + logger.writeColor('green', `    SUCCESS: ${testSuccess}`)
     + logger.writeColor('red', `    FAIL: ${testFail}`))
-  console.info('')
+  logger.info('')
 
   if (testSuccess > 0) {
-    console.info(logger.writeColor('green', '+ + +  SUCCESS CASES  + + +'))
-    console.info(logger.writeColor('green', '  ' + successCases.join('\n  ')))
-    console.info('')
+    logger.info(logger.writeColor('green', '+ + +  SUCCESS CASES  + + +'))
+    logger.info(logger.writeColor('green', '  ' + successCases.join('\n  ')))
+    logger.info('')
   }
 
   if (testFail) {
-    console.info(logger.writeColor('red', 'x x x  FAILURE CASES  x x x'))
-    console.info(logger.writeColor('red', formatErrorDetails(failedCases)))
+    logger.info(logger.writeColor('red', 'x x x  FAILURE CASES  x x x'))
+    logger.info(logger.writeColor('red', formatErrorDetails(failedCases)))
   }
 }
 
@@ -874,6 +980,6 @@ function formatErrorDetails(failedCases) {
 test()
 .then(() => process.exit(0))
 .catch(err => {
-  console.log(err.stack)
+  logger.error(err.stack)
   process.exit(1)
 })

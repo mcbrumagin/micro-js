@@ -1,15 +1,28 @@
-const createService = require('./create-service.js')
-const createServices = require('./create-services.js')
-const createRoute = require('./create-route.js')
-const callService = require('./call-service.js')
-const registryServer = require('./registry-server.js')
-const Logger = require('./logger.js')
+import createService from './create-service.js'
+import createServices from './create-services.js'
+import createRoute from './create-route.js'
+import callService from './call-service.js'
+import registryServer from './registry-server.js'
+import Logger, { overrideConsoleGlobally } from './logger.js'
 
-module.exports = {
+// Named exports
+export {
   createService,
   createServices,
   createRoute,
   callService,
   registryServer,
-  Logger
+  Logger,
+  overrideConsoleGlobally
+}
+
+// Default export for backward compatibility
+export default {
+  createService,
+  createServices,
+  createRoute,
+  callService,
+  registryServer,
+  Logger,
+  overrideConsoleGlobally
 }

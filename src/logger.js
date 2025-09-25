@@ -11,16 +11,38 @@ const consol = {
 // other objects?
 // create custom stringify fn
 
-// TODO stringify recursively, option to output strict json/yaml
-function stringify(obj) {
+function formatValue(value) {
+  if (typeof value === 'number' || typeof value === 'boolean') return value
+  else if (value === null) return 'null'
+  else return `\"${value.toString()}\"`
+}
+
+function escapeTemplateChar(string) {
+  return string.replace(/`/g, '\\`')
+}
+
+// Recursively stringify objects with depth limiting
+function stringify(obj, depth = 0, maxDepth = 2) {
+  if (depth > maxDepth) {
+    return colors.yellow + '[Object depth exceeded - use higher maxDepth to see more]' + colors.reset
+  }
+  
   let string = ''
   for (let prop in obj) {
-    if (obj[prop] instanceof Error) string += obj[prop].stack
-    else if (typeof obj[prop] === 'object') string += 
-      `\n  ${prop}: ${JSON.stringify(obj[prop])}`
-    else if (typeof obj[prop] === 'function') string +=
-      `\n  ${prop}: ${obj[prop]?.toString()}`
-    else string += `\n  ${prop}: ${obj[prop]}`
+    const indent = '  '.repeat(depth + 1)
+    if (obj[prop] instanceof Error) {
+      string += `\n${indent}${prop}: \`${obj[prop].stack}\``
+    } else if (typeof obj[prop] === 'object' && obj[prop] !== null) {
+      if (depth === maxDepth) {
+        string += `\n${indent}${prop}: \`${colors.yellow}[object depth limit reached]${colors.reset}\``
+      } else {
+        string += `\n${indent}${prop}: {${stringify(obj[prop], depth + 1, maxDepth)}\n${indent}}`
+      }
+    } else if (typeof obj[prop] === 'function') {
+      string += `\n${indent}${prop}: \`${escapeTemplateChar(obj[prop]?.toString())}\``
+    } else {
+      string += `\n${indent}${prop}: ${formatValue(obj[prop])},`
+    }
   }
   return string
 }
@@ -47,19 +69,69 @@ function getColorForLogLevel(level) {
 }
 
 function getLogLineNumber() {
-  let fakeErr = new Error()
-  let fullPathLogLine = fakeErr.stack.split('\n').slice(3,4)[0]
-  let logLineInfo
-  if (fullPathLogLine.indexOf('(') > -1) {
-    fullPathLogLine = fullPathLogLine.slice(0, fullPathLogLine.length - 1)
-    logLineInfo = fullPathLogLine.replace(new RegExp(`\\s+at\\s.+\\s+\\(${process.cwd()}/`, 'ig'), '')
-  } else logLineInfo = fullPathLogLine.replace(`    at ${process.cwd()}/`, '')
+  // Use Error.captureStackTrace for better performance (Node.js specific)
+  const obj = {}
+  Error.captureStackTrace(obj, getLogLineNumber)
   
-  // consol.log(logLineInfo)
+  let fullPathLogLine = obj.stack.split('\n').slice(2, 3)[0]
+  let logLineInfo
+  
+  if (fullPathLogLine.indexOf('(') > -1) {
+    // Extract path from parentheses: "at functionName (file:///path/to/file.js:line:col)"
+    const pathMatch = fullPathLogLine.match(/\((.+)\)/)
+    if (pathMatch) {
+      let filePath = pathMatch[1]
+      // Remove file:// protocol and convert to relative path
+      filePath = filePath.replace('file://', '')
+      filePath = filePath.replace(process.cwd() + '/', '')
+      logLineInfo = filePath
+    } else {
+      logLineInfo = fullPathLogLine
+    }
+  } else {
+    // Direct path format: "at file:///path/to/file.js:line:col"
+    logLineInfo = fullPathLogLine.replace('file://', '').replace(process.cwd() + '/', '').replace(/^\s+at\s+/, '')
+  }
+  
   return logLineInfo
 }
 
-module.exports = class Logger {
+// Global console override state
+let consoleOverridden = false
+
+// Helper function to override console.log globally for all Logger instances
+export function overrideConsoleGlobally(config = {}) {
+  if (consoleOverridden) {
+    consol.warn('Console is already overridden globally')
+    return
+  }
+  
+  // Store original console methods
+  const originalMethods = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error
+  }
+  
+  // Create a temporary logger for console override
+  const globalLogger = new Logger(config)
+  
+  // Override console methods
+  console.log = globalLogger.trace.bind(globalLogger)
+  console.info = globalLogger.info.bind(globalLogger)
+  console.warn = globalLogger.warn.bind(globalLogger)
+  console.error = globalLogger.error.bind(globalLogger)
+  
+  consoleOverridden = true
+  
+  // Store original methods for potential restoration
+  console._originalMethods = originalMethods
+  
+  consol.warn('Console methods have been globally overridden to use Logger. Use console._originalMethods to access originals.')
+}
+
+export default class Logger {
   constructor(
     options = {},
 
@@ -75,35 +147,39 @@ module.exports = class Logger {
   ) {
     this.options = Object.assign({
       serviceName: '',
-      overrideConsoleLog: false,
       // TODO
       useLogFile: false,
       logFilePath: './logs',
       logFileRetainLineLimit: 0, // no retention limit
-      includeLogLineNumbers: false,
+      includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true' || process.env.LOG_INCLUDE_LINES === '1',
       includeLogLevelInOutput: false,
       // formatJson: true,
-      noWarn: false
+      warnLevel: false,
+      maxDepth: 2 // Maximum depth for object stringification
     }, options)
-    // consol.log({options})
-    // process.exit(0)
-
-    // this.logLevels = logLevels
 
     this.logLevels = logLevels
 
     this.activeLogLevels = []
-    for (let level of logLevels.reverse()) {
-      this.activeLogLevels.push(level)
-      if (level === logLevel) break
+    this.inactiveLogLevels = []
+    let isInactive = false
+    logLevels.reverse()
+    for (let level of logLevels) {
+      if (!isInactive) this.activeLogLevels.push(level)
+      else this.inactiveLogLevels.push(level)
+      if (level === logLevel) isInactive = true
     }
 
     for (let level of logLevels) {
       this.createLogFn(level)
     }
 
-    if (!this.options.noWarn) consol.warn(this.writeColor('yellow', `Log level = ${logLevel} | Active levels: ${this.activeLogLevels.join(', ')}\n`))
-    if (this.options.overrideConsoleLog) this.overrideConsoleLog()
+    if (this.options.warnLevel) consol.warn(this.writeColor('yellow',
+        `Log level = ${logLevel} `
+        + `| Active levels: ${this.activeLogLevels.join(', ') || 'none'} `
+        + `| Inactive levels: ${this.inactiveLogLevels.join(', ') || 'none'} `
+        + `| Include lines: ${this.options.includeLogLineNumbers ? 'enabled' : 'disabled (set LOG_INCLUDE_LINES=true to enable)'}\n`
+    ))
   }
 
   writeColor(color = colors.white, logContent, endColor = colors.reset) {
@@ -138,7 +214,7 @@ module.exports = class Logger {
         let logContent = ''
         for (let arg of args) {
           if (arg instanceof Error) logContent += arg.stack
-          else if (typeof arg === 'object') logContent += stringify(arg) // JSON.stringify(arg)
+          else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
           else logContent += arg
 
           if (arg !== color) logContent += ' | ' // TODO?
@@ -158,12 +234,5 @@ module.exports = class Logger {
       this[`mute${bigLevel}`] = () => isMuted = true
       this[`unmute${bigLevel}`] = () => isMuted = false
     }
-  }
-
-  overrideConsoleLog() {
-    for (let level of this.logLevels) {
-      if (console[level]) console[level] = this[level]
-    }
-    this.console = consol
   }
 }

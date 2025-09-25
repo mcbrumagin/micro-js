@@ -1,7 +1,10 @@
-const os = require('os')
-const httpServer = require('./http-server.js')
-const httpRequest = require('./http-request.js')
-const HttpError = require('./http-error.js')
+import os from 'node:os'
+import httpServer from './http-server.js'
+import httpRequest from './http-request.js'
+import HttpError from './http-error.js'
+import Logger from './logger.js'
+
+const logger = new Logger()
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -25,15 +28,15 @@ async function callService (name, payload) {
   return result
 }
 
-module.exports = async function createService (name, fn) {
-  if (!(typeof name === 'string' && name&& typeof fn === 'function')
+export default async function createService (name, serviceFn) {
+  if (!(typeof name === 'string' && name&& typeof serviceFn === 'function')
    && !(typeof name === 'function' && typeof name.name === 'string' && name.name)) throw new Error(
     'Please provide a named function, or a service name and its function separately'
   )
 
-  if (!fn && name.name) {
-    fn = name
-    name = fn.name
+  if (!serviceFn && name.name) {
+    serviceFn = name
+    name = serviceFn.name
   }
 
   let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
@@ -60,9 +63,9 @@ module.exports = async function createService (name, fn) {
       let context = { call: callService }
 
       // TODO build context with full service method names
-      fn = fn.bind(context)
+      serviceFn = serviceFn.bind(context)
     } catch (err) {
-      console.warn('createService setup http request error', err.stack)
+      logger.warn('createService setup http request error', err.stack)
 
       await sleep(20 * tryRegisterCount)
       if (tryRegisterCount > tryRegisterLimit) {
@@ -84,9 +87,9 @@ module.exports = async function createService (name, fn) {
       cache.addresses[location] = service
       if (!cache.services[service]) cache.services[service] = []
       cache.services[service].push(location)
-    } else return fn(payload)
+    } else return serviceFn(payload)
     // } else { // TODO cleanup
-    //   let result = fn(payload)
+    //   let result = serviceFn(payload)
     //   console.log({name, payload, result})
     //   return result
     // }
@@ -99,7 +102,7 @@ module.exports = async function createService (name, fn) {
     server = await httpServer(port, handler)
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) {
-      return createService(name, fn)
+      return createService(name, serviceFn)
     } else throw err
   }
 
@@ -113,7 +116,7 @@ module.exports = async function createService (name, fn) {
   cache.addresses = result.addresses
   cache.services = result.services
 
-  console.log(`service "${name}" registered at ${registryHost}`)
+  logger.trace(`service "${name}" registered at ${registryHost}`)
   server.service = name
   server.location = location
 

@@ -1,5 +1,8 @@
-const HttpError = require('./http-error.js')
-const { Buffer } = require('node:buffer')
+import HttpError from './http-error.js'
+import { Buffer } from 'node:buffer'
+import Logger from './logger.js'
+
+const logger = new Logger()
 
 async function request(address, body) {
   let headers = {}
@@ -11,34 +14,43 @@ async function request(address, body) {
     body: JSON.stringify(body)
   }
   
-  let response = await fetch(address, options)
+  // Use AbortController for better request control (Node.js 15+)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+  
+  try {
+    let response = await fetch(address, { 
+      ...options, 
+      signal: controller.signal 
+    })
+    clearTimeout(timeoutId)
+    
+    return await processResponse(response)
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new HttpError(408, 'Request timeout')
+    }
+    throw error
+  }
+}
 
-  // TODO check response.status & response.statusText
+async function processResponse(response) {
+
   let status = response.status
   let result = await response.text()
-  
-  // console.log({ status, result })
 
   if (status >= 400 && status < 600) {
-    // TODO should cascading error messages be cleaned up here instead?
     throw new HttpError(status, result)
   }
 
   try {
-    result = result ? await JSON.parse(result) : ''
-  } catch (err) { /* don't care */ console.warn({result}, err.stack) }
-
-  // console.log({
-  //   options,
-  //   status,
-  //   // payload: result?.payload,
-  //   type: typeof result.payload,
-  //   isBuffer: Buffer.isBuffer(result?.payload),
-  //   headers: result?.payload?.headers,
-  //   dataType: result?.payload?.dataType
-  // })
+    result = result ? JSON.parse(result) : ''
+  } catch (err) { 
+    logger.warn('Failed to parse JSON response', {result, error: err.message})
+  }
 
   return result
 }
 
-module.exports = request
+export default request

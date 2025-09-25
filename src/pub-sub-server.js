@@ -1,6 +1,6 @@
-const httpServer = require('./http-server.js')
-const httpRequest = require('./http-request.js')
-const HttpError = require('./http-error.js')
+import httpServer from './http-server.js'
+import httpRequest from './http-request.js'
+import HttpError from './http-error.js'
 
 const subscriptions = {}
 
@@ -40,7 +40,7 @@ async function unsubscribe(payload) {
   if (!success) throw new HttpError(404, `No location "${location}" for type "${type}"`)
 }
 
-module.exports = async function createServer(port) {
+export default async function createServer(port) {
   let server = await httpServer(port, async function pubSub(payload) {
     if (payload.publish) await publish(payload.publish)
     else if (payload.subscribe) await subscribe(payload.subscribe)

@@ -1,8 +1,20 @@
 {
   "name": "micro-js",
   "version": "0.0.4",
-  "TODO_type": "module",
+  "type": "module",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./logger": "./src/logger.js",
+    "./create-service": "./src/create-service.js",
+    "./create-route": "./src/create-route.js",
+    "./call-service": "./src/call-service.js",
+    "./registry-server": "./src/registry-server.js",
+    "./env-config": "./src/env-config.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "test": "node src/test.js"
   },

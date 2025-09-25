@@ -1,6 +1,9 @@
-const http = require('http')
-const readStream = require('./read-stream.js')
-const HttpError = require('./http-error.js')
+import http from 'node:http'
+import readStream from './read-stream.js'
+import HttpError from './http-error.js'
+import Logger from './logger.js'
+
+const logger = new Logger()
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -17,29 +20,38 @@ function prependServiceNameToErrorStack(err, serviceName) {
   // }
 }
 
-module.exports = async function createServer(port, fn) {
+export default async function createServer(port, serverFn) {
   if (!port) throw new Error('"port" is required')
-  if (!fn) throw new Error('"fn" is required')
-  // if (!fn.name) throw new Error('Server handler cannot not be an anonymous function')
+  if (!serverFn) throw new Error('"serverFn" is required')
 
-  // console.log(`starting "${fn.name}" on ${port}`)
   return new Promise((resolve, reject) => {
-    const server = http.createServer(async (request, response) => {
+    // Use modern HTTP server options for better performance
+    const server = http.createServer({
+      // Enable keep-alive connections for better performance
+      keepAlive: true,
+      keepAliveInitialDelay: 0,
+      // Set reasonable timeouts
+      requestTimeout: 60000,
+      headersTimeout: 30000, // NOTE can't exceed requestTimeout
+    }, async (request, response) => {
       try {
         let body = await readStream(request)
         try { body = JSON.parse(body) } catch (err) { /* don't care */ }
-        let result = await fn(body, request, response)
+        let result = await serverFn(body, request, response)
         if (result !== false) {
           response.writeHead(200, {
             'content-type': 'application/json',
-            // 'access-control-allow-origin': '*' // TODO REMOVE?
+            // Modern security headers
+            'x-content-type-options': 'nosniff',
+            'x-frame-options': 'DENY',
+            'x-xss-protection': '1; mode=block'
           })
           response.end(JSON.stringify(result))
-        } // else console.warn('nothing returned from server handler', {port, name: fn.name})
+        } // else console.warn('nothing returned from server handler', {port, name: serverFn.name})
       } catch (err) {
         // console.log({ err })
         if (err instanceof HttpError) {
-          prependServiceNameToErrorStack(err, fn.name)
+          prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
           response.writeHead(err.status || 500)
           response.end(err.stack)
@@ -51,7 +63,7 @@ module.exports = async function createServer(port, fn) {
     })
 
     server.on('error', err => {
-      // console.log(`server "${fn.name}" failed to start`)
+      // console.log(`server "${serverFn.name}" failed to start`)
       reject(err)
     })
 
@@ -66,9 +78,9 @@ module.exports = async function createServer(port, fn) {
       server.close()
     })
 
-    // console.log({port, fn})
+    // console.log({port, serverFn})
     server.listen(port, () => {
-      console.log(`server "${fn.name}" listening on ${port}`)
+      logger.trace(`server "${serverFn.name}" listening on ${port}`)
       resolve(server)
     })
   })

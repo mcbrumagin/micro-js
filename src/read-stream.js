@@ -1,4 +1,4 @@
-module.exports = async function readStream(stream) {
+export default async function readStream(stream) {
   return new Promise((resolve, reject) => {
     let result = ''
     stream.on('data', data => result += data)

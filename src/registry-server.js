@@ -1,14 +1,16 @@
-const httpServer = require('./http-server.js')
-const httpRequest = require('./http-request.js')
-const HttpError = require('./http-error.js')
-const { Buffer } = require('node:buffer')
+import httpServer from './http-server.js'
+import httpRequest from './http-request.js'
+import HttpError from './http-error.js'
+import { Buffer } from 'node:buffer'
+import Logger from './logger.js'
+import envConfig from './env-config.js'
 
+const logger = new Logger()
 
-if (!process.env.SERVICE_REGISTRY_ENDPOINT) {
-  throw new Error('Please define "SERVICE_REGISTRY_ENDPOINT" env variable')
-}
+// Use modern environment configuration with validation
+const registryEndpoint = envConfig.getRequired('SERVICE_REGISTRY_ENDPOINT')
 
-const registryPort = process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]
+const registryPort = registryEndpoint.split(':')[2]
 const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
 let services
@@ -60,7 +62,7 @@ Set.prototype.map = function (fn) {
 
 async function setup (payload) {
   let { service, domain } = payload
-  console.log(`setup service "${service}" at domain "${domain}"`)
+  logger.trace(`setup service "${service}" at domain "${domain}"`)
 
   if (!domainPorts[domain]) domainPorts[domain] = defaultStartPort
   let port = domainPorts[domain]++
@@ -77,7 +79,7 @@ async function register (payload) {
   if (type === 'service') {
     //console.log('REGISTER SERVICE', payload)
     let { service, location } = payload
-    console.log(`service "${service}" registered for location "${location}"`)
+    logger.trace(`service "${service}" registered for location "${location}"`)
 
     if (!services[service]) services[service] = new Set()
     addresses[location] = service
@@ -97,10 +99,10 @@ async function register (payload) {
     // console.log({ path, service, dataType })
     if (path.includes('*')) {
       controllerRoutes[path.replace('*', '')] = { service, dataType }
-      console.log(`route controller "${path}" registered for service "${service}"`)
+      logger.trace(`route controller "${path}" registered for service "${service}"`)
     } else {
       routes[path] = { service, dataType }
-      console.log(`route "${path}" registered for service "${service}"`)
+      logger.trace(`route "${path}" registered for service "${service}"`)
     }
   } else {
     throw new HttpError(400, 'Invalid type') // TODO test coverage
@@ -109,7 +111,7 @@ async function register (payload) {
 
 async function unregister (payload) {
   let { service, location } = payload
-  console.log(`service "${service}" unregistered for location "${location}"`)
+  logger.trace(`service "${service}" unregistered for location "${location}"`)
 
   delete addresses[location]
   services[service].delete(location)
@@ -117,7 +119,7 @@ async function unregister (payload) {
 }
 
 async function lookup (service) {
-  console.log(`lookup service (${service}) addresses`)
+  logger.trace(`lookup service (${service}) addresses`)
   if (service === 'all') {
     let servicesMap = {}
     for (let service in services) {
@@ -163,7 +165,7 @@ async function call ({ name, payload }) {
   return result
 }
 
-module.exports = async function createServer(port) {
+export default async function createServer(port) {
   const initState = () => {
     services = {}
     addresses = {}
@@ -236,7 +238,7 @@ module.exports = async function createServer(port) {
           //   // 'PDF header check': result.payload?.slice(0, 4).toString() === '%PDF'
           // })
         } catch (err) {
-          console.warn(err.stack)
+          logger.warn(err.stack)
           // throw err
         }
 
@@ -271,7 +273,7 @@ module.exports = async function createServer(port) {
           .replace(/payload\./ig,'')
           .replace(/\) return/ig, '')
       } catch (err) {
-        console.warn('error parsing registry server fn')
+        logger.warn('error parsing registry server fn')
       }
       return message
     }
@@ -291,7 +293,7 @@ module.exports = async function createServer(port) {
       else return printRegistryFunctions()
     } catch (err) {
       // TODO test coverage
-      console.error(err.stack)
+      logger.error(err.stack)
       response.writeHead(500)
       response.end(err.stack)
     }
@@ -299,7 +301,7 @@ module.exports = async function createServer(port) {
   
   let httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    console.log('registry terminating')
+    logger.trace('registry terminating')
     initState()
     subscriptions = {}
     await httpServerTerminate()
