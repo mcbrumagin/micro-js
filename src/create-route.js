@@ -9,8 +9,9 @@ const logger = new Logger()
 export default async function createRoute (path, serviceNameOrFn, dataType) {
   let serviceName
   if (!path || !serviceNameOrFn) throw new HttpError(400, 'Route path and service fn or name are required')
+  let server
   if (serviceNameOrFn.name) {
-    await createService(serviceNameOrFn)
+    server = await createService(serviceNameOrFn)
     serviceName = serviceNameOrFn.name
   } else serviceName = serviceNameOrFn
 
@@ -21,4 +22,5 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   })
 
   logger.trace(`route "${path}" registered at ${registryHost}`)
+  return server
 }

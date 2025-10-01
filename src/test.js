@@ -87,12 +87,12 @@ async function assertErr(errOrFn, ...assertFns) {
 
   let errors = await Promise.all(assertFns.map(async assertFn => {
     let assertResult = await assertFn(err)
-    // console.log({assertResult, assertFn})
+    // logger.log({assertResult, assertFn})
     if (assertResult != true) return new Error(
       `Assert failed for \nerr: ${err.toString()}\nassertFn: ${assertFn.toString()}`
     )
   }))
-  // console.log(...errors)
+  // logger.log(...errors)
 
   errors = errors.filter(e => e instanceof Error)
   if (errors.length > 1) throw new MultipleErrorAssertError(err, errors)
@@ -109,7 +109,7 @@ async function terminateAfter(...args /* ...serverFns, testFn */) {
 
   try {
     let result = await testFn(servers)
-    // console.log({result})
+    // logger.log({result})
     return result
   } finally {
     let registryIndex = servers.findIndex(s => s.isRegistry)
@@ -365,11 +365,10 @@ async function testDependentServiceThrowsError() {
 async function testBasicRoute() {
   await terminateAfter(
     await startRegistry(),
+    await createRoute('/hello', async function helloService() {
+      return 'Hello World!'
+    }),
     async ([registry]) => {
-      await createRoute('/hello', async function helloService() {
-        return 'Hello World!'
-      })
-
       // Test direct HTTP request to route
       let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/hello`)
       let result = await response.text()
@@ -403,15 +402,14 @@ async function testRouteWithService() {
 async function testRouteControllerWildcard() {
   await terminateAfter(
     await startRegistry(),
+    await createRoute('/api/*', async function apiController(payload) {
+      return {
+        status: 200,
+        dataType: 'application/json',
+        payload: JSON.stringify({ path: payload.url, message: 'API response' })
+      }
+    }),
     async ([registry]) => {
-      await createRoute('/api/*', async function apiController(payload) {
-        return {
-          status: 200,
-          dataType: 'application/json',
-          payload: JSON.stringify({ path: payload.url, message: 'API response' })
-        }
-      })
-
       let response = await fetch(`http://localhost:${registry.port || process.env.SERVICE_REGISTRY_ENDPOINT.split(':')[2]}/api/users`)
       let result = await response.text()
       let parsed = JSON.parse(result)
@@ -508,13 +506,9 @@ async function testCallServiceWithInvalidPayload() {
 async function testServicePortConflict() {
   await terminateAfter(
     await startRegistry(),
-    async () => {
-      // Create two services quickly to potentially trigger port conflict handling
-      let [service1, service2] = await Promise.all([
-        createService('conflict1', function test1() { return 'service1' }),
-        createService('conflict2', function test2() { return 'service2' })
-      ])
-      
+    await createService('conflict1', function test1() { return 'service1' }),
+    await createService('conflict2', function test2() { return 'service2' }),
+    async ([ registry, service1, service2 ]) => {
       // Both should be created successfully on different ports
       let result1 = await callService('conflict1')
       let result2 = await callService('conflict2')
@@ -626,11 +620,10 @@ async function testEmptyServiceName() {
 async function testServiceWithSpecialCharacters() {
   await terminateAfter(
     await startRegistry(),
+    await createService('test-service', function testDashService() { return 'dash' }),
+    await createService('test_service', function testUnderscoreService() { return 'underscore' }),
     async () => {
       // Test service names with special characters
-      await createService('test-service', function testDashService() { return 'dash' })
-      await createService('test_service', function testUnderscoreService() { return 'underscore' })
-      
       let result1 = await callService('test-service')
       let result2 = await callService('test_service')
       
@@ -690,7 +683,7 @@ async function testMultipleAssertionFailures() {
 async function testLoggerStringify() {
   let escape = 'escape test'
   let logObj = {a: 1, b: "2", d: true, e: null}
-  let logFn = () => console.log(`hey ${escape}`)
+  let logFn = () => logger.log(`hey ${escape}`)
   let logStr = 'hello string'
   let logErr = new Error('test error')
   await assert(
@@ -699,7 +692,7 @@ async function testLoggerStringify() {
     s => s.includes('b: "2",'),
     s => s.includes('d: true,'),
     s => s.includes('e: null,'),
-    s => s.includes('`() => console.log(\\`hey ${escape}\\`)`'),
+    s => s.includes('`() => logger.log(\\`hey ${escape}\\`)`'),
     s => s.includes('"hello string"'),
     s => s.includes('`Error: test error')
   )
@@ -859,17 +852,8 @@ async function testLoggerEnvironmentConfig() {
 async function test() {
   let testFns = [
     // quick test
-    // testCreateService,
-    // testLoggerStringify,
-    // testLoggerDepthLimit,
-    // testLoggerCustomDepthLimit,
+    // testBasicRoute,
     // process.exit,
-
-    // Pub/Sub tests
-    testPubSubServer,
-    testPubSubBadSubscribe,
-    testPubSubBadPublish,
-    testPubSubBadUnsubscribe,
 
     // Core functionality tests
     testHttpServer,
@@ -901,12 +885,11 @@ async function test() {
     testRegistryHealth,
     testServiceLookup,
     
-    // TODO these fail for some reason... bad teardown?
-    // // Pub/Sub tests
-    // testPubSubServer,
-    // testPubSubBadSubscribe,
-    // testPubSubBadPublish,
-    // testPubSubBadUnsubscribe,
+    // Pub/Sub tests
+    testPubSubServer,
+    testPubSubBadSubscribe,
+    testPubSubBadPublish,
+    testPubSubBadUnsubscribe,
     
     // Edge case tests
     testEmptyServiceName,
@@ -924,7 +907,6 @@ async function test() {
     testLoggerCustomDepthLimit,
     testLoggerDepthWarning,
     testLoggerEnvironmentConfig
-    // TODO negative test cases (bad port/env/etc)
   ]
 
   let testSuccess = 0
@@ -960,18 +942,18 @@ async function test() {
 
   if (testSuccess > 0) {
     logger.info(logger.writeColor('green', '+ + +  SUCCESS CASES  + + +'))
-    logger.info(logger.writeColor('green', '  ' + successCases.join('\n  ')))
+    logger.info(logger.writeColor('green', '\n  ' + successCases.join('\n  ')))
     logger.info('')
   }
 
   if (testFail) {
     logger.info(logger.writeColor('red', 'x x x  FAILURE CASES  x x x'))
-    logger.info(logger.writeColor('red', formatErrorDetails(failedCases)))
+    logger.info(logger.writeColor('red', '\n  ' + failedCases.map(f => f.name).join('\n  ')))
+    logger.info(logger.writeColor('red', '\n' + formatErrorDetails(failedCases)))
   }
 }
 
 function formatErrorDetails(failedCases) {
-  // console.log({failedCases})
   return failedCases.map(({name, err}) => {
     return `\n${name} failed with error: ${err.stack}`
   }).join('\n')

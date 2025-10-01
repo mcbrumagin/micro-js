@@ -15,6 +15,17 @@ function prependServiceNameToErrorStack(err, serviceName) {
   err.stack = errFrags.join('\n')
 }
 
+function overrideResponse(response) {
+  response.isEnded = false
+  const originalEnd = response.end.bind(response)
+  response.end = (...args) => {
+    if (!response.isEnded) originalEnd.call(response, ...args)
+    else logger.warn('response already ended', { args })
+    response.isEnded = true
+  }
+  return response
+}
+
 export default async function createServer(port, serverFn) {
   if (!port) throw new Error('"port" is required')
   if (!serverFn) throw new Error('"serverFn" is required')
@@ -29,6 +40,7 @@ export default async function createServer(port, serverFn) {
       requestTimeout: 60000,
       headersTimeout: 30000, // NOTE can't exceed requestTimeout
     }, async (request, response) => {
+      response = overrideResponse(response) // TODO VERIFY
       try {
         let body = await readStream(request)
         try { body = JSON.parse(body) } catch (err) { /* don't care */ }
@@ -42,13 +54,13 @@ export default async function createServer(port, serverFn) {
             'x-xss-protection': '1; mode=block'
           })
           response.end(JSON.stringify(result))
-        } // else console.warn('nothing returned from server handler', {port, name: serverFn.name})
+        } // else logger.warn('nothing returned from server handler', {port, name: serverFn.name})
       } catch (err) {
         logger.error(err.stack)
         if (err instanceof HttpError) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
-          if (!response.writableEnded) {
+          if (!response.writableEnded) { // TODO is this needed?
             response.writeHead(err.status || 500)
             response.end(err.stack)
           } else {
@@ -66,7 +78,7 @@ export default async function createServer(port, serverFn) {
     })
 
     server.on('error', err => {
-      // console.log(`server "${serverFn.name}" failed to start`)
+      logger.error(`server "${serverFn.name}" failed to start`)
       reject(err)
     })
 

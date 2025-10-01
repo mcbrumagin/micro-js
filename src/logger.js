@@ -14,7 +14,7 @@ const consol = {
 function formatValue(value) {
   if (typeof value === 'number' || typeof value === 'boolean') return value
   else if (value === null) return 'null'
-  else return `\"${value.toString()}\"`
+  else return `\"${value && value.toString()}\"`
 }
 
 function escapeTemplateChar(string) {

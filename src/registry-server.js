@@ -68,16 +68,13 @@ async function setup (payload) {
   let port = domainPorts[domain]++
   let location = `${domain}:${port}`
 
-  // console.log('resistry-server.setup', location)
   return location
 }
 
 async function register (payload) {
   let { type = 'service' } = payload
-  // console.log({ payload, type })
 
   if (type === 'service') {
-    //console.log('REGISTER SERVICE', payload)
     let { service, location } = payload
     logger.trace(`service "${service}" registered for location "${location}"`)
 
@@ -95,8 +92,7 @@ async function register (payload) {
     }
     return { services: mappedServices, addresses }
   } else if (type === 'route') {
-    let { service, path, dataType = 'text/html' } = payload
-    // console.log({ path, service, dataType })
+    let { service, path, dataType = 'dynamic' } = payload
     if (path.includes('*')) {
       controllerRoutes[path.replace('*', '')] = { service, dataType }
       logger.trace(`route controller "${path}" registered for service "${service}"`)
@@ -165,6 +161,71 @@ async function call ({ name, payload }) {
   return result
 }
 
+function suggestTypeFromUrl(url) {
+  if (!url || url.search(/\.[A-Za-z0-9]+$/) !== -1) return
+  else if (url.includes('.xml')) return 'application/xml'
+  else if (url.includes('.json')) return 'application/json'
+  else if (url.includes('.js')) return 'text/javascript'
+  else if (url.includes('.css')) return 'text/css'
+  else if (url.includes('.svg')) return 'image/svg+xml'
+  else if (url.includes('.png')) return 'image/png'
+  else if (url.includes('.jpg')) return 'image/jpeg'
+  else if (url.includes('.jpeg')) return 'image/jpeg'
+  else if (url.includes('.gif')) return 'image/gif'
+  else if (url.includes('.bmp')) return 'image/bmp'
+  else if (url.includes('.tiff')) return 'image/tiff'
+  else if (url.includes('.ico')) return 'image/x-icon'
+  else if (url.includes('.webp')) return 'image/webp'
+  else if (url.includes('.mp4')) return 'video/mp4'
+  else if (url.includes('.webm')) return 'video/webm'
+  else if (url.includes('.ogg')) return 'video/ogg'
+  else if (url.includes('.mp3')) return 'audio/mpeg'
+  else if (url.includes('.wav')) return 'audio/wav'
+  else if (url.includes('.m4a')) return 'audio/mp4'
+  else if (url.includes('.m4v')) return 'video/mp4'
+  else if (url.includes('.mov')) return 'video/quicktime'
+  else if (url.includes('.avi')) return 'video/x-msvideo'
+  else if (url.includes('.wmv')) return 'video/x-ms-wmv'
+  else if (url.includes('.flv')) return 'video/x-flv'
+  else if (url.includes('.m3u8')) return 'application/vnd.apple.mpegurl'
+  else if (url.includes('.m3u')) return 'application/vnd.apple.mpegurl'
+  else if (url.includes('.pls')) return 'application/vnd.apple.mpegurl'
+}
+
+function isJsonString(payload) {
+  try {
+    JSON.parse(payload)
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
+function guessObjectDataType(payload) {
+  if (Buffer.isBuffer(payload)) {
+    return 'application/octet-stream'
+  }
+}
+
+function guessDataType(payload, optionalUrl = '') {
+  let dataType = suggestTypeFromUrl(optionalUrl)
+  if (isJsonString(payload)) {
+    dataType = 'application/json'
+  } else if (typeof payload === 'string' && payload.search(/<[^>]*>/) !== -1) {
+    if (optionalUrl.includes('.xml')) {
+      dataType = 'application/xml'
+    } else {
+      dataType = 'text/html'
+    }
+  } else if (typeof payload === 'string') {
+    dataType = 'text/plain'
+  } else if (typeof payload === 'object') {
+    let guess = guessObjectDataType(payload)
+    if (guess) dataType = guess
+  }
+  return dataType || 'text/html'
+}
+
 export default async function createServer(port) {
   const initState = () => {
     services = {}
@@ -180,7 +241,7 @@ export default async function createServer(port) {
     let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
     if (registryHost) {
       port = registryHost.split(':')[2]
-      // console.log('registry-server.createServer', {port})
+      // logger.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
         throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including protocol and port number')
       }
@@ -198,56 +259,74 @@ export default async function createServer(port) {
     }
 
     const resolvePossibleRoute = async () => {
-      logger.info('resolvePossibleRoute', { url: request.url })
       let { url } = request
       let { service, dataType } = routes[url] || {}
+      let localCall = call.bind(call) // TODO this is a bit sketchy... but it works!
+
+      if (dataType === 'dynamic') {
+        let originalCall = localCall
+        localCall = async ({ name, payload }) => {
+          let result = await originalCall({ name, payload })
+          try {
+            if (result &&!result.dataType) {
+              if (result.payload) {
+                result.dataType = guessDataType(result.payload, url)
+              } else {
+                result = { payload: result, dataType: guessDataType(result, url) }
+              }
+            } else {
+              let guess = guessDataType(result.payload, url)
+              if (guess !== result.dataType) {
+                logger.warn(`dataType mismatch for ${url}: ${result.dataType} !== ${guess}`)
+              }
+            }
+          } catch (err) {
+            logger.warn(err.stack)
+          } finally {
+            localCall = originalCall
+            return result
+          }
+        }
+      }
+
+      const endAndCheckBuffer = (result) => {
+        if (result && result.payload) {
+          try {
+            result.payload = result.payload ? Buffer.from(result.payload) : ''
+          } catch (err) {
+            logger.warn(err.stack)
+          }
+        }
+        response.end(result && result.payload || result)
+      }
+
       if (service) {
-        let result = await call({ name: service, payload: {}})
-        response.writeHead(200, { 'content-type': dataType })
-        response.end(result)
-        return false // skip default response write/end // TODO cleaner/idiomatic way of doing this
+        let result = await localCall({ name: service, payload: {}})
+        response.writeHead(200, { 'content-type': result && result.dataType || dataType })
+        endAndCheckBuffer(result)
+      } else {
+        let controllerTarget = findControllerRoute(url)
+        if (controllerTarget) {
+          let { service, dataType } = controllerTarget
+          let result = await localCall({ name: service, payload: { url }})
+          response.writeHead(200, { 'content-type': result && result.dataType || dataType })
+          endAndCheckBuffer(result)
+        } else if (url) {
+          if (!url.endsWith('/')) {
+            url += '/'
+            response.writeHead(301, { 'Location': url })
+            response.end()
+          }
+        }
       }
 
-      let controllerTarget = findControllerRoute(url)
-      if (controllerTarget) {
-        let { service, dataType } = controllerTarget
-
-        let result = await call({ name: service, payload: { url }})
-
-        let { status, headers } = result
-        dataType = result.dataType || dataType
-        headers = Object.assign({}, { 'content-type': dataType }, headers)
-        if (dataType) response.writeHead(status || 200, headers)
-
-        // TODO add isBuffer flag to return payload to make this cleaner
-        try {
-          result.payload = result.payload ? Buffer.from(result.payload) : ''
-        } catch (err) {
-          logger.warn(err.stack)
-        }
-
-        if (typeof result === 'object' && result.payload) response.end(result.payload)
-        else if (typeof result === 'object') response.end(JSON.stringify(result))
-        else response.end(result) // TODO test coverage
+      if (response.isEnded) {
         return false // skip default response write/end
-      }
-
-      if (url) { // TODO test coverage
-        if (!url.endsWith('/')) {
-          url += '/'
-          response.writeHead(301, { 'Location': url })
-          response.end()
-          return false // skip default response write/end
-        } else {
-          return Object.keys(routes).join('\n')
-        }
-      }
+      } else return { payload: routes, dataType: 'application/json' }
     }
 
     // TODO test coverage
     const printRegistryFunctions = () => {
-
-      throw new Error('resolvePossibleRoute')
       let message = registryServer.toString()
       try {
         // TODO print routemap as well
@@ -264,8 +343,6 @@ export default async function createServer(port) {
     }
 
     try {
-      
-      // console.log({ payload, url: request.url, '?': request.url !== '/' })
       if (payload.health) return { status: 'ready', timestamp: Date.now() }
       else if (payload.publish) return publish(payload.publish)
       else if (payload.subscribe) return subscribe(payload.subscribe)
