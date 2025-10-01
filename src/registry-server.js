@@ -198,6 +198,7 @@ export default async function createServer(port) {
     }
 
     const resolvePossibleRoute = async () => {
+      logger.info('resolvePossibleRoute', { url: request.url })
       let { url } = request
       let { service, dataType } = routes[url] || {}
       if (service) {
@@ -245,6 +246,8 @@ export default async function createServer(port) {
 
     // TODO test coverage
     const printRegistryFunctions = () => {
+
+      throw new Error('resolvePossibleRoute')
       let message = registryServer.toString()
       try {
         // TODO print routemap as well
@@ -261,6 +264,7 @@ export default async function createServer(port) {
     }
 
     try {
+      
       // console.log({ payload, url: request.url, '?': request.url !== '/' })
       if (payload.health) return { status: 'ready', timestamp: Date.now() }
       else if (payload.publish) return publish(payload.publish)
@@ -271,7 +275,7 @@ export default async function createServer(port) {
       else if (payload.unregister) return unregister(payload.unregister)
       else if (payload.lookup) return lookup(payload.lookup)
       else if (payload.call) return call(payload.call)
-      else if (request.url && request.url !== '/') return resolvePossibleRoute()
+      else if (request.url) return resolvePossibleRoute()
       else return printRegistryFunctions()
     } catch (err) {
       // TODO test coverage
