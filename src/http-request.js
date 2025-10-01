@@ -8,30 +8,26 @@ async function request(address, body) {
   let headers = {}
   if (body) headers['content-type'] = 'application/json'
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // TODO override
+
   let options = {
     method: 'POST',
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: controller.signal
   }
   
-  // Use AbortController for better request control (Node.js 15+)
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
-  
   try {
-    let response = await fetch(address, { 
-      ...options, 
-      signal: controller.signal 
-    })
-    clearTimeout(timeoutId)
-    
+    let response = await fetch(address, options)
     return await processResponse(response)
   } catch (error) {
-    clearTimeout(timeoutId)
     if (error.name === 'AbortError') {
       throw new HttpError(408, 'Request timeout')
     }
     throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 

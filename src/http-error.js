@@ -1,9 +1,8 @@
 // TODO "overload" with default status
 class HttpError extends Error {
   constructor(status, message) {
-    var [message, ...stack] = message.split('\n')
+    var [message, ...stack] = message ? message.split('\n') : ['']
     stack = '\n' + stack.join('\n')
-    // console.log({status, message, stack})
 
     // clean up the beginning of the message for cascading errors
     if (message.includes('HttpClientError')
