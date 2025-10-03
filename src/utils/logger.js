@@ -129,6 +129,8 @@ export function overrideConsoleGlobally(config = {}) {
   console._originalMethods = originalMethods
   
   consol.warn('Console methods have been globally overridden to use Logger. Use console._originalMethods to access originals.')
+
+  // TODO return a function to toggle override off/on
 }
 
 export default class Logger {
@@ -146,7 +148,7 @@ export default class Logger {
     ]
   ) {
     this.options = Object.assign({
-      serviceName: '',
+      logGroup: '', // TODO rename to logGroup
       // TODO
       useLogFile: false,
       logFilePath: './logs',
@@ -186,11 +188,21 @@ export default class Logger {
     return (colors[color] || color) + logContent + (colors[endColor] || endColor)
   }
 
+  // replaces all extra whitespace (including newlines) with a single space
+  removeWhitespace(logContent) {
+    return logContent.replace(/\s+/g, ' ')
+  }
+
+  // keeps new lines intact
+  removeExtraWhitespace(logContent) {
+    return logContent.replace(/[ \t]{2,}/ig, ' ')
+  }
+
   createLogFn(level) {
     let {
       // formatJson,
       includeLogLineNumbers,
-      serviceName
+      logGroup
      } = this.options
 
      let { activeLogLevels, writeColor } = this
@@ -198,18 +210,12 @@ export default class Logger {
     let isMuted = false
     if (this[level]) throw new Error(`Already created log fn for level ${level}`)
     else this[level] = function log(...args) {
-      // consol.log("activeLogLevels.indexOf(level)",activeLogLevels.indexOf(level) >= 0)
-      // consol.log({activeLogLevels, level, isMuted})
       if (activeLogLevels.indexOf(level) >= 0 && !isMuted) {
         let color = getColorForLogLevel(level) || '' // use default terminal color
         args.unshift(color) // start with color code string
         
         if (includeLogLineNumbers) args.unshift(writeColor('white', getLogLineNumber(args), colors.reset))
-        if (serviceName) args.unshift(writeColor('white', serviceName), colors.reset)
-
-        // consol.log({args})
-        
-        // TODO stringify recursively
+        if (logGroup) args.unshift(writeColor('white', logGroup, colors.reset))
 
         let logContent = ''
         for (let arg of args) {
@@ -222,10 +228,7 @@ export default class Logger {
         logContent = logContent.slice(0, logContent.length - 3) + colors.reset
         if (consol[level]) consol[level](logContent)
         else consol.log(...args) // should only ever happen for console.log override
-        // warning lines for branches in code coverage after manually rigging the above line to trigger
-        // 109,131,149
-
-        return logContent // mostly for testing but who knows
+        return logContent // mostly for testing, but who knows
       }
     }
 

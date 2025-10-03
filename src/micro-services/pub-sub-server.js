@@ -1,6 +1,8 @@
-import httpServer from './http-server.js'
-import httpRequest from './http-request.js'
-import HttpError from './http-error.js'
+// TODO turn into canned service or remove?
+
+import httpServer from '../http-primitives/http-server.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
 
 const subscriptions = {}
 

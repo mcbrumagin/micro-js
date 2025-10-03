@@ -1,7 +1,7 @@
 import http from 'node:http'
 import readStream from './read-stream.js'
 import HttpError from './http-error.js'
-import Logger from './logger.js'
+import Logger from '../utils/logger.js'
 
 const logger = new Logger()
 
@@ -56,7 +56,7 @@ export default async function createServer(port, serverFn) {
           response.end(JSON.stringify(result))
         } // else logger.warn('nothing returned from server handler', {port, name: serverFn.name})
       } catch (err) {
-        logger.error(err.stack)
+        // logger.trace(err.stack) // TODO VERIFYshould just log in service/client
         if (err instanceof HttpError) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?

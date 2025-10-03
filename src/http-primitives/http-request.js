@@ -1,6 +1,6 @@
 import HttpError from './http-error.js'
 import { Buffer } from 'node:buffer'
-import Logger from './logger.js'
+import Logger from '../utils/logger.js'
 
 const logger = new Logger()
 

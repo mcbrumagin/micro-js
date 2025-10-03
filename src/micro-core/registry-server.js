@@ -1,14 +1,14 @@
-import httpServer from './http-server.js'
-import httpRequest from './http-request.js'
-import HttpError from './http-error.js'
+import httpServer from '../http-primitives/http-server.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
+
 import { Buffer } from 'node:buffer'
-import Logger from './logger.js'
+import Logger from '../utils/logger.js'
 import envConfig from './env-config.js'
 
 const logger = new Logger()
 
-// Use modern environment configuration with validation
-const registryEndpoint = envConfig.getRequired('SERVICE_REGISTRY_ENDPOINT')
+const registryEndpoint = envConfig.getRequired('MICRO_REGISTRY_URL')
 
 const registryPort = registryEndpoint.split(':')[2]
 const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
@@ -238,12 +238,12 @@ export default async function createServer(port) {
   initState()
 
   if (!port) { // TODO test coverage
-    let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
+    let registryHost = process.env.MICRO_REGISTRY_URL
     if (registryHost) {
       port = registryHost.split(':')[2]
       // logger.log('registry-server.createServer', {port})
       if (!port || isNaN(port)) {
-        throw new Error('Please specify "port" arg or define "SERVICE_REGISTRY_ENDPOINT" env variable including protocol and port number')
+        throw new Error('Please specify "port" arg or define "MICRO_REGISTRY_URL" env variable including protocol and port number')
       }
     }
   }

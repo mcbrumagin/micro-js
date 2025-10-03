@@ -1,30 +1,17 @@
-import createService from './create-service.js'
-import createServices from './create-services.js'
-import createRoute from './create-route.js'
-import callService from './call-service.js'
-import registryServer from './registry-server.js'
-import Logger, { overrideConsoleGlobally } from './logger.js'
-import HttpError from './http-error.js'
+import createService, { createServices } from './micro-core/create-service.js'
+import createRoute, { createRoutes } from './micro-core/create-route.js'
+import callService from './micro-core/call-service.js'
+import registryServer from './micro-core/registry-server.js'
+import Logger, { overrideConsoleGlobally } from './utils/logger.js'
+import HttpError from './http-primitives/http-error.js'
 
-// Named exports
 export {
+  registryServer,
+  callService,
   createService,
   createServices,
   createRoute,
-  callService,
-  registryServer,
-  HttpError,
-  Logger,
-  overrideConsoleGlobally
-}
-
-// Default export for backward compatibility
-export default {
-  createService,
-  createServices,
-  createRoute,
-  callService,
-  registryServer,
+  createRoutes,
   HttpError,
   Logger,
   overrideConsoleGlobally

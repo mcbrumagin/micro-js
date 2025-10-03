@@ -1,4 +1,4 @@
-const childProcess = require('child_process')
+import childProcess from 'child_process'
 
 const {
   exec: nativeExec,
@@ -35,7 +35,7 @@ async function spawn() {
   console.log('TODO')
 }
 
-module.exports = {
+export {
   exec,
   execFile,
   spawn

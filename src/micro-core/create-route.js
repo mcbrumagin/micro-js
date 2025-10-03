@@ -1,8 +1,8 @@
 
-import httpRequest from './http-request.js'
+import httpRequest from '../http-primitives/http-request.js'
 import createService from './create-service.js'
-import HttpError from './http-error.js'
-import Logger from './logger.js'
+import HttpError from '../http-primitives/http-error.js'
+import Logger from '../utils/logger.js'
 
 const logger = new Logger()
 
@@ -15,7 +15,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     serviceName = serviceNameOrFn.name
   } else serviceName = serviceNameOrFn
 
-  let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
+  let registryHost = process.env.MICRO_REGISTRY_URL
   // console.log({ registryHost, path, service, dataType })
   await httpRequest(registryHost, {
     register: { type: 'route', service: serviceName, path, dataType }
@@ -23,4 +23,13 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
 
   logger.trace(`route "${path}" registered at ${registryHost}`)
   return server
+}
+
+export async function createRoutes (routeMap, dataType) {
+  let routes = []
+  for (let path in routeMap) {
+    let serviceNameOrFn = routeMap[path]
+    routes.push(await createRoute(path, serviceNameOrFn, dataType))
+  }
+  return routes
 }

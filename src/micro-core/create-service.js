@@ -1,8 +1,8 @@
 import os from 'node:os'
-import httpServer from './http-server.js'
-import httpRequest from './http-request.js'
-import HttpError from './http-error.js'
-import Logger from './logger.js'
+import httpServer from '../http-primitives/http-server.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
+import Logger from '../utils/logger.js'
 
 const logger = new Logger()
 
@@ -17,7 +17,7 @@ const cache = {}
 async function callService (name, payload) {
   // name could be the function if called "locally", or a noop of the same name for code-completion
   name = name.name || name
-  let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
+  let registryHost = process.env.MICRO_REGISTRY_URL
 
   if (!cache.services[name]) throw new HttpError(404, `No service by name "${name}" in cache`)
   let addresses = cache.services[name].map(s => s)
@@ -39,8 +39,8 @@ export default async function createService (name, serviceFn) {
     name = serviceFn.name
   }
 
-  let registryHost = process.env.SERVICE_REGISTRY_ENDPOINT
-  if (!registryHost) throw new Error('Please define "SERVICE_REGISTRY_ENDPOINT" env variable')
+  let registryHost = process.env.MICRO_REGISTRY_URL
+  if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
 
   let tryRegisterCount = 0
   let location
@@ -132,4 +132,8 @@ export default async function createService (name, serviceFn) {
     await httpServerTerminate()
   }
   return server
+}
+
+export function createServices (...fns) {
+  return Promise.all(fns.map(fn => createService(fn)))
 }

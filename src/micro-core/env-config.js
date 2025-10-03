@@ -1,7 +1,7 @@
 // Modern environment configuration utility for Node.js 24+
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import Logger from './logger.js'
+import Logger from '../utils/logger.js'
 
 const logger = new Logger()
 
@@ -57,12 +57,10 @@ class EnvConfig {
     return value
   }
 
-  // Set configuration value
   set(key, value) {
     this.config.set(key, value)
   }
 
-  // Check if configuration key exists
   has(key) {
     return this.config.has(key)
   }
@@ -92,12 +90,10 @@ class EnvConfig {
     }
   }
 
-  // Get all configuration as object
   toObject() {
     return Object.fromEntries(this.config)
   }
 
-  // Validate required configuration keys
   validateRequired(requiredKeys) {
     const missing = requiredKeys.filter(key => !this.has(key))
     if (missing.length > 0) {
