@@ -202,7 +202,7 @@ async function testDependentServiceThrowsError() {
 async function testServiceRegistrationFailure() {
   // Test what happens when registry is not available
   let originalEndpoint = process.env.MICRO_REGISTRY_URL
-  process.env.MICRO_REGISTRY_URL = 'http://localhost:11000'
+  process.env.MICRO_REGISTRY_URL = 'http://localhost:42069' // nice
   
   try {
     logger.muteWarn()

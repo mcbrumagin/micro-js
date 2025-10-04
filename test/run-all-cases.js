@@ -1,7 +1,5 @@
 import httpRequest from '../src/http-primitives/http-request.js'
 import httpServer from '../src/http-primitives/http-server.js'
-import pubSubServer from '../src/micro-services/pub-sub-server.js'
-import pubsubService from '../src/micro-services/pubsub-service.js'
 
 import {
   Logger,
@@ -85,7 +83,7 @@ async function testMultipleAssertionFailures() {
 import serviceTests from './cases/services.js'
 import routesTests from './cases/routes.js'
 import loggerTests from './cases/logger.js'
-import pubSubTests from './cases/pub-sub.js'
+import pubsubTests from './cases/pub-sub.js'
 
 
 let testFns = [
@@ -95,7 +93,7 @@ let testFns = [
   ...serviceTests,
   ...routesTests,
   ...loggerTests,
-  ...pubSubTests
+  ...pubsubTests
 ]
 
 runTests(testFns)
