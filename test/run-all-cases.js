@@ -84,12 +84,14 @@ import serviceTests from './cases/service-tests.js'
 import routesTests from './cases/route-tests.js'
 import loggerTests from './cases/logger-tests.js'
 import pubsubTests from './cases/pubsub-tests.js'
+import registryModuleTests from './cases/registry-module-tests.js'
 
 
 let testFns = [
   testHttpServer,
   testRegistryHealth,
   testMultipleAssertionFailures,
+  ...registryModuleTests,
   ...serviceTests,
   ...routesTests,
   ...loggerTests,
