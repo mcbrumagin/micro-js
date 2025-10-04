@@ -10,7 +10,6 @@ import envConfig from './env-config.js'
 const logger = new Logger()
 
 const registryEndpoint = envConfig.getRequired('MICRO_REGISTRY_URL')
-
 const registryPort = registryEndpoint.split(':')[2]
 const defaultStartPort = registryPort && (Number(registryPort)+1) || 10000
 
@@ -46,7 +45,6 @@ async function subscribe (payload) {
   subscriptions[type].add(location)
 }
 
-// TODO test coverage
 async function unsubscribe (payload) {
   let { type, location } = payload
   if (!subscriptions[type]) throw new HttpError(404, `No type "${type}"`)
@@ -108,10 +106,18 @@ async function register (payload) {
 
 async function unregister (payload) {
   let { service, location } = payload
-  logger.trace(`service "${service}" unregistered for location "${location}"`)
 
   delete addresses[location]
-  services[service].delete(location)
+  if (services[service])services[service].delete(location)
+  else throw new HttpError(404, `No service by name "${service}"`)
+
+  // Clean up subscription to 'register' type
+  if (subscriptions['register']) {
+    subscriptions['register'].delete(location)
+    if (!subscriptions['register'].size) delete subscriptions['register']
+  }
+
+  logger.trace(`service "${service}" unregistered for location "${location}"`)
   if (!services[service].size) delete services[service]
 }
 

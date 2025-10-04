@@ -29,14 +29,14 @@ async function main() {
     console.log(`  Subscribers notified: ${result.results?.length || 0}`)
     
     if (result.results?.length > 0) {
-      console.log('\n📨 Responses:')
+      console.log('\nResponses:')
       result.results.forEach((response, i) => {
         console.log(`  [${i + 1}]`, JSON.stringify(response, null, 2))
       })
     }
     
     if (result.errors?.length > 0) {
-      console.log('\n⚠️  Errors:')
+      console.log('\nErrors:')
       result.errors.forEach((error, i) => {
         console.log(`  [${i + 1}]`, error)
       })

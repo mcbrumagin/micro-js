@@ -80,10 +80,10 @@ async function testMultipleAssertionFailures() {
 
 // --- Test Suites --- //
 
-import serviceTests from './cases/services.js'
-import routesTests from './cases/routes.js'
-import loggerTests from './cases/logger.js'
-import pubsubTests from './cases/pub-sub.js'
+import serviceTests from './cases/service-tests.js'
+import routesTests from './cases/route-tests.js'
+import loggerTests from './cases/logger-tests.js'
+import pubsubTests from './cases/pubsub-tests.js'
 
 
 let testFns = [

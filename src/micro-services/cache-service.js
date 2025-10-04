@@ -1,7 +1,7 @@
 import createService from '../micro-core/create-service.js'
 import Logger from '../utils/logger.js'
 
-export default function createCacheService({
+export default async function createCacheService({
   expireTime = 60000 * 10,
   evictionInterval = 30000,
 }) {
@@ -44,9 +44,11 @@ export default function createCacheService({
     return Date.now() + (Number(expire) || settings.expireTime)
   }
 
-  return createService('cache', async function cacheService(payload) {
+  // Start eviction interval ONCE at service creation
+  evictionIntervalId = setInterval(performEviction, settings.evictionInterval)
+
+  let server = await createService('cache', async function cacheService(payload) {
     logger.info(`cache service received payload: ${payload}`)
-    evictionIntervalId = setInterval(performEviction, settings.evictionInterval)
 
     if (payload.get === '*') return cache
     else if (payload.get) return cache[payload.get] || null
@@ -64,4 +66,14 @@ export default function createCacheService({
     else return false && logger.warn(`cache service failed to process: ${payload}`)
     return true
   })
+
+  // Override terminate to clean up interval
+  let originalTerminate = server.terminate.bind(server)
+  server.terminate = async () => {
+    logger.trace('cache service cleaning up interval before serverterminate')
+    clearInterval(evictionIntervalId)
+    await originalTerminate()
+  }
+
+  return server
 }

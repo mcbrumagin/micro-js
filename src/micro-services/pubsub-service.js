@@ -26,7 +26,10 @@ await unsubscribe('myChannel', subId)
 */
 
 export default async function createPubSubService() {
-  const logger = new Logger({ logGroup: 'pubsub' })
+  const logger = new Logger({
+    logGroup: 'pubsub',
+    includeLogLineNumbers: true
+  })
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   
   // Track ONE handler service per channel
