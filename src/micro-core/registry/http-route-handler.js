@@ -46,10 +46,10 @@ function sendBufferedResponse(response, result) {
 /**
  * Handle a direct route (exact path match)
  */
-async function handleDirectRoute(state, routeInfo, url, response) {
+async function handleDirectRoute(state, routeInfo, url, response, requestBody) {
   const { service, dataType } = routeInfo
   
-  const result = await proxyServiceCall(state, { name: service, payload: {} })
+  const result = await proxyServiceCall(state, { name: service, payload: requestBody || {} })
   const normalizedResult = normalizeResult(result, url)
   
   response.writeHead(200, { 
@@ -63,12 +63,12 @@ async function handleDirectRoute(state, routeInfo, url, response) {
 /**
  * Handle a controller route (prefix match)
  */
-async function handleControllerRoute(state, controllerInfo, url, response) {
+async function handleControllerRoute(state, controllerInfo, url, response, requestBody) {
   const { service, dataType } = controllerInfo
   
   const result = await proxyServiceCall(state, { 
     name: service, 
-    payload: { url } 
+    payload: { url, ...(requestBody || {}) } 
   })
   const normalizedResult = normalizeResult(result, url)
   
@@ -96,19 +96,24 @@ function handleTrailingSlashRedirect(url, response) {
  * Resolve a possible HTTP route
  * Returns false if response was sent, or route data if no match
  */
-export async function resolvePossibleRoute(state, request, response) {
+export async function resolvePossibleRoute(state, request, response, payload) {
   const { url } = request
+  
+  let requestBody = null
+  if (payload && typeof payload === 'object') {
+    requestBody = payload.payload || payload
+  }
   
   // Check for direct route match
   const routeInfo = state.routes.get(url)
   if (routeInfo) {
-    return handleDirectRoute(state, routeInfo, url, response)
+    return handleDirectRoute(state, routeInfo, url, response, requestBody)
   }
   
   // Check for controller route match
   const controllerInfo = findControllerRoute(state, url)
   if (controllerInfo) {
-    return handleControllerRoute(state, controllerInfo, url, response)
+    return handleControllerRoute(state, controllerInfo, url, response, requestBody)
   }
   
   // Handle trailing slash redirect

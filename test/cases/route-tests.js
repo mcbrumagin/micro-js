@@ -1,5 +1,5 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
-import { createRoute, createService, HttpError, Logger } from '../../src/index.js'
+import { createRoute, createRoutes, createService, HttpError, Logger } from '../../src/index.js'
 
 const logger = new Logger({
   // logGroup: 'routesTests',
@@ -40,6 +40,62 @@ async function testRouteWithService() {
       await assert(result, r => r.includes('Hello World!'))
       await assert(response.status, s => s === 200)
       return result
+    }
+  )
+}
+
+async function testRouteBulkCreate() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('greetingService', function greetingService(payload) {
+      return `Hello ${payload.name || 'World'}!`
+    }),
+    await createService('greetingService2', function greetingService2(payload) {
+      return `Well g'day then, ${payload.name || 'World'}!`
+    }),
+    async ([registry]) => {
+      await createRoutes({
+        '/greet': 'greetingService',
+        '/greet2': 'greetingService',
+        '/greet3': 'greetingService2'
+      })
+
+      let baseUrl = `http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`
+
+      let result1 = await (await fetch(`${baseUrl}/greet`)).text()
+      let result2 = await (await fetch(`${baseUrl}/greet2`)).text()
+
+      let requestPayloadOptions = {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ name: 'John' })
+      }
+      let result3 = await (await fetch(`${baseUrl}/greet3`, requestPayloadOptions)).text()
+
+      console.log({ result1, result2, result3 })
+      await assert([result1, result2, result3],
+        ([r1, r2]) => r1 === r2,
+        ([,,r3]) => r3 === `Well g'day then, John!`
+      )
+    }
+  )
+}
+
+
+async function testRouteInlineServiceCreation() {
+  await terminateAfter(
+    await startRegistry(),
+    await createRoute('/greet', function greetingService(payload) {
+      return `Hello ${payload.name || 'World'}!`
+    }),
+    async ([registry]) => {
+      let baseUrl = `http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`
+
+      let result = await (await fetch(`${baseUrl}/greet`)).text()
+      
+      await assert(result, r => r.includes(`Hello World!`))
     }
   )
 }
@@ -105,10 +161,12 @@ async function testRouteValidation() {
   )
 }
 
-export default [
+export default {
   testBasicRoute,
   testRouteWithService,
+  testRouteBulkCreate,
+  testRouteInlineServiceCreation,
   testRouteControllerWildcard,
   testRouteMissingService,
   testRouteValidation
-]
+}

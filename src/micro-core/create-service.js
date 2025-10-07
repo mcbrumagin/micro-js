@@ -4,6 +4,8 @@ import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 
+import { callServiceWithCache } from './call-service.js'
+
 const logger = new Logger()
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -14,19 +16,7 @@ const cache = {}
 
 // TODO!!! bind local cache locations in order to skip initial httpRequest to registry
 // TODO move to call-service?
-async function callService (name, payload) {
-  // name could be the function if called "locally", or a noop of the same name for code-completion
-  name = name.name || name
-  let registryHost = process.env.MICRO_REGISTRY_URL
 
-  if (!cache.services[name]) throw new HttpError(404, `No service by name "${name}" in cache`)
-  let addresses = cache.services[name].map(s => s)
-  let len = addresses.length
-  let ind = Math.floor(Math.random() * len)
-  let location = addresses[ind]
-  let result = await httpRequest(location, payload)
-  return result
-}
 
 export default async function createService (name, serviceFn) {
   if (!(typeof name === 'string' && name&& typeof serviceFn === 'function')
@@ -60,7 +50,7 @@ export default async function createService (name, serviceFn) {
       })
 
       port = location.split(':')[2]
-      let context = { call: callService }
+      let context = { call: callServiceWithCache.bind(null, cache) }
 
       // TODO build context with full service method names
       serviceFn = serviceFn.bind(context)
@@ -88,17 +78,11 @@ export default async function createService (name, serviceFn) {
       if (!cache.services[service]) cache.services[service] = []
       cache.services[service].push(location)
     } else return serviceFn(payload)
-    // } else { // TODO cleanup
-    //   let result = serviceFn(payload)
-    //   console.log({name, payload, result})
-    //   return result
-    // }
   }
 
   let server
   try {
     Object.defineProperty(handler, 'name', { value: name, writable: false })
-    // console.log({name, handler})
     server = await httpServer(port, handler)
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) {

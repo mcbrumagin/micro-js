@@ -1,6 +1,6 @@
 import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../core/index.js'
 
-import { createService, callService, Logger, HttpError } from '../../src/index.js'
+import { createService, createServices, callService, Logger, HttpError } from '../../src/index.js'
 import httpRequest from '../../src/http-primitives/http-request.js'
 
 const logger = new Logger({
@@ -100,14 +100,85 @@ async function testMissingDependentService() {
   )
 }
 
-async function testDependentService() {
-  // process.env.MICRO_REGISTRY_URL = 'http://localhost:14000'
+async function testDependentServicesWithContextCall() {
   return terminateAfter(
     startRegistry(),
     createService('test', payload => `|TEST| ${payload}`),
-    createService('test2', async payload => await callService('test', `test2 payload: ${payload}`) + ' test2 result'),
-    createService('test3', async payload => await callService('test2', `test3 payload: ${payload}`) + ' test3 result'),
-    createService('test4', async () => await callService('test3', 'test4 payload') + ' test4 result'),
+    createService(async function test2(payload) {
+      return await this.call('test', `test2 payload: ${payload}`) + ' test2 result'
+    }),
+    createService(async function test3(payload) {
+      return await this.call('test2', `test3 payload: ${payload}`) + ' test3 result'
+    }),
+    createService(async function test4() {
+      return await this.call('test3', 'test4 payload') + ' test4 result'
+    }),
+    async () => {
+      let result = await callService('test4')
+      await assert(result, r => r.includes('|TEST|'))
+      await assert(result, r => r.includes('test2 payload'))
+      await assert(result, r => r.includes('test2 result'))
+      await assert(result, r => r.includes('test3 payload'))
+      await assert(result, r => r.includes('test3 result'))
+      await assert(result, r => r.includes('test4 payload'))
+      await assert(result, r => r.includes('test4 result'))
+      return result
+    }
+  )
+}
+
+// testing what partially migrated code might look like
+async function testDependentServicesWithInlineFnCalls() {
+  function test(payload) {
+    return `|TEST| ${payload}`
+  }
+  async function test2(payload) {
+    return await test(`test2 payload: ${payload}`) + ' test2 result'
+  }
+  async function test3(payload) {
+    return await test2(`test3 payload: ${payload}`) + ' test3 result'
+  }
+  async function test4() {
+    return await test3('test4 payload') + ' test4 result'
+  }
+
+  return terminateAfter(
+    startRegistry(),
+    createService(test),
+    createService(test2),
+    createService(test3),
+    createService(test4),
+    async () => {
+      let result = await callService('test4')
+      await assert(result, r => r.includes('|TEST|'))
+      await assert(result, r => r.includes('test2 payload'))
+      await assert(result, r => r.includes('test2 result'))
+      await assert(result, r => r.includes('test3 payload'))
+      await assert(result, r => r.includes('test3 result'))
+      await assert(result, r => r.includes('test4 payload'))
+      await assert(result, r => r.includes('test4 result'))
+      return result
+    }
+  )
+}
+
+async function testDependentServicesWithBulkCreate() {
+  function test(payload) {
+    return `|TEST| ${payload}`
+  }
+  async function test2(payload) {
+    return await test(`test2 payload: ${payload}`) + ' test2 result'
+  }
+  async function test3(payload) {
+    return await test2(`test3 payload: ${payload}`) + ' test3 result'
+  }
+  async function test4() {
+    return await test3('test4 payload') + ' test4 result'
+  }
+
+  return terminateAfter(
+    startRegistry(),
+    createServices(test, test2, test3, test4),
     async () => {
       let result = await callService('test4')
       await assert(result, r => r.includes('|TEST|'))
@@ -130,7 +201,7 @@ async function testDependentServiceWithEagerLookup() {
     await createService('test2', async payload => await callService('test3', payload)),
     await createService('test', async payload => `TEST SERVICE RESULT... ${payload}`),
     await createService(async function test3(payload) {
-      let result = await callService('test', 'HELL')
+      let result = await this.call('test', 'HELL')
       return result + ' YEAH BABY' // should be right before " DUDE!"
     }),
     await createService(async function test4(payload) {
@@ -342,13 +413,15 @@ async function testLargePayload() {
   )
 }
 
-export default [
+export default {
   testCreateService,
   testCallService,
   testBasicDependentService,
   testMissingService,
   testMissingDependentService,
-  testDependentService,
+  testDependentServicesWithContextCall,
+  testDependentServicesWithInlineFnCalls,
+  testDependentServicesWithBulkCreate,
   testDependentServiceWithEagerLookup,
   testServiceLookup,
   testDependentServiceThrowsError,
@@ -359,4 +432,4 @@ export default [
   testEmptyServiceName,
   testServiceWithSpecialCharacters,
   testLargePayload
-]
+}

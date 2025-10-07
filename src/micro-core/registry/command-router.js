@@ -107,7 +107,7 @@ export async function routeCommand(state, payload, request, response, options = 
   
   // HTTP route resolution
   if (request.url) {
-    return resolvePossibleRoute(state, request, response)
+    return resolvePossibleRoute(state, request, response, payload)
   }
   
   // Default: return API documentation

@@ -434,7 +434,7 @@ async function testPublishMessageFunction() {
   )
 }
 
-export default [
+export default {
   testPublishWithoutSubscribers,
   testBasicSubscribeAndPublish,
   testMultipleSubscribers,
@@ -447,4 +447,4 @@ export default [
   testMultipleChannels,
   testHandlerError,
   testPublishMessageFunction
-]
+}

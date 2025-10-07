@@ -361,7 +361,7 @@ async function testGetAllRoutes() {
 }
 
 // Export all test functions
-export default [
+export default {
   // State tests
   testCreateRegistryState,
   testResetState,
@@ -395,5 +395,4 @@ export default [
   testRegisterRouteAutoDetect,
   testFindControllerRoute,
   testGetAllRoutes
-]
-
+}

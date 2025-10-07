@@ -22,6 +22,7 @@ async function request(address, body) {
     let response = await fetch(address, options)
     return await processResponse(response)
   } catch (error) {
+    // TODO test
     if (error.name === 'AbortError') {
       throw new HttpError(408, 'Request timeout')
     }
@@ -42,7 +43,7 @@ async function processResponse(response) {
 
   try {
     result = result ? JSON.parse(result) : ''
-  } catch (err) { 
+  } catch (err) {
     logger.warn('Failed to parse JSON response', {result, error: err.message})
   }
 

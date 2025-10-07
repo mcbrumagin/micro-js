@@ -12,6 +12,22 @@ function formatErrorDetails(failedCases) {
   }).join('\n')
 }
 
+let isSoloRun = false
+let isMuteRun = false
+function filterForSoloOrMutedTests(testFns) {
+  if (testFns.some(fn => fn.solo)) {
+    console.warn(logger.writeColor('magenta', `Solo tests: ${testFns.filter(fn => fn.solo).map(fn => fn.name).join(', ')}`))
+    isSoloRun = true
+    return testFns.filter(fn => fn.solo)
+  } else if (testFns.some(fn => fn.mute)) {
+    console.warn(logger.writeColor('magenta', `Muted tests: ${testFns.filter(fn => fn.mute).map(fn => fn.name).join(', ')}`))
+    isMuteRun = true
+    return testFns.filter(fn => !fn.mute)
+  } else {
+    return testFns
+  }
+}
+
 export async function runTests(testFns) {
 
   process.on('unhandledRejection', (reason, promise) => {
@@ -29,6 +45,13 @@ export async function runTests(testFns) {
   let successCases = []
   let testFail = 0
   let failedCases = []
+
+
+  // support arrays or objects per test runner
+  testFns = Array.isArray(testFns) ? testFns : Object.values(testFns)
+
+  testFns = filterForSoloOrMutedTests(testFns)
+
   testFns = testFns.map(fn => {
     // TODO if not async?
     if (fn.constructor.name !== 'AsyncFunction') {
@@ -79,4 +102,7 @@ export async function runTests(testFns) {
     logger.info(logger.writeColor('red', '\n  ' + failedCases.map(f => f.name).join('\n  ')))
     logger.info(logger.writeColor('red', '\n' + formatErrorDetails(failedCases)))
   }
+
+  if (isSoloRun) console.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
+  if (isMuteRun) console.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))
 }

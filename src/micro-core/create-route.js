@@ -7,6 +7,7 @@ import Logger from '../utils/logger.js'
 const logger = new Logger()
 
 export default async function createRoute (path, serviceNameOrFn, dataType) {
+  console.log({ path, serviceNameOrFn, dataType })
   let serviceName
   if (!path || !serviceNameOrFn) throw new HttpError(400, 'Route path and service fn or name are required')
   let server
@@ -16,7 +17,6 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   } else serviceName = serviceNameOrFn
 
   let registryHost = process.env.MICRO_REGISTRY_URL
-  // console.log({ registryHost, path, service, dataType })
   await httpRequest(registryHost, {
     register: { type: 'route', service: serviceName, path, dataType }
   })

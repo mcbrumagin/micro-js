@@ -7,7 +7,8 @@ import {
 import {
   sleep,
   startRegistry,
-  terminateAfter
+  terminateAfter,
+  mergeAllTestsSafely
 } from './helpers.js'
 
 import {
@@ -21,5 +22,6 @@ export {
   sleep,
   startRegistry,
   terminateAfter,
+  mergeAllTestsSafely,
   runTests
 }

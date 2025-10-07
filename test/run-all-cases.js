@@ -12,6 +12,7 @@ import {
   MultiAssertError,
   sleep,
   terminateAfter,
+  mergeAllTestsSafely,
   startRegistry,
   runTests
 } from './core/index.js'
@@ -25,7 +26,6 @@ const logger = new Logger({
   includeLogLineNumbers: true,
   warnLevel: true
 })
-
 
 
 // --- Miscellaneous Cases --- //
@@ -86,18 +86,18 @@ import loggerTests from './cases/logger-tests.js'
 import pubsubTests from './cases/pubsub-tests.js'
 import registryModuleTests from './cases/registry-module-tests.js'
 
-
-let testFns = [
+let testFns = mergeAllTestsSafely(
   testHttpServer,
   testRegistryHealth,
   testMultipleAssertionFailures,
-  ...registryModuleTests,
-  ...serviceTests,
-  ...routesTests,
-  ...loggerTests,
-  ...pubsubTests
-]
+  registryModuleTests,
+  serviceTests,
+  routesTests,
+  loggerTests,
+  pubsubTests
+)
 
+// TODO update readme for test object support, merge helper, solo/mute flags
 runTests(testFns)
 .then(() => process.exit(0))
 .catch(err => {
