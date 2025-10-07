@@ -10,14 +10,13 @@ const logger = new Logger()
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-const tryRegisterLimit = 3
+const tryRegisterLimit = 3 // TODO configurable
 
+// TODO create state-management helper for local service cache
 const cache = {}
 
-// TODO!!! bind local cache locations in order to skip initial httpRequest to registry
-// TODO move to call-service?
-
-
+// TODO option for "isLocal"? avoids assigning/binding to a port
+// allows for simpler progressive microservice refactors when loads/boundaires/domains are known
 export default async function createService (name, serviceFn) {
   if (!(typeof name === 'string' && name&& typeof serviceFn === 'function')
    && !(typeof name === 'function' && typeof name.name === 'string' && name.name)) throw new Error(
@@ -31,30 +30,53 @@ export default async function createService (name, serviceFn) {
 
   let registryHost = process.env.MICRO_REGISTRY_URL
   if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
+  let serviceHome = registryHost // assume we are on the same host by default
+  // validate registryHost
 
-  let tryRegisterCount = 0
+  let serviceHost = process.env.MICRO_SERVICE_URL // port is optional
+  if (serviceHost) {
+    // validate
+    serviceHome = serviceHost
+  } else {
+    serviceHome = serviceHome
+      // remove port; registry will assign one
+      && (serviceHome.split(':').slice(0,2).join(':'))
+      || os.hostname()
+  }
+
   let location
   let port
 
+  // TODO create generic retry-helper (we will want it for other http/service calls as well)
+  let tryRegisterCount = 0
   do {
     tryRegisterCount++
     try {
       location = await httpRequest(registryHost, {
         setup: {
-          service: name,
-          domain: registryHost
-          && (
-            registryHost.split(':').slice(0,2).join(':')
-          ) || os.hostname()
+          service: name, 
+          domain: serviceHome // TODO rename domain to home since it could be contain a protocol/port
         }
       })
 
+      // TODO verify serviceHome/location/port
+      // NOTE: if MICRO_SERVICE_URL has a hard-coded port, we should probably error?
+      // if the user needs a specific port, it will be up to them to make sure it is unused before calling createService
+      // we can give a helpful error to tell them how to fix this
+      // (either by registering this service earlier, or by using a different port)
       port = location.split(':')[2]
+
+
+      // TODO bind functions to context for local service calls
+      // update context when cache is updated
+      // maybe a "local" helper for now that skips the httpRequest to registry
+      // TODO should be its own buildContext helper
       let context = { call: callServiceWithCache.bind(null, cache) }
 
       // TODO build context with full service method names
       serviceFn = serviceFn.bind(context)
     } catch (err) {
+      // TODO create flag to mute this error warning
       logger.warn('createService setup http request error', err.stack)
 
       await sleep(20 * tryRegisterCount)
@@ -66,17 +88,22 @@ export default async function createService (name, serviceFn) {
         throw retryErr
       }
     }
-  } while (!port)
+  } while (!location || !port) // TODO default port?
   
 
   function handler(payload) {
-    // TODO probably need a more definitive check for the cache update
+    // TODO refactor so that override functionality for service is bound from a separate function
+    // TODO probably need a more definitive check for the cache update payload (maybe a custom from-registry header?)
+    // NOTE: having a simple token returned by the setup call could harden these calls a bit
+    // maybe the token is only sent for setup calls with an https protocol home, otherwise it is not needed and insecure
     if (payload.service && payload.location) {
       // for now, assume this is from the registry and the data is correct
       let { service, location } = payload
       cache.addresses[location] = service
       if (!cache.services[service]) cache.services[service] = []
       cache.services[service].push(location)
+      // update context with any new functions registered since createService call
+      // rerun buildContext -> { call: callServiceWithCache.bind(null, cache) }... etc
     } else return serviceFn(payload)
   }
 
@@ -119,5 +146,7 @@ export default async function createService (name, serviceFn) {
 }
 
 export function createServices (...fns) {
+  // TODO assemble cache in advance for all services created here
+  // they should all have the same home, except for the port
   return Promise.all(fns.map(fn => createService(fn)))
 }
