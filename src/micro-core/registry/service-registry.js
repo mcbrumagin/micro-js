@@ -15,17 +15,19 @@ const logger = new Logger()
 /**
  * Allocate a port for a new service instance
  */
-export function allocateServicePort(state, { service, domain }, defaultStartPort = 10000) {
-  logger.trace(`Allocating port for service "${service}" at domain "${domain}"`)
+export function allocateServicePort(state, { service, domain, home }, defaultStartPort = 10000) {
+  // Accept both 'home' and 'domain' for backwards compatibility
+  const serviceHome = home || domain
+  logger.trace(`Allocating port for service "${service}" at domain "${serviceHome}"`)
   
-  if (!state.domainPorts.has(domain)) {
-    state.domainPorts.set(domain, defaultStartPort)
+  if (!state.domainPorts.has(serviceHome)) {
+    state.domainPorts.set(serviceHome, defaultStartPort)
   }
   
-  const port = state.domainPorts.get(domain)
-  state.domainPorts.set(domain, port + 1)
+  const port = state.domainPorts.get(serviceHome)
+  state.domainPorts.set(serviceHome, port + 1)
   
-  const location = `${domain}:${port}`
+  const location = `${serviceHome}:${port}`
   return location
 }
 

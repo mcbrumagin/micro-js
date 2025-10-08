@@ -97,6 +97,8 @@ let testFns = mergeAllTestsSafely(
   pubsubTests
 )
 
+// testFns.testCreateService.solo = true
+
 // TODO update readme for test object support, merge helper, solo/mute flags
 runTests(testFns)
 .then(() => process.exit(0))

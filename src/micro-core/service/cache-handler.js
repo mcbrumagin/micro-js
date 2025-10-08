@@ -1,0 +1,98 @@
+/**
+ * Cache Handler
+ * Handles cache update messages from registry and delegates to service function
+ */
+
+import { updateCacheEntry } from './service-state.js'
+import { updateContext } from './service-context.js'
+
+/**
+ * Check if payload is a cache update from registry
+ * Registry sends { service, location } to broadcast new service registrations
+ * 
+ * TODO: Add authentication token or header validation for production security
+ * For now, we assume this simple structure indicates a registry update
+ */
+export function isCacheUpdatePayload(payload) {
+  return (
+    payload &&
+    typeof payload === 'object' &&
+    typeof payload.service === 'string' &&
+    typeof payload.location === 'string' &&
+    // Only these two fields should be present for cache updates
+    Object.keys(payload).length === 2
+  )
+}
+
+/**
+ * Create a handler function that intercepts cache updates
+ * Returns a new handler that:
+ * 1. Checks if payload is a cache update
+ * 2. If yes, updates cache and returns success
+ * 3. If no, delegates to actual service function
+ * 
+ * @param {Function} serviceFn - The actual service handler function
+ * @param {Object} cache - Service cache object
+ * @param {Object} context - Service execution context
+ * @returns {Function} Wrapped handler
+ */
+export function createCacheAwareHandler(serviceFn, cache, context) {
+  return async function cacheAwareHandler(payload) {
+    // Check if this is a cache update from registry
+    if (isCacheUpdatePayload(payload)) {
+      const { service, location } = payload
+      
+      // Update local cache
+      updateCacheEntry(cache, { service, location })
+      
+      // Update context to reflect new services
+      updateContext(context, cache)
+      
+      // Return success response
+      return {
+        status: 'cache_updated',
+        service,
+        location
+      }
+    }
+    
+    // Not a cache update - delegate to actual service function
+    return await serviceFn(payload)
+  }
+}
+
+/**
+ * Create handler with authentication token validation
+ * For future use when HTTPS and tokens are implemented
+ * 
+ * @param {Function} serviceFn - The actual service handler
+ * @param {Object} cache - Service cache
+ * @param {Object} context - Service context
+ * @param {string} registryToken - Token from registry for validation
+ * @returns {Function} Wrapped handler with auth
+ */
+export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
+  return async function secureCacheAwareHandler(payload, request) {
+    // Validate token if provided
+    if (isCacheUpdatePayload(payload)) {
+      // TODO: Validate request headers contain matching token
+      // const authHeader = request?.headers?.['x-registry-token']
+      // if (registryToken && authHeader !== registryToken) {
+      //   throw new Error('Unauthorized cache update attempt')
+      // }
+      
+      const { service, location } = payload
+      updateCacheEntry(cache, { service, location })
+      updateContext(context, cache)
+      
+      return {
+        status: 'cache_updated',
+        service,
+        location
+      }
+    }
+    
+    return await serviceFn(payload)
+  }
+}
+

@@ -1,7 +1,7 @@
 // TODO run on dex with a build/deploy step
 // TODO run in parallel on dev
 
-const { callService } = require('../src/index.js')
+const { callService } = require('../../src/index.js')
 const { args, flags } = require('../src/cli-parser.js')
 
 
