@@ -19,10 +19,10 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
   args.unshift(args.pop()) // rearrange for spread
   let [testFn, ...serverFns] = args
   if (typeof testFn !== 'function') throw new Error('terminateAfter last argument must be a function')
-    
+  
   let servers = await Promise.all(serverFns)
   for (let server of servers) {
-    if (server.length > 0) {
+    if (server && server.length > 0) {
       let index = servers.indexOf(server)
       servers.splice(index, 1)
       servers.push(...server)
@@ -36,9 +36,9 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
     if (registryIndex > -1) {
       let registryServer = servers[registryIndex]
       servers = servers.slice(0, registryIndex).concat(servers.slice(registryIndex + 1))
-      for (let server of servers) await server.terminate()
-      await registryServer.terminate()
-    } else for (let server of servers) await server.terminate()
+      for (let server of servers) await server?.terminate()
+      await registryServer?.terminate()
+    } else for (let server of servers) await server?.terminate()
   }
 }
 

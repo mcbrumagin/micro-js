@@ -1,152 +1,206 @@
-import os from 'node:os'
+/**
+ * Create Service
+ * Main service creation and registration module
+ * Refactored into modular components for better maintainability
+ */
+
 import httpServer from '../http-primitives/http-server.js'
 import httpRequest from '../http-primitives/http-request.js'
-import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
+import envConfig from './env-config.js'
+import retry from '../utils/retry-helper.js'
 
-import { callServiceWithCache } from './call-service.js'
+import { createServiceState, updateCache, removeFromCache } from './service/service-state.js'
+import { buildContext, buildEnhancedContext, bindServiceFunction } from './service/service-context.js'
+import { createCacheAwareHandler } from './service/cache-handler.js'
+import {
+  getRegistryHost,
+  determineServiceHome,
+  extractPort,
+  validateServiceLocation,
+  validateServiceName
+} from './service/service-validator.js'
+import { createServiceBatch } from './service/service-batch.js'
 
 const logger = new Logger()
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+/**
+ * Configuration for service setup
+ */
+const DEFAULT_CONFIG = {
+  tryRegisterLimit: envConfig.get('MICRO_RETRY_LIMIT', 3),
+  retryInitialDelay: envConfig.get('MICRO_RETRY_DELAY', 20),
+  muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false),
+  sharedCache: null // Optional pre-created cache for batch operations
+}
 
-const tryRegisterLimit = 3 // TODO configurable
-
-// TODO create state-management helper for local service cache
-const cache = {}
-
-// TODO option for "isLocal"? avoids assigning/binding to a port
-// allows for simpler progressive microservice refactors when loads/boundaires/domains are known
-export default async function createService (name, serviceFn) {
-  if (!(typeof name === 'string' && name&& typeof serviceFn === 'function')
-   && !(typeof name === 'function' && typeof name.name === 'string' && name.name)) throw new Error(
-    'Please provide a named function, or a service name and its function separately'
-  )
-
-  if (!serviceFn && name.name) {
-    serviceFn = name
-    name = serviceFn.name
-  }
-
-  let registryHost = process.env.MICRO_REGISTRY_URL
-  if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
-  let serviceHome = registryHost // assume we are on the same host by default
-  // validate registryHost
-
-  let serviceHost = process.env.MICRO_SERVICE_URL // port is optional
-  if (serviceHost) {
-    // validate
-    serviceHome = serviceHost
-  } else {
-    serviceHome = serviceHome
-      // remove port; registry will assign one
-      && (serviceHome.split(':').slice(0,2).join(':'))
-      || os.hostname()
-  }
-
-  let location
-  let port
-
-  // TODO create generic retry-helper (we will want it for other http/service calls as well)
-  let tryRegisterCount = 0
-  do {
-    tryRegisterCount++
-    try {
-      location = await httpRequest(registryHost, {
+/**
+ * Setup service with registry (allocate port)
+ * @private
+ */
+async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
+  return await retry(
+    async () => {
+      const location = await httpRequest(registryHost, {
         setup: {
-          service: name, 
-          domain: serviceHome // TODO rename domain to home since it could be contain a protocol/port
+          service: name,
+          home: serviceHome // Renamed from 'domain' for clarity
         }
       })
-
-      // TODO verify serviceHome/location/port
-      // NOTE: if MICRO_SERVICE_URL has a hard-coded port, we should probably error?
-      // if the user needs a specific port, it will be up to them to make sure it is unused before calling createService
-      // we can give a helpful error to tell them how to fix this
-      // (either by registering this service earlier, or by using a different port)
-      port = location.split(':')[2]
-
-
-      // TODO bind functions to context for local service calls
-      // update context when cache is updated
-      // maybe a "local" helper for now that skips the httpRequest to registry
-      // TODO should be its own buildContext helper
-      let context = { call: callServiceWithCache.bind(null, cache) }
-
-      // TODO build context with full service method names
-      serviceFn = serviceFn.bind(context)
-    } catch (err) {
-      // TODO create flag to mute this error warning
-      logger.warn('createService setup http request error', err.stack)
-
-      await sleep(20 * tryRegisterCount)
-      if (tryRegisterCount > tryRegisterLimit) {
-        let retryErr = new Error('Retry register exceeded attempts - '
-          + `recent error message: ${err.message}`
-        )
-
-        throw retryErr
-      }
+      return location
+    },
+    {
+      maxAttempts: config.tryRegisterLimit,
+      initialDelay: config.retryInitialDelay,
+      muteWarnings: config.muteRetryWarnings
     }
-  } while (!location || !port) // TODO default port?
-  
+  )
+}
 
-  function handler(payload) {
-    // TODO refactor so that override functionality for service is bound from a separate function
-    // TODO probably need a more definitive check for the cache update payload (maybe a custom from-registry header?)
-    // NOTE: having a simple token returned by the setup call could harden these calls a bit
-    // maybe the token is only sent for setup calls with an https protocol home, otherwise it is not needed and insecure
-    if (payload.service && payload.location) {
-      // for now, assume this is from the registry and the data is correct
-      let { service, location } = payload
-      cache.addresses[location] = service
-      if (!cache.services[service]) cache.services[service] = []
-      cache.services[service].push(location)
-      // update context with any new functions registered since createService call
-      // rerun buildContext -> { call: callServiceWithCache.bind(null, cache) }... etc
-    } else return serviceFn(payload)
-  }
-
-  let server
-  try {
-    Object.defineProperty(handler, 'name', { value: name, writable: false })
-    server = await httpServer(port, handler)
-  } catch (err) {
-    if (err.message.includes('listen EADDRINUSE')) {
-      return createService(name, serviceFn)
-    } else throw err
-  }
-
-  let result = await httpRequest(registryHost, {
+/**
+ * Register service with registry
+ * @private
+ */
+async function registerServiceWithRegistry(name, location, registryHost) {
+  return await httpRequest(registryHost, {
     register: {
       service: name,
       location
     }
   })
+}
 
-  cache.addresses = result.addresses
-  cache.services = result.services
+/**
+ * Unregister service from registry
+ * @private
+ */
+async function unregisterServiceFromRegistry(name, location, registryHost) {
+  return await httpRequest(registryHost, {
+    unregister: {
+      service: name,
+      location
+    }
+  })
+}
+
+/**
+ * Create and start a microservice
+ * 
+ * @param {string|Function} name - Service name or named function
+ * @param {Function} [serviceFn] - Service handler function
+ * @param {Object} [options] - Service configuration options
+ * @returns {Promise<Object>} HTTP server instance with service metadata
+ * 
+ * @example
+ * // With separate name and function
+ * const server = await createService('userService', async function(payload) {
+ *   return { user: 'data' }
+ * })
+ * 
+ * @example
+ * // With named function
+ * const server = await createService(async function userService(payload) {
+ *   return { user: 'data' }
+ * })
+ */
+export default async function createService(name, serviceFn, options = {}) {
+  if (
+    !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
+    !(typeof name === 'function' && typeof name.name === 'string' && name.name)
+  ) {
+    throw new Error(
+      'Please provide a named function, or a service name and its function separately'
+    )
+  }
+
+  // handle named function case (serviceFn, options)
+  if (typeof name === 'function' && name.name) {
+    // TODO test options overrides
+    options = options && Object.keys(options).length === 0 ? serviceFn : options
+    serviceFn = name
+    name = serviceFn.name
+  }
+
+  validateServiceName(name)
+
+  const registryHost = getRegistryHost()
+  const serviceHome = determineServiceHome(registryHost)
+
+  const config = { ...DEFAULT_CONFIG, ...options }
+  // get allocated runtime port, if not hardcoded
+  const location = await setupServiceWithRegistry(name, serviceHome, registryHost, config)
+  const port = extractPort(location)
+  validateServiceLocation(location, port)
+
+  // TODO test sharedCache override... seems sketchy
+  const cache = config.sharedCache || createServiceState()
+  const context = buildEnhancedContext(cache)
+  const boundServiceFn = bindServiceFunction(serviceFn, context)
+  const handler = createCacheAwareHandler(boundServiceFn, cache, context)
+
+  // override handler name
+  Object.defineProperty(handler, 'name', { value: name, writable: false })
+
+  let server
+  try {
+    server = await httpServer(port, handler)
+  } catch (err) {
+    if (err.message.includes('listen EADDRINUSE')) { // port already in use
+      // TODO if hardcoded port, warn and exit
+      // retry service creation (registry will assign different port)
+      return createService(name, serviceFn, options) // TODO different retry limit?
+    } else {
+      throw err
+    }
+  }
+
+  // gets initial cache from registration
+  const registryData = await registerServiceWithRegistry(name, location, registryHost)
+  updateCache(cache, registryData)
 
   logger.trace(`service "${name}" registered at ${registryHost}`)
+
+  // add service metadata
   server.service = name
   server.location = location
 
-  let httpServerTerminate = server.terminate.bind(server)
+  // override terminate to gracefully unregister
+  const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    if (cache.services) delete cache.services[name]
-    if (cache.addresses) delete cache.addresses[location]
-
-    // Remove from registry gracefully
-    await httpRequest(registryHost, {
-      unregister: { service: name, location }
-    })
+    removeFromCache(cache, { service: name, location })
+    await unregisterServiceFromRegistry(name, location, registryHost)
     await httpServerTerminate()
   }
+
   return server
 }
 
-export function createServices (...fns) {
-  // TODO assemble cache in advance for all services created here
-  // they should all have the same home, except for the port
-  return Promise.all(fns.map(fn => createService(fn)))
+/**
+ * Create multiple services concurrently
+ * Optimized to share cache state among all services for better performance
+ * 
+ * Benefits:
+ * - All services share the same cache, updated when any service registers
+ * - Validates all services upfront before creating any
+ * - More efficient than individual createService calls
+ * 
+ * @param {...Function} fns - Named service functions
+ * @returns {Promise<Array<Object>>} Array of server instances
+ * 
+ * @example
+ * const [server1, server2] = await createServices(
+ *   async function userService(payload) { ... },
+ *   async function authService(payload) { ... }
+ * )
+ */
+export function createServices(...fns) {
+  fns.unshift(fns.pop()) // rearrange for spread
+  let [options, ...serviceFns] = fns
+  if (typeof options === 'function') {
+    serviceFns.push(options) // not an options object
+    options = {}
+  }
+
+  // TODO bulk register and cache creation
+  return createServiceBatch(serviceFns, createService, options)
 }
