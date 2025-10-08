@@ -67,6 +67,9 @@ async function handleRegister(state, payload) {
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
   const { defaultStartPort = 10000, handlerFn } = options
+
+  // TODO logger
+  console.log(`routing command: ${JSON.stringify({state, payload, options})}`)
   
   // Command dispatch
   if (payload.health) {

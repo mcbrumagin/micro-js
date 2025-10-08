@@ -1,0 +1,6 @@
+{
+  "name": "multi-docker",
+  "dependencies": {
+    "micro-js": "0.0.9"
+  }
+}

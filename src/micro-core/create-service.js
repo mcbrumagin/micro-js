@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
  * @private
  */
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
+  console.log('setupServiceWithRegistry', name, serviceHome, registryHost, config)
   return await retry(
     async () => {
       const location = await httpRequest(registryHost, {
