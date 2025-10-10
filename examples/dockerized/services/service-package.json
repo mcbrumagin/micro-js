@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "dependencies": {
+    "micro-js": "file:./micro-js"
+  }
+}

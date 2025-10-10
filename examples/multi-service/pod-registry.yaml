@@ -10,5 +10,5 @@ spec:
     - name: registry
       image: gcr.io/micro-188415/registry
       env:
-        - name: "SERVICE_REGISTRY_ENDPOINT"
+        - name: "MICRO_REGISTRY_URL"
           value: "0.0.0.0:10000"
