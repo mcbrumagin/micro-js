@@ -112,7 +112,10 @@ export async function routeCommand(state, payload, request, response, options = 
   
   // HTTP route resolution
   if (request.url) {
-    logger.debug(`resolving url "${request.url}" w/ payload ${JSON.stringify(payload)}`)
+    // ignore health to keep noise down
+    if (request.url !== '/health') {
+      logger.debug(`resolving url "${request.url}" w/ payload ${JSON.stringify(payload)}`)
+    }
     return resolvePossibleRoute(state, request, response, payload)
   }
   
