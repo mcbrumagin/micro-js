@@ -163,6 +163,10 @@ export default async function createService(name, serviceFn, options = {}) {
   // add service metadata
   server.service = name
   server.location = location
+  
+  // for binding service stubs to context
+  server.cache = cache
+  server.context = context
 
   // override terminate to gracefully unregister
   const httpServerTerminate = server.terminate.bind(server)

@@ -73,23 +73,28 @@ export function validateServiceBatch(fns) {
 export async function createServiceBatch(fns, createServiceFn, options) {
   const serviceNames = validateServiceBatch(fns)
   const registryHost = getRegistryHost()
-
-  // TODO testing default binding
-  // const sharedCache = { ...options.sharedCache, ...createSharedCache() }
   const sharedCache = createSharedCache()
 
-  // TODO bulk register and cache creation
-  // Pre-fetch registry state (optional optimization for future)
+  // TODO pre-fetch registry state
   const registryState = await prefetchRegistryState(registryHost)
   if (registryState) {
     updateCache(sharedCache, registryState)
   }
   
-  // Create all services concurrently with shared cache
-  // Pass shared cache as an option to each service
+  // create all services concurrently with shared cache
+  // pass shared cache as an option to each service
   const servers = await Promise.all(
     fns.map(fn => createServiceFn(fn, { sharedCache }))
   )
+  
+  // force-update context after all services have registered
+  // ensures all services have access to each other via this.<serviceName>()
+  for (const server of servers) {
+    if (server.context && server.cache) {
+      const { updateContext } = await import('./service-context.js')
+      updateContext(server.context, server.cache)
+    }
+  }
   
   return servers
 }

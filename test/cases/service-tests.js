@@ -193,7 +193,6 @@ async function testDependentServicesWithBulkCreate() {
   )
 }
 
-// TODO this works sometimes, somehow, must be a race condition? ... registry state is not updated yet?
 async function testDependentServicesContextCallWithBulkCreate() {
   function test(payload) {
     return `|TEST| ${payload}`
@@ -208,10 +207,9 @@ async function testDependentServicesContextCallWithBulkCreate() {
     return await this.test3('test4 payload') + ' test4 result'
   }
   return await terminateAfter(
-    await startRegistry(), // TODO does await matter?
+    await startRegistry(),
     createServices(test, test2, test3, test4),
     async () => {
-      // await sleep(1000) // doesn't guarantee it works.. could be a registration race condition
       let result = await callService('test4')
       await assert(result,
         r => r.includes('|TEST|'),
@@ -242,14 +240,12 @@ async function testDependentServicesContextCall() {
     return await this.test3('test4 payload') + ' test4 result'
   }
   return await terminateAfter(
-    await startRegistry(), // TODO does await matter?
-    // switching all of these around greatly increases the chance of this passing for some reason... reverse?
+    await startRegistry(),
     await createService(test4),
     await createService(test3),
     await createService(test2),
     await createService(test),
     async () => {
-      // await sleep(1000) // if this one passes more often, gotta be registration order
       let result = await callService('test4')
       await assert(result,
         r => r.includes('|TEST|'),
@@ -264,9 +260,6 @@ async function testDependentServicesContextCall() {
     }
   )
 }
-
-testDependentServicesContextCallWithBulkCreate.solo = true
-testDependentServicesContextCall.solo = true
 
 // callService (instead of using this.call) forces an eager lookup
 async function testDependentServiceWithEagerLookup() {
