@@ -25,7 +25,7 @@ async function main() {
     
     const result = await publishMessage(channel, message)
     
-    console.log('\n✓ Published successfully!')
+    console.log('\n Published successfully!')
     console.log(`  Subscribers notified: ${result.results?.length || 0}`)
     
     if (result.results?.length > 0) {

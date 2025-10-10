@@ -17,17 +17,28 @@ const logger = new Logger()
  */
 export function allocateServicePort(state, { service, domain, home }, defaultStartPort = 10000) {
   // Accept both 'home' and 'domain' for backwards compatibility
-  const serviceHome = home || domain
-  logger.trace(`Allocating port for service "${service}" at domain "${serviceHome}"`)
+  let serviceHome = home || domain
+  logger.debug(`allocating port for service "${service}" at domain "${serviceHome}"`)
+  
+  // if serviceHome has a port already, use it
+  let port = serviceHome.split(':')[2]
+  if (port) {
+    serviceHome = serviceHome.split(':').slice(0, 2).join(':')
+    state.domainPorts.set(serviceHome, port)
+  }
   
   if (!state.domainPorts.has(serviceHome)) {
     state.domainPorts.set(serviceHome, defaultStartPort)
   }
   
-  const port = state.domainPorts.get(serviceHome)
-  state.domainPorts.set(serviceHome, port + 1)
+  if (!port) {
+    port = state.domainPorts.get(serviceHome)
+    state.domainPorts.set(serviceHome, port + 1)
+  }
   
   const location = `${serviceHome}:${port}`
+  logger.debug(`allocated "${location}" for service "${service}"`)
+  
   return location
 }
 
@@ -35,7 +46,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * Register a service instance
  */
 export async function registerService(state, { service, location }) {
-  logger.trace(`Registering service "${service}" for location "${location}"`)
+  logger.debug(`Registering service "${service}" for location "${location}"`)
   
   // Add to services map
   if (!state.services.has(service)) {
@@ -63,7 +74,7 @@ export async function registerService(state, { service, location }) {
  * Unregister a service instance
  */
 export function unregisterService(state, { service, location }) {
-  logger.trace(`Unregistering service "${service}" for location "${location}"`)
+  logger.debug(`Unregistering service "${service}" for location "${location}"`)
   
   // Remove from reverse lookup
   state.addresses.delete(location)
@@ -90,7 +101,7 @@ export function unregisterService(state, { service, location }) {
  * Returns a single location or all services
  */
 export function findServiceLocation(state, serviceName, strategy = 'random') {
-  logger.trace(`Looking up service "${serviceName}"`)
+  logger.debug(`Looking up service "${serviceName}"`)
   
   // Special case: return all services
   if (serviceName === 'all') {

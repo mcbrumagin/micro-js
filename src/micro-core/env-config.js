@@ -82,7 +82,7 @@ class EnvConfig {
         }
       }
       
-      logger.trace(`Loaded environment configuration from ${filePath}`)
+      logger.debug(`Loaded environment configuration from ${filePath}`)
     } catch (error) {
       if (error.code !== 'ENOENT') {
         logger.warn(`Failed to load environment file ${filePath}:`, error.message)

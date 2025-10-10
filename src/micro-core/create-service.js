@@ -39,7 +39,6 @@ const DEFAULT_CONFIG = {
  * @private
  */
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
-  console.log('setupServiceWithRegistry', name, serviceHome, registryHost, config)
   return await retry(
     async () => {
       const location = await httpRequest(registryHost, {
@@ -159,7 +158,7 @@ export default async function createService(name, serviceFn, options = {}) {
   const registryData = await registerServiceWithRegistry(name, location, registryHost)
   updateCache(cache, registryData)
 
-  logger.trace(`service "${name}" registered at ${registryHost}`)
+  logger.debug(`service "${name}" registered at ${registryHost}`)
 
   // add service metadata
   server.service = name

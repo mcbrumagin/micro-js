@@ -13,7 +13,7 @@ const logger = new Logger()
  */
 export function registerDirectRoute(state, { service, path, dataType = 'dynamic' }) {
   state.routes.set(path, { service, dataType })
-  logger.trace(`Route "${path}" registered for service "${service}"`)
+  logger.debug(`Route "${path}" registered for service "${service}"`)
 }
 
 /**
@@ -22,7 +22,7 @@ export function registerDirectRoute(state, { service, path, dataType = 'dynamic'
 export function registerControllerRoute(state, { service, path, dataType = 'dynamic' }) {
   const basePath = path.replace('*', '')
   state.controllerRoutes.set(basePath, { service, dataType })
-  logger.trace(`Route controller "${path}" registered for service "${service}"`)
+  logger.debug(`Route controller "${path}" registered for service "${service}"`)
 }
 
 /**

@@ -1,4 +1,4 @@
-const { createService } = require('micro-js')
+import { createService } from 'micro-js'
 
 console.log({env: process.env})
 

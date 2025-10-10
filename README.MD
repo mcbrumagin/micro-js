@@ -553,9 +553,10 @@ Create a cache service instance.
 - [x] Load balancing
 - [x] Comprehensive tests
 - [x] Modular architecture
+- [ ] Read-only (cache-control) support
 - [ ] CLI tools
-- [ ] Cluster failover paradigms
 - [ ] Multi-container integration tests
+- [ ] Cluster failover paradigms
 - [ ] Production mode (no error traces)
 - [ ] Basic access control
 

@@ -1,5 +1,5 @@
 // create our own copy of log fns so we can override console safely
-const consol = {
+const ogConsole = {
   log: console.log.bind(console),
   info: console.info.bind(console),
   warn: console.warn.bind(console),
@@ -64,13 +64,13 @@ function getColorForLogLevel(level) {
   else if (level === 'warn') return yellow
   else if (level === 'info') return blue
   // else if (level === 'log') return green
-  // else if (level === 'trace') return magenta
+  // else if (level === 'debug') return magenta
   // else return white
 }
 
-function getLogLineNumber() {
-  // Use Error.captureStackTrace for better performance (Node.js specific)
+function getLogLineNumber(excludeFullPathInLogLines = false) {
   const obj = {}
+
   Error.captureStackTrace(obj, getLogLineNumber)
   
   let fullPathLogLine = obj.stack.split('\n').slice(2, 3)[0]
@@ -90,9 +90,17 @@ function getLogLineNumber() {
     }
   } else {
     // Direct path format: "at file:///path/to/file.js:line:col"
-    logLineInfo = fullPathLogLine.replace('file://', '').replace(process.cwd() + '/', '').replace(/^\s+at\s+/, '')
+    logLineInfo = fullPathLogLine
+      .replace('file://', '')
+      .replace(process.cwd() + '/', '')
+      .replace(/^\s+at\s+/, '')
   }
   
+  // TODO do this earlier for better performance?
+  if (excludeFullPathInLogLines) {
+    logLineInfo = logLineInfo.split('/').slice(-1).join('')
+  }
+
   return logLineInfo
 }
 
@@ -102,12 +110,13 @@ let consoleOverridden = false
 // Helper function to override console.log globally for all Logger instances
 export function overrideConsoleGlobally(config = {}) {
   if (consoleOverridden) {
-    consol.warn('Console is already overridden globally')
+    ogConsole.warn('Console is already overridden globally')
     return
   }
   
   // Store original console methods
   const originalMethods = {
+    debug: console.debug,
     log: console.log,
     info: console.info,
     warn: console.warn,
@@ -118,17 +127,19 @@ export function overrideConsoleGlobally(config = {}) {
   const globalLogger = new Logger(config)
   
   // Override console methods
-  console.log = globalLogger.trace.bind(globalLogger)
+  console.debug = globalLogger.debug.bind(globalLogger)
+  console.log = globalLogger.log.bind(globalLogger)
   console.info = globalLogger.info.bind(globalLogger)
   console.warn = globalLogger.warn.bind(globalLogger)
   console.error = globalLogger.error.bind(globalLogger)
+  // TODO distributed trace
   
   consoleOverridden = true
   
   // Store original methods for potential restoration
   console._originalMethods = originalMethods
   
-  consol.warn('Console methods have been globally overridden to use Logger. Use console._originalMethods to access originals.')
+  ogConsole.warn('Console methods have been globally overridden to use Logger. Use console._originalMethods to access originals.')
 
   // TODO return a function to toggle override off/on
 }
@@ -138,9 +149,9 @@ export default class Logger {
     options = {},
 
     // whatever level is set will include all subsequent levels
-    logLevel = process.env.LOG_LEVEL || 'trace',
+    logLevel = process.env.LOG_LEVEL || 'debug',
     logLevels = [
-      'trace',
+      'debug',
       'log',
       'info',
       'warn',
@@ -148,12 +159,12 @@ export default class Logger {
     ]
   ) {
     this.options = Object.assign({
-      logGroup: '', // TODO rename to logGroup
-      // TODO
-      useLogFile: false,
+      logGroup: '',
+      useLogFile: false, // TODO
       logFilePath: './logs',
       logFileRetainLineLimit: 0, // no retention limit
-      includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true' || process.env.LOG_INCLUDE_LINES === '1',
+      includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true',
+      excludeFullPathInLogLines: process.env.LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES === 'true',
       includeLogLevelInOutput: false,
       // formatJson: true,
       warnLevel: false,
@@ -176,11 +187,12 @@ export default class Logger {
       this.createLogFn(level)
     }
 
-    if (this.options.warnLevel) consol.warn(this.writeColor('yellow',
+    if (this.options.warnLevel) ogConsole.warn(this.writeColor('yellow',
         `Log level = ${logLevel} `
         + `| Active levels: ${this.activeLogLevels.join(', ') || 'none'} `
         + `| Inactive levels: ${this.inactiveLogLevels.join(', ') || 'none'} `
         + `| Include lines: ${this.options.includeLogLineNumbers ? 'enabled' : 'disabled (set LOG_INCLUDE_LINES=true to enable)'}\n`
+        + `| Exclude full path in log lines: ${this.options.excludeFullPathInLogLines ? 'enabled' : 'disabled (set LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true to enable)'}\n`
     ))
   }
 
@@ -202,6 +214,7 @@ export default class Logger {
     let {
       // formatJson,
       includeLogLineNumbers,
+      excludeFullPathInLogLines,
       logGroup
      } = this.options
 
@@ -214,7 +227,12 @@ export default class Logger {
         let color = getColorForLogLevel(level) || '' // use default terminal color
         args.unshift(color) // start with color code string
         
-        if (includeLogLineNumbers) args.unshift(writeColor('white', getLogLineNumber(args), colors.reset))
+        if (includeLogLineNumbers) args.unshift(
+          writeColor('white', 
+          getLogLineNumber(excludeFullPathInLogLines),
+          colors.reset
+        ))
+
         if (logGroup) args.unshift(writeColor('white', logGroup, colors.reset))
 
         let logContent = ''
@@ -226,8 +244,8 @@ export default class Logger {
           if (arg !== color) logContent += ' | ' // TODO?
         }
         logContent = logContent.slice(0, logContent.length - 3) + colors.reset
-        if (consol[level]) consol[level](logContent)
-        else consol.log(...args) // should only ever happen for console.log override
+        if (ogConsole[level]) ogConsole[level](logContent)
+        else ogConsole.log(...args) // should only ever happen for console.log override
         return logContent // mostly for testing, but who knows
       }
     }

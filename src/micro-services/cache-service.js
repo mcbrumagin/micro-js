@@ -18,7 +18,7 @@ export default async function createCacheService({
       if (expireCache[key] < Date.now()) {
         delete cache[key]
         delete expireCache[key]
-        console.log(`evicted key ${key}`)
+        logger.debug(`evicted key ${key}`)
       }
     }
   }
@@ -48,7 +48,7 @@ export default async function createCacheService({
   evictionIntervalId = setInterval(performEviction, settings.evictionInterval)
 
   let server = await createService('cache', async function cacheService(payload) {
-    logger.info(`cache service received payload: ${payload}`)
+    logger.debug(`cache service received payload: ${JSON.stringify(payload)}`)
 
     if (payload.get === '*') return cache
     else if (payload.get) return cache[payload.get] || null
@@ -70,7 +70,7 @@ export default async function createCacheService({
   // Override terminate to clean up interval
   let originalTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    logger.trace('cache service cleaning up interval before serverterminate')
+    logger.debug('cache service cleaning up interval before serverterminate')
     clearInterval(evictionIntervalId)
     await originalTerminate()
   }

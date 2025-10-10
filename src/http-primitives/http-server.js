@@ -56,7 +56,6 @@ export default async function createServer(port, serverFn) {
           response.end(JSON.stringify(result))
         } // else logger.warn('nothing returned from server handler', {port, name: serverFn.name})
       } catch (err) {
-        // logger.trace(err.stack) // TODO VERIFYshould just log in service/client
         if (err instanceof HttpError) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
@@ -94,7 +93,7 @@ export default async function createServer(port, serverFn) {
     })
     
     server.listen(port, () => {
-      logger.trace(`server "${serverFn.name}" listening on ${port}`)
+      logger.debug(`server "${serverFn.name}" listening on ${port}`)
       resolve(server)
     })
   })

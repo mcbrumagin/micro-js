@@ -7,7 +7,6 @@ import Logger from '../utils/logger.js'
 const logger = new Logger()
 
 export default async function createRoute (path, serviceNameOrFn, dataType) {
-  console.log({ path, serviceNameOrFn, dataType })
   let serviceName
   if (!path || !serviceNameOrFn) throw new HttpError(400, 'Route path and service fn or name are required')
   let server
@@ -21,7 +20,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     register: { type: 'route', service: serviceName, path, dataType }
   })
 
-  logger.trace(`route "${path}" registered at ${registryHost}`)
+  logger.debug(`route "${path}" registered at ${registryHost}`)
   return server
 }
 

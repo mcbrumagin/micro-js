@@ -1,44 +1,43 @@
+# Build registry
 mkdir -p build/registry
-cp -R registry build
+cp registry/index.js build/registry/
+cp registry/package.json build/registry/
+cp registry/Dockerfile build/registry/
+# Copy micro-js source for registry
+mkdir -p build/registry/micro-js
+cp -R ../../src build/registry/micro-js/
+cp ../../package.json build/registry/micro-js/
 
+# Build services
 mkdir -p build/service1
 mkdir -p build/service2
 mkdir -p build/service3
 
+# Copy service files
 cp services/service1.js build/service1/index.js
 cp services/service2.js build/service2/index.js
 cp services/service3.js build/service3/index.js
 
-cp services/package.json build/service1/package.json
-cp services/package.json build/service2/package.json
-cp services/package.json build/service3/package.json
+# Copy package.json with local dependency
+cp services/service-package.json build/service1/package.json
+cp services/service-package.json build/service2/package.json
+cp services/service-package.json build/service3/package.json
 
+# Copy micro-js source for each service
+mkdir -p build/service1/micro-js
+mkdir -p build/service2/micro-js
+mkdir -p build/service3/micro-js
+
+cp -R ../../src build/service1/micro-js/
+cp ../../package.json build/service1/micro-js/
+
+cp -R ../../src build/service2/micro-js/
+cp ../../package.json build/service2/micro-js/
+
+cp -R ../../src build/service3/micro-js/
+cp ../../package.json build/service3/micro-js/
+
+# Copy Dockerfile
 cp services/Dockerfile build/service1/Dockerfile
 cp services/Dockerfile build/service2/Dockerfile
 cp services/Dockerfile build/service3/Dockerfile
-
-
-# use local micro-js
-cd build/service1
-rm -rf node_modules
-rm -rf package-lock.json
-npm install ../../../..
-cd ../..
-
-cd build/service2
-rm -rf node_modules
-rm -rf package-lock.json
-npm install ../../../..
-cd ../..
-
-cd build/service3
-rm -rf node_modules
-rm -rf package-lock.json
-npm install ../../../..
-cd ../..
-
-cd build/registry
-rm -rf node_modules
-rm -rf package-lock.json
-npm install ../../../..
-cd ../..

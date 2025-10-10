@@ -99,8 +99,6 @@ async function customServiceNegativeTest() {
       async () => await callService('customService', { isUseful: false }),
 
       // assert
-      // err => console.log('\n\nmessage\n\n', err.message),
-      // () => process.exit(1),
       err => err.stack.includes('HttpClientError [400]'),
       err => err.message.includes('nah'),
       err => err.message.includes('this is a useful service')

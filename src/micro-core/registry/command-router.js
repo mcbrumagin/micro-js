@@ -14,6 +14,10 @@ import {
 import { registerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 
+import Logger from '../../utils/logger.js'
+
+const logger = new Logger()
+
 /**
  * Get registry API documentation
  * Parses the main handler function to show available commands
@@ -66,11 +70,11 @@ async function handleRegister(state, payload) {
  * Route incoming commands to their handlers
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
+  // TODO envConfig
   const { defaultStartPort = 10000, handlerFn } = options
 
-  // TODO logger
-  console.log(`routing command: ${JSON.stringify({state, payload, options})}`)
-  
+  logger.debug(`routing command: ${JSON.stringify({payload})}`)
+
   // Command dispatch
   if (payload.health) {
     return handleHealthCheck()

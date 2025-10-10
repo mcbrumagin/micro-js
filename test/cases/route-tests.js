@@ -73,8 +73,7 @@ async function testRouteBulkCreate() {
         body: JSON.stringify({ name: 'John' })
       }
       let result3 = await (await fetch(`${baseUrl}/greet3`, requestPayloadOptions)).text()
-
-      console.log({ result1, result2, result3 })
+      
       await assert([result1, result2, result3],
         ([r1, r2]) => r1 === r2,
         ([,,r3]) => r3 === `Well g'day then, John!`

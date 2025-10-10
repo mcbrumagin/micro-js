@@ -1,8 +1,9 @@
 import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
+import envConfig from './env-config.js'
 
 export default async function callService (name, payload) {
-  let registryHost = process.env.MICRO_REGISTRY_URL
+  let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   let result = await httpRequest(registryHost, {
     call: { name, payload }
   })
@@ -10,7 +11,6 @@ export default async function callService (name, payload) {
 }
 
 export async function callServiceWithCache (cache, name, payload) {
-  console.log('IN CALL SERVICE WITH CACHE', {cache, name, payload})
   // name could be the function if called "locally", or a noop of the same name for code-completion
   name = name.name || name
   let registryHost = process.env.MICRO_REGISTRY_URL
