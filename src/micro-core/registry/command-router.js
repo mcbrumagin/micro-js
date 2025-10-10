@@ -73,8 +73,6 @@ export async function routeCommand(state, payload, request, response, options = 
   // TODO envConfig
   const { defaultStartPort = 10000, handlerFn } = options
 
-  logger.debug(`routing command: ${JSON.stringify({payload})}`)
-
   // Command dispatch
   if (payload.health) {
     return handleHealthCheck()
@@ -114,6 +112,7 @@ export async function routeCommand(state, payload, request, response, options = 
   
   // HTTP route resolution
   if (request.url) {
+    logger.debug(`resolving url "${request.url}" w/ payload ${JSON.stringify(payload)}`)
     return resolvePossibleRoute(state, request, response, payload)
   }
   

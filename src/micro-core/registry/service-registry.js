@@ -46,7 +46,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * Register a service instance
  */
 export async function registerService(state, { service, location }) {
-  logger.debug(`Registering service "${service}" for location "${location}"`)
+  logger.debug(`registering service "${service}" for location "${location}"`)
   
   // Add to services map
   if (!state.services.has(service)) {
@@ -74,7 +74,7 @@ export async function registerService(state, { service, location }) {
  * Unregister a service instance
  */
 export function unregisterService(state, { service, location }) {
-  logger.debug(`Unregistering service "${service}" for location "${location}"`)
+  logger.debug(`unregistering service "${service}" for location "${location}"`)
   
   // Remove from reverse lookup
   state.addresses.delete(location)
@@ -101,7 +101,7 @@ export function unregisterService(state, { service, location }) {
  * Returns a single location or all services
  */
 export function findServiceLocation(state, serviceName, strategy = 'random') {
-  logger.debug(`Looking up service "${serviceName}"`)
+  logger.debug(`looking up service "${serviceName}"`)
   
   // Special case: return all services
   if (serviceName === 'all') {

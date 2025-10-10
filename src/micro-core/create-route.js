@@ -10,9 +10,10 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   let serviceName
   if (!path || !serviceNameOrFn) throw new HttpError(400, 'Route path and service fn or name are required')
   let server
-  if (serviceNameOrFn.name) {
+  if (typeof serviceNameOrFn === 'function') {
     server = await createService(serviceNameOrFn)
-    serviceName = serviceNameOrFn.name
+    serviceName = server.name
+    console.warn('createRoute: server.name', { serviceName })
   } else serviceName = serviceNameOrFn
 
   let registryHost = process.env.MICRO_REGISTRY_URL

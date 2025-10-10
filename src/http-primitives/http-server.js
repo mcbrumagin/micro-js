@@ -18,8 +18,11 @@ function prependServiceNameToErrorStack(err, serviceName) {
 function overrideResponse(response) {
   response.isEnded = false
   const originalEnd = response.end.bind(response)
-  response.end = (...args) => {
-    if (!response.isEnded) originalEnd.call(response, ...args)
+  response.end = (sanitizedPayload) => {
+    if (!Buffer.isBuffer(sanitizedPayload) && typeof sanitizedPayload === 'object')
+      sanitizedPayload = JSON.stringify(sanitizedPayload)
+    
+    if (!response.isEnded) originalEnd.call(response, sanitizedPayload)
     else logger.warn('response already ended', { args })
     response.isEnded = true
   }

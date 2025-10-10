@@ -22,6 +22,8 @@ import {
 } from './service/service-validator.js'
 import { createServiceBatch } from './service/service-batch.js'
 
+import crypto from 'crypto'
+
 const logger = new Logger()
 
 /**
@@ -106,19 +108,36 @@ async function unregisterServiceFromRegistry(name, location, registryHost) {
 export default async function createService(name, serviceFn, options = {}) {
   if (
     !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
-    !(typeof name === 'function' && typeof name.name === 'string' && name.name)
+    !(typeof name === 'function')
   ) {
     throw new Error(
-      'Please provide a named function, or a service name and its function separately'
+      'Please provide a function, or a service name and its function separately'
     )
   }
 
+  /* TODO need tests for anonymous services
+    NOTE:
+     may require that anon services are only accessible locally, and skip server creation
+     this would also require anon routes to be local to wherever the register is executed from
+  */
+ 
+  // old implementation: prohibits anonymous functions, only named functions are allowed
+  // if (
+  //   !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
+  //   !(typeof name === 'function' && typeof name.name === 'string' && name.name)
+  // ) {
+  //   throw new Error(
+  //     'Please provide a named function, or a service name and its function separately'
+  //   )
+  // }
+
   // handle named function case (serviceFn, options)
-  if (typeof name === 'function' && name.name) {
+  if (typeof name === 'function') {
     // TODO test options overrides
     options = options && Object.keys(options).length === 0 ? serviceFn : options
     serviceFn = name
-    name = serviceFn.name
+    name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
+    if (name.includes('Anon$')) console.warn(`createService generated name for anonymous function ${name}`)
   }
 
   validateServiceName(name)
@@ -144,6 +163,7 @@ export default async function createService(name, serviceFn, options = {}) {
   let server
   try {
     server = await httpServer(port, handler)
+    server.name = name
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) { // port already in use
       // TODO if hardcoded port, warn and exit

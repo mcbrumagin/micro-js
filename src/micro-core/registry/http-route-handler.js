@@ -17,12 +17,11 @@ const logger = new Logger()
 function normalizeResult(result, url) {
   if (!result) return result
   
-  // Already in standard format
-  if (result.dataType && result.payload !== undefined) {
+  if (result.status || result.dataType && result.payload !== undefined) {
+    // TODO specific validations?
     return result
   }
   
-  // Wrap raw result
   return {
     payload: result,
     dataType: detectContentType(result, url)
@@ -52,7 +51,7 @@ async function handleDirectRoute(state, routeInfo, url, response, requestBody) {
   const result = await proxyServiceCall(state, { name: service, payload: requestBody || {} })
   const normalizedResult = normalizeResult(result, url)
   
-  response.writeHead(200, { 
+  response.writeHead(normalizedResult?.status || 200, { 
     'content-type': normalizedResult?.dataType || dataType 
   })
   sendBufferedResponse(response, normalizedResult)
@@ -72,7 +71,7 @@ async function handleControllerRoute(state, controllerInfo, url, response, reque
   })
   const normalizedResult = normalizeResult(result, url)
   
-  response.writeHead(200, { 
+  response.writeHead(normalizedResult?.status || 200, { 
     'content-type': normalizedResult?.dataType || dataType 
   })
   sendBufferedResponse(response, normalizedResult)
