@@ -4,6 +4,8 @@ import HttpError from '../http-primitives/http-error.js'
 import path from 'path'
 import fs from 'fs'
 
+const logger = new Logger('static-file-service')
+
 /*
 
 example filemap
@@ -64,7 +66,14 @@ function generateQuickLookupMap(fileMap, urlRoot, rootDir, skipValidation = fals
       const err = validateMapEntry(rootDir, item, target)
       if (err) errors.push(err)
     }
-    
+
+    const createSpecificFileMapping = (item, target) => {
+      if (item.endsWith('/')) {
+        let explicitFileItem = `${item}${target.split('/').pop()}`
+        quickLookup[explicitFileItem] = path.join(rootDir, target)
+      }
+    }
+
     if (item.endsWith('/*')) {
       // Wildcard mapping - map directory contents
       const targetDir = target.endsWith('/*') ? target.slice(0, -2) : target
@@ -77,23 +86,11 @@ function generateQuickLookupMap(fileMap, urlRoot, rootDir, skipValidation = fals
     } else if (item === '/') {
       // Root mapping
       quickLookup['/'] = path.join(rootDir, target)
-
-      // TODO helper fn
-      if (item.endsWith('/')) {
-        let explicitFileItem = `${item}${target.split('/').pop()}`
-        quickLookup[explicitFileItem] = path.join(rootDir, target)
-        console.warn({explicitFileItem, path: path.join(rootDir, target)})
-      } else console.warn({item, target})
+      createSpecificFileMapping(item, target)
     } else {
       // Direct file path mapping
       quickLookup[item] = path.join(rootDir, target)
-      
-      // also create a mapping for the file path with the file name
-      if (item.endsWith('/')) {
-        let explicitFileItem = `${item}${target.split('/').pop()}`
-        quickLookup[explicitFileItem] = path.join(rootDir, target)
-        console.warn({explicitFileItem, path: path.join(rootDir, target)})
-      } else console.warn({item, target})
+      createSpecificFileMapping(item, target)
     }
   }
 
@@ -112,54 +109,101 @@ function normalizePath(path) {
   // Remove trailing slash unless it's the root
   if (path !== '/' && path.endsWith('/')) path = path.slice(0, -1)
 
-  console.warn({path})
   return path
+}
+
+
+function sanityCheckRootDir(rootDir, externalRootDir = false) {
+  if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
+    throw new Error(`rootDir is not inside process.cwd(): "${rootDir}"`)
+  }
+
+  if (externalRootDir) {
+    logger.warn(`Potentially unsafe! "externalRootDir" is enabled for rootDir: "${rootDir}"`)
+  }
+
+  if (!fs.existsSync(rootDir)) {
+    throw new Error(`rootDir does not exist: "${rootDir}"`)
+  }
+
+  return true
+}
+
+function simpleSecurityCheck(url, preventSystemFileAccess = true) {
+  if (url.includes('..') // prevent path traversal
+    || url.split('/').some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
+    || url.includes('%2e%2e') // prevent encoded path traversal ".."
+    || url.includes('%2e') // prevent encoded dot
+    || url.includes('\\') // prevent backslash
+    || url.includes('%5c') // prevent encoded double-backslash
+    || url.includes('%2f') // prevent encoded forward slash
+
+    // prevent access to typical system files
+    || (preventSystemFileAccess && (
+         url.includes('/etc')
+      || url.includes('/boot')
+      || url.includes('/lib')
+      || url.includes('/bin')
+      || url.includes('/sbin')
+      || url.includes('/usr')
+      || url.includes('/var')
+    ))
+  ) throw new HttpError(403, 'url contains invalid characters')
+  else return true
 }
 
 // TODO dev mode default returns quickLookup path urls
 const $404 = () => new HttpError(404, 'Not found')
 
 export default async function createStaticFileService({
-  rootDir = process.cwd(),
+  rootDir = normalizePath(process.cwd()),
   urlRoot = '/',
-  fileMap = 'index.html'
+  fileMap = 'index.html',
+  externalRootDir = false,
+  customSecurityCheck = null,
+  simpleSecurity = true,
+  preventSystemFileAccess = true
 }, resolverFn, defaultFn = $404) {
-  // Validate rootDir
-  if (!fs.existsSync(rootDir)) {
-    throw new Error(`rootDir does not exist: "${rootDir}"`)
+
+  if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
+    // assume this is a relative path
+    rootDir = path.join(normalizePath(process.cwd()), rootDir)
   }
+
+  sanityCheckRootDir(rootDir, externalRootDir)
 
   if (typeof fileMap === 'string') {
     fileMap = { '/' : fileMap } // if just a string is provided, assume this is our index path
   }
 
-  // Generate the lookup map
   const quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
-  console.warn({quickLookup})
-  // TODO attach to server before returning
-
-  return await createService('static-file-service', async function staticFileService(payload) {
-    // console.warn('request url: ', request?.url)
-    console.warn('payload url?: ', payload?.url)
+  
+  const getFile = async payload => {
     const url = payload?.url
+    logger.debug(`getting file for url: "${url}"`)
+
+    if (simpleSecurity) simpleSecurityCheck(url, preventSystemFileAccess)
+    else logger.warn('simpleSecurity is disabled, make sure you trust the source of the url, or implement customSecurityCheck')
+
+    if (customSecurityCheck) customSecurityCheck(url)
+    else if (!simpleSecurity) logger.warn('customSecurityCheck is disabled, make sure you trust the source of the url, or use simpleSecurity')
 
     if (!url) throw new HttpError(400, 'url is required')
 
     const filePath = quickLookup[normalizePath(url)]
-    console.warn({url, filePath, quickLookup})
-
     if (!filePath) {
-      // File not found in lookup
+      logger.debug(`file not found in lookup for url: "${url}"`)
       if (resolverFn) {
         try {
           let result = await resolverFn(url)
-          console.warn({result})
-          return result
+          // TODO should handle fs readFileSync?
+          if (result !== false && result != null) return result
         } catch (err) {
-          // If resolver fails, fall through to default
+          logger.error(`Error in resolverFn for url: "${url}": ${err.stack}`)
         }
       }
 
+      logger.debug(`file failed to resolve for url: "${url}"; using defaultFn`)
       let defaultResult = await defaultFn()
       if (defaultResult instanceof Error) {
         throw defaultResult
@@ -168,12 +212,24 @@ export default async function createStaticFileService({
       }
     }
 
-    // Read and return the file content
     try {
-      const content = fs.readFileSync(filePath, 'utf-8')
+      // TODO implement a streaming read file
+      const content = await fs.readFileSync(filePath, 'utf-8')
       return content
     } catch (err) {
+      logger.error(`Error reading file: ${err.stack}`)
       throw new HttpError(500, `Error reading file: ${err.message}`)
     }
+  }
+
+  const server = await createService('static-file-service', async function staticFileService(payload) {
+    // logger.warn('request url: ', request?.url)
+    return getFile(payload)
   })
+
+  // attach lookup map and helper fns
+  server.quickLookup = quickLookup
+  server.getFile = getFile
+
+  return server
 }

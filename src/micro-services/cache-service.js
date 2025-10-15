@@ -47,7 +47,7 @@ export default async function createCacheService({
   // Start eviction interval ONCE at service creation
   evictionIntervalId = setInterval(performEviction, settings.evictionInterval)
 
-  let server = await createService('cache', async function cacheService(payload) {
+  async function cacheService(payload) {
     logger.debug(`cache service received payload: ${JSON.stringify(payload)}`)
 
     if (payload.get === '*') return cache
@@ -65,7 +65,9 @@ export default async function createCacheService({
     else if (payload.clear) cache = {}
     else return false && logger.warn(`cache service failed to process: ${payload}`)
     return true
-  })
+  }
+  
+  let server = await createService('cache', cacheService)
 
   // Override terminate to clean up interval
   let originalTerminate = server.terminate.bind(server)
@@ -74,6 +76,21 @@ export default async function createCacheService({
     clearInterval(evictionIntervalId)
     await originalTerminate()
   }
+
+
+  // attach helper fns
+
+  server.getCache = () => cache
+  server.getExpireCache = () => expireCache
+  server.getSettings = () => settings
+
+  server.set = (key, value) => cacheService({ set: { [key]: value } })
+  server.get = (key) => cacheService({ get: key })
+  server.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
+  server.getex = (key) => cacheService({ getex: key })
+  server.del = (key) => cacheService({ del: { [key]: true } })
+  server.clear = () => cacheService({ clear: true })
+  server.settings = (settings) => cacheService({ settings })
 
   return server
 }

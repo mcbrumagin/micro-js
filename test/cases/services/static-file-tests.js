@@ -11,7 +11,6 @@ const logger = new Logger({
   // warnLevel: true
 })
 
-// Helper to create temporary test files
 async function createTempTestFiles() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'static-file-test-'))
   
@@ -34,14 +33,39 @@ async function createTempTestFiles() {
   return tempDir
 }
 
-// Helper to cleanup temp files
 function cleanupTempFiles(tempDir) {
   if (fs.existsSync(tempDir)) {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
 }
 
-async function testBasicStaticFileService() {
+async function testBasicStaticFileServiceWorkingDir() {
+  const tempDir = await createTempTestFiles()
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        // since we are using default, rootDir should be the current working directory
+        // assumes we are running using ./test.sh from the root of the project
+        fileMap: 'package.json'
+      }),
+      async () => {
+        let result = await callService('static-file-service', { url: '/' })
+        await assert(result, 
+          r => r.includes('"name": "micro-js",'),
+          r => r.includes('{'),
+          r => r.includes('}')
+        )
+        return result
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testBasicStaticFileServiceExternalTempDir() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -50,7 +74,8 @@ async function testBasicStaticFileService() {
       await createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
-        fileMap: 'index.html'
+        fileMap: 'index.html',
+        externalRootDir: true
       }),
       async () => {
         let result = await callService('static-file-service', { url: '/' })
@@ -78,7 +103,8 @@ async function testStaticFileWithMultipleRoutes() {
         fileMap: {
           '/': 'index.html',
           '/about': 'about.html'
-        }
+        },
+        externalRootDir: true
       }),
       async () => {
         let indexResult = await callService('static-file-service', { url: '/' })
@@ -107,7 +133,8 @@ async function testStaticFileWithWildcardMapping() {
         fileMap: {
           '/': 'index.html',
           '/public/*': 'public/*'
-        }
+        },
+        externalRootDir: true
       }),
       async () => {
         let styleResult = await callService('static-file-service', { url: '/public/style.css' })
@@ -133,7 +160,8 @@ async function testStaticFileNotFound() {
       await createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
-        fileMap: 'index.html'
+        fileMap: 'index.html',
+        externalRootDir: true
       }),
       async () => {
         await assertErr(
@@ -157,12 +185,9 @@ async function testStaticFileWithCustomResolver() {
       await createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
-        fileMap: 'index.html'
-      }, (url) => {
-        console.warn({url})
-        // Custom resolver for unmatched routes
-        return `Custom response for: ${url}`
-      }),
+        fileMap: 'index.html',
+        externalRootDir: true
+      }, (url) => `Custom response for: ${url}`),
       async () => {
         let result = await callService('static-file-service', { url: 'custom-route' })
         await assert(result, r => r.includes('Custom response for: custom-route'))
@@ -181,7 +206,8 @@ async function testStaticFileInvalidRootDir() {
       await assertErr(
         () => createStaticFileService({
           rootDir: '/nonexistent/directory/path',
-          fileMap: 'index.html'
+          fileMap: 'index.html',
+          externalRootDir: true
         }),
         err => err.message.includes('does not exist')
       )
@@ -198,7 +224,8 @@ async function testStaticFileUrlSanitization() {
       await createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
-        fileMap: 'index.html'
+        fileMap: 'index.html',
+        externalRootDir: true
       }),
       async () => {
         // Test with trailing slash
@@ -225,7 +252,8 @@ async function testStaticFileWithNoUrl() {
       await createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
-        fileMap: 'index.html'
+        fileMap: 'index.html',
+        externalRootDir: true
       }),
       async () => {
         await assertErr(
@@ -241,7 +269,8 @@ async function testStaticFileWithNoUrl() {
 }
 
 export default {
-  testBasicStaticFileService,
+  testBasicStaticFileServiceWorkingDir,
+  testBasicStaticFileServiceExternalTempDir,
   testStaticFileWithMultipleRoutes,
   testStaticFileWithWildcardMapping,
   testStaticFileNotFound,
@@ -250,4 +279,3 @@ export default {
   testStaticFileUrlSanitization,
   testStaticFileWithNoUrl
 }
-
