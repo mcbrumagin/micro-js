@@ -4,7 +4,7 @@ import Logger from '../utils/logger.js'
 export default async function createCacheService({
   expireTime = 60000 * 10,
   evictionInterval = 30000,
-}) {
+} = {}) {
   let logger = new Logger({logGroup: 'cache'})
   let cache = {}
   let expireCache = {} // mirror of cache for eviction

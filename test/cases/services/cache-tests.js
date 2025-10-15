@@ -1,0 +1,393 @@
+import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../core/index.js'
+import createCacheService from '../../../src/micro-services/cache-service.js'
+import { callService, Logger } from '../../../src/index.js'
+
+const logger = new Logger({
+  // logGroup: 'cacheServiceTests',
+  includeLogLineNumbers: true,
+  // warnLevel: true
+})
+
+/**
+ * Test basic set and get operations
+ */
+async function testBasicSetAndGet() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set a value
+      const setResult = await callService('cache', { set: { key1: 'value1' } })
+      await assert(setResult, r => r === true)
+
+      // Get the value
+      const getValue = await callService('cache', { get: 'key1' })
+      await assert(getValue, v => v === 'value1')
+
+      // Get non-existent key
+      const nullValue = await callService('cache', { get: 'nonexistent' })
+      await assert(nullValue, v => v === null)
+    }
+  )
+}
+
+/**
+ * Test setting multiple keys at once
+ */
+async function testSetMultipleKeys() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set multiple keys
+      await callService('cache', { 
+        set: { 
+          key1: 'value1',
+          key2: 'value2',
+          key3: { nested: 'object' }
+        } 
+      })
+
+      // Get all keys
+      const allValues = await callService('cache', { get: '*' })
+      
+      await assert(allValues,
+        v => v.key1 === 'value1',
+        v => v.key2 === 'value2',
+        v => v.key3.nested === 'object'
+      )
+    }
+  )
+}
+
+/**
+ * Test cache expiration with setex
+ */
+async function testCacheExpiration() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 200, evictionInterval: 20 }),
+    async () => {
+      // Set value with expiration
+      await callService('cache', { setex: { tempKey: 'tempValue' } })
+      
+      // Value should exist immediately
+      const valueBeforeExpire = await callService('cache', { get: 'tempKey' })
+      await assert(valueBeforeExpire, v => v === 'tempValue')
+      
+      // Check expiration time is set
+      const expireTime = await callService('cache', { getex: 'tempKey' })
+      await assert(expireTime, 
+        t => typeof t === 'number',
+        t => t > Date.now()
+      )
+      
+      // Wait for expiration
+      await sleep(250)
+      
+      // Value should be evicted
+      const valueAfterExpire = await callService('cache', { get: 'tempKey' })
+      await assert(valueAfterExpire, v => v === null)
+    }
+  )
+}
+
+/**
+ * Test setting custom expiration time
+ */
+async function testCustomExpirationTime() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 1000, evictionInterval: 20 }),
+    async () => {
+      // Set a value
+      await callService('cache', { set: { customKey: 'customValue' } })
+      
+      // Set custom expiration (100ms from now)
+      await callService('cache', { ex: { customKey: 100 } })
+      
+      // Value should exist
+      const valueBefore = await callService('cache', { get: 'customKey' })
+      await assert(valueBefore, v => v === 'customValue')
+      
+      // Wait for expiration
+      await sleep(150)
+      
+      // Value should be evicted
+      const valueAfter = await callService('cache', { get: 'customKey' })
+      await assert(valueAfter, v => v === null)
+    }
+  )
+}
+
+/**
+ * Test removing expiration (rex)
+ */
+async function testRemoveExpiration() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 100 }),
+    async () => {
+      // Set value with expiration
+      await callService('cache', { setex: { persistKey: 'persistValue' } })
+      
+      // Verify expiration is set
+      const expireBefore = await callService('cache', { getex: 'persistKey' })
+      await assert(expireBefore, t => typeof t === 'number')
+      
+      // Remove expiration
+      await callService('cache', { rex: { persistKey: true } })
+      
+      // Verify expiration is removed
+      const expireAfter = await callService('cache', { getex: 'persistKey' })
+      await assert(expireAfter, t => t === null)
+      
+      // Wait longer than original expire time
+      await sleep(150)
+      
+      // Value should still exist
+      const value = await callService('cache', { get: 'persistKey' })
+      await assert(value, v => v === 'persistValue')
+    }
+  )
+}
+
+/**
+ * Test deleting keys
+ */
+async function testDeleteKeys() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set some values
+      await callService('cache', { 
+        set: { 
+          deleteMe: 'value1',
+          keepMe: 'value2'
+        } 
+      })
+      
+      // Delete one key
+      await callService('cache', { del: { deleteMe: true } })
+      
+      // Verify deletion
+      const deletedValue = await callService('cache', { get: 'deleteMe' })
+      const keptValue = await callService('cache', { get: 'keepMe' })
+      
+      await assert(deletedValue, v => v === null)
+      await assert(keptValue, v => v === 'value2')
+    }
+  )
+}
+
+/**
+ * Test clearing entire cache
+ */
+async function testClearCache() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set multiple values
+      await callService('cache', { 
+        set: { 
+          key1: 'value1',
+          key2: 'value2',
+          key3: 'value3'
+        } 
+      })
+      
+      // Verify values exist
+      const beforeClear = await callService('cache', { get: '*' })
+      await assert(beforeClear,
+        v => Object.keys(v).length === 3,
+        v => v.key1 === 'value1'
+      )
+      
+      // Clear cache
+      await callService('cache', { clear: true })
+      
+      // Verify cache is empty
+      const afterClear = await callService('cache', { get: '*' })
+      await assert(afterClear, v => Object.keys(v).length === 0)
+    }
+  )
+}
+
+/**
+ * Test updating cache settings
+ */
+async function testUpdateSettings() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    async () => {
+      // Update settings
+      const newSettings = await callService('cache', { 
+        settings: { 
+          expireTime: 2000,
+          evictionInterval: 1000
+        } 
+      })
+      
+      await assert(newSettings,
+        s => s.expireTime === 2000,
+        s => s.evictionInterval === 1000
+      )
+    }
+  )
+}
+
+/**
+ * Test cache with complex objects
+ */
+async function testCacheComplexObjects() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      const complexObject = {
+        user: {
+          id: 123,
+          name: 'John Doe',
+          settings: {
+            theme: 'dark',
+            notifications: true
+          }
+        },
+        timestamps: [1234567890, 9876543210],
+        metadata: null
+      }
+      
+      // Set complex object
+      await callService('cache', { set: { userData: complexObject } })
+      
+      // Get and verify
+      const retrieved = await callService('cache', { get: 'userData' })
+      
+      await assert(retrieved,
+        r => r.user.id === 123,
+        r => r.user.name === 'John Doe',
+        r => r.user.settings.theme === 'dark',
+        r => r.timestamps.length === 2,
+        r => r.metadata === null
+      )
+    }
+  )
+}
+
+/**
+ * Test eviction interval cleanup
+ */
+async function testEvictionInterval() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ 
+      expireTime: 100,
+      evictionInterval: 50 // Check every 50ms
+    }),
+    async () => {
+      // Set multiple keys with expiration
+      await callService('cache', { 
+        setex: { 
+          expire1: 'value1',
+          expire2: 'value2',
+          expire3: 'value3'
+        } 
+      })
+      
+      // All should exist
+      const before = await callService('cache', { get: '*' })
+      await assert(before, v => Object.keys(v).length === 3)
+      
+      // Wait for eviction interval to run (100ms + 50ms buffer)
+      await sleep(150)
+      
+      // All should be evicted
+      const after = await callService('cache', { get: '*' })
+      await assert(after, v => Object.keys(v).length === 0)
+    }
+  )
+}
+
+/**
+ * Test setting expiration on multiple keys
+ */
+async function testSetMultipleExpirations() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set values
+      await callService('cache', { 
+        set: { 
+          key1: 'value1',
+          key2: 'value2',
+          key3: 'value3'
+        } 
+      })
+      
+      // Set expiration on multiple keys
+      await callService('cache', { 
+        ex: { 
+          key1: 100,
+          key2: 200,
+          key3: 300
+        } 
+      })
+      
+      // Check all expirations are set
+      const ex1 = await callService('cache', { getex: 'key1' })
+      const ex2 = await callService('cache', { getex: 'key2' })
+      const ex3 = await callService('cache', { getex: 'key3' })
+      
+      await assert([ex1, ex2, ex3],
+        expirations => expirations.every(e => typeof e === 'number'),
+        expirations => expirations.every(e => e > Date.now())
+      )
+    }
+  )
+}
+
+/**
+ * Test concurrent cache operations
+ */
+async function testConcurrentOperations() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Perform multiple concurrent operations
+      await Promise.all([
+        callService('cache', { set: { concurrent1: 'value1' } }),
+        callService('cache', { set: { concurrent2: 'value2' } }),
+        callService('cache', { set: { concurrent3: 'value3' } }),
+      ])
+      
+      // Verify all values were set
+      const all = await callService('cache', { get: '*' })
+      
+      await assert(all,
+        v => v.concurrent1 === 'value1',
+        v => v.concurrent2 === 'value2',
+        v => v.concurrent3 === 'value3'
+      )
+    }
+  )
+}
+
+export default {
+  testBasicSetAndGet,
+  testSetMultipleKeys,
+  testCacheExpiration,
+  testCustomExpirationTime,
+  testRemoveExpiration,
+  testDeleteKeys,
+  testClearCache,
+  testUpdateSettings,
+  testCacheComplexObjects,
+  testEvictionInterval,
+  testSetMultipleExpirations,
+  testConcurrentOperations
+}
