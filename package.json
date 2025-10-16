@@ -9,9 +9,11 @@
     "./create-route": "./src/micro-core/create-route.js",
     "./call-service": "./src/micro-core/call-service.js",
     "./registry-server": "./src/micro-core/registry-server.js",
+    
     "./env-config": "./src/micro-core/env-config.js",
     "./http-error": "./src/http-primitives/http-error.js",
     "./logger": "./src/utils/logger.js",
+
     "./static-file-service": "./src/micro-services/static-file-service.js",
     "./cache-service": "./src/micro-services/cache-service.js",
     "./pubsub-service": "./src/micro-services/pubsub-service.js",
@@ -23,5 +25,11 @@
   "scripts": {
     "test": "node test/run-all-cases.js"
   },
+  "files": [
+    "src",
+    "micro.cjs",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "MIT"
 }
