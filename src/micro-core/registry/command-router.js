@@ -107,7 +107,12 @@ export async function routeCommand(state, payload, request, response, options = 
   }
   
   if (payload.call) {
-    return proxyServiceCall(state, payload.call)
+    // Pass request/response to enable streaming for service calls
+    return proxyServiceCall(state, { 
+      ...payload.call, 
+      request, 
+      response 
+    })
   }
   
   // HTTP route resolution

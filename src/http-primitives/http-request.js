@@ -7,15 +7,12 @@ const logger = new Logger()
 
 async function request(address, body, {
   method = 'POST',
-  headers = {}
+  headers = {},
+  stream = false // If true, return raw Response for streaming
 } = {}) {
-  let isStream = body instanceof fs.ReadStream
-
-  if (!isStream && typeof body === 'object') {
+  if (typeof body === 'object') {
     if (!headers['content-type']) headers['content-type'] = 'application/json'
     body = JSON.stringify(body)
-  } else if (isStream && !headers['content-type']) {
-    headers['content-type'] = 'application/octet-stream'
   }
 
   const controller = new AbortController()
@@ -24,12 +21,18 @@ async function request(address, body, {
   
   try {
     let response = await fetch(address, options)
-    return isStream ? response : await processResponse(response)
+    
+    if (stream) return response // this allows caller to pipe the response stream
+    else return await processResponse(response)
   } catch (error) {
     // TODO test
     if (error.name === 'AbortError') {
       throw new HttpError(408, 'Request timeout')
     }
+    // Log fetch errors for debugging
+    logger.error(`Fetch failed for ${address}: ${error.message}`)
+    logger.debug(`Options: ${JSON.stringify(options)}`)
+    logger.debug(`Error cause: ${error.cause}`)
     throw error
   } finally {
     clearTimeout(timeoutId)
