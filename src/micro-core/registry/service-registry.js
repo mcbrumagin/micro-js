@@ -12,6 +12,16 @@ import { selectServiceLocation } from './load-balancer.js'
 
 const logger = new Logger()
 
+
+// TODO util/helper?
+const tryParseJson = text => {
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    return text
+  }
+}
+
 /**
  * Allocate a port for a new service instance
  */
@@ -112,26 +122,97 @@ export function findServiceLocation(state, serviceName, strategy = 'random') {
   return selectServiceLocation(state, serviceName, strategy)
 }
 
-/**
- * Proxy a call to a service (with load balancing)
- */
-export async function proxyServiceCall(state, { name, payload = {} }) {
+
+const validateServiceCall = (state, name) => {
   if (!name) {
-    const err = new HttpError(400, 'Proxy call requires service "name" property')
-    err.details = { name, payload }
-    throw err
+    throw new HttpError(400, 'Proxy call requires service "name" property')
   }
-  
   if (!state.services.has(name)) {
-    const err = new HttpError(404, `No service by name "${name}"`)
-    err.details = { name, payload }
-    throw err
+    throw new HttpError(404, `No service by name "${name}"`)
   }
-  
-  // Use round-robin for proxy calls
-  const location = selectServiceLocation(state, name, 'round-robin')
-  const result = await httpRequest(location, payload)
-  
-  return result
 }
 
+const setProxyRequestOptions = (request, response) => {
+  let options = null
+  if (request) {
+    options = {}
+    options.method = 'POST'
+    
+    // copy headers, filtering out headers that fetch() doesn't like
+    const filteredHeaders = {}
+    const skipHeaders = ['host', 'connection', 'content-length']
+    
+    for (const [key, value] of Object.entries(request.headers || {})) {
+      if (!skipHeaders.includes(key.toLowerCase())) {
+        filteredHeaders[key] = value
+      }
+    }
+    
+    options.headers = filteredHeaders
+    options.headers['x-micro-override-method'] = request.method
+
+    // enable streaming mode if we have a response object to pipe to
+    options.stream = !!response
+  }
+  return options
+}
+
+const handleStreamingResponse = async (serviceResponse, response) => {
+  const contentType = serviceResponse.headers.get('content-type')
+  const contentLength = serviceResponse.headers.get('content-length')
+  logger.debug(`streaming response from service: ${contentType}, ${contentLength} bytes`)
+  
+  // Copy response headers
+  response.writeHead(serviceResponse.status, {
+    'content-type': contentType,
+    ...(contentLength && { 'content-length': contentLength })
+  })
+  
+  // stream the response body using Node.js streams
+  // convert Web ReadableStream to Node stream and pipe
+  const reader = serviceResponse.body.getReader()
+  
+  try {
+    while (true) {
+      // TODO timeout and buffer size limit
+      const { done, value } = await reader.read()
+      if (done) break
+      response.write(value)
+    }
+    response.end()
+  } catch (err) {
+    logger.error(`Streaming error: ${err.message}`)
+    if (!response.writableEnded) {
+      response.end()
+    }
+  }
+  
+  return false // signal that response was handled
+}
+
+/**
+ * Proxy a call to a service (with load balancing)
+ * Supports transparent streaming when service returns non-JSON content
+ */
+export async function proxyServiceCall(state, { name, payload = {}, request, response }) {
+  
+  validateServiceCall(state, name)
+
+  // use round-robin for proxy calls
+  const location = selectServiceLocation(state, name, 'round-robin')
+
+  let options = setProxyRequestOptions(request, response)
+  logger.debug(`proxying request to "${location}"${options ? ` with options ${JSON.stringify(options)}` : ''}`)
+  
+  const serviceResponse = await httpRequest(location, payload, options)
+  
+  if (options?.stream && serviceResponse instanceof Response) {
+    const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')
+    if (isStreamable && serviceResponse.body) {
+      return await handleStreamingResponse(serviceResponse, response)
+    }
+  }
+
+  // non-streaming mode (backward compatibility)
+  return tryParseJson(await serviceResponse.text())
+}

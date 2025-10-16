@@ -16,6 +16,8 @@ async function main() {
       payload = JSON.parse(payload)
     } catch (err) {
       try {
+        // TODO implement a safer way to parse a shorthand payload
+        // as cool as this is, it's a security risk, even for a CLI tool
         payload = eval(`payload = ${payload}`) // helper to avoid death by quotes
       } catch (err) { /* ignore */ }
     }
@@ -31,6 +33,7 @@ async function main() {
       payload = JSON.parse(payload)
     } catch (err) {
       try {
+        // TODO
         payload = eval(`payload = ${payload}`) // helper to avoid death by quotes
       } catch (err) { /* ignore */ }
     }
@@ -47,6 +50,7 @@ async function main() {
       payload = JSON.parse(payload)
     } catch (err) {
       try {
+        // TODO
         payload = eval(`payload = ${payload}`) // helper to avoid death by quotes
       } catch (err) { /* ignore */ }
     }

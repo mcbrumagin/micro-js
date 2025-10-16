@@ -80,12 +80,17 @@ async function testMultipleAssertionFailures() {
 
 // --- Test Suites --- //
 
-import serviceTests from './cases/service-tests.js'
+import serviceTests from './cases/create-service-tests.js'
 import routesTests from './cases/route-tests.js'
 import loggerTests from './cases/logger-tests.js'
-import pubsubTests from './cases/pubsub-tests.js'
 import registryModuleTests from './cases/registry-module-tests.js'
 
+import pubsubTests from './cases/services/pubsub-tests.js'
+import staticFileServiceTests from './cases/services/static-file-tests.js'
+import cacheServiceTests from './cases/services/cache-tests.js'
+
+// TODO solo support for test suites
+// TODO cli support for test runs by name or suite
 let testFns = mergeAllTestsSafely(
   testHttpServer,
   testRegistryHealth,
@@ -94,7 +99,9 @@ let testFns = mergeAllTestsSafely(
   serviceTests,
   routesTests,
   loggerTests,
-  pubsubTests
+  pubsubTests,
+  staticFileServiceTests,
+  cacheServiceTests
 )
 
 // testFns.testCreateService.solo = true

@@ -1,5 +1,8 @@
+import envConfig from '../micro-core/env-config.js'
+
 // create our own copy of log fns so we can override console safely
 const ogConsole = {
+  debug: console.debug.bind(console),
   log: console.log.bind(console),
   info: console.info.bind(console),
   warn: console.warn.bind(console),
@@ -144,6 +147,21 @@ export function overrideConsoleGlobally(config = {}) {
   // TODO return a function to toggle override off/on
 }
 
+function writeColor(color = colors.white, logContent, endColor = colors.reset) {
+  return (colors[color] || color) + logContent + (colors[endColor] || endColor)
+}
+
+let printedWarning = false
+function printWarningOnceAndReturnVanillaConsole() {
+  if (!printedWarning) {
+    console.warn(writeColor('magenta', `DISABLE_ALL_CUSTOM_LOGS ACTIVE
+      --- normal console methods will be used instead of custom Logger`
+    ))
+    printedWarning = true
+  }
+  return console
+}
+
 export default class Logger {
   constructor(
     options = {},
@@ -158,6 +176,13 @@ export default class Logger {
       'error'
     ]
   ) {
+
+    const DISABLE_ALL_CUSTOM_LOGS = envConfig.get('DISABLE_ALL_CUSTOM_LOGS')
+    if (DISABLE_ALL_CUSTOM_LOGS) {
+      return printWarningOnceAndReturnVanillaConsole()
+    }
+
+
     this.options = Object.assign({
       logGroup: '',
       useLogFile: false, // TODO
@@ -196,8 +221,8 @@ export default class Logger {
     ))
   }
 
-  writeColor(color = colors.white, logContent, endColor = colors.reset) {
-    return (colors[color] || color) + logContent + (colors[endColor] || endColor)
+  writeColor(...args) {
+    return writeColor(...args)
   }
 
   // replaces all extra whitespace (including newlines) with a single space

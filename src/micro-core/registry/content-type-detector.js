@@ -32,16 +32,16 @@ export function detectFromBuffer(payload) {
  * Detect content type from payload and optional URL context
  */
 export function detectContentType(payload, url = '') {
-  // Start with URL-based suggestion
+
+  // just use our url-based suggestion if we have one
   let dataType = suggestTypeFromUrl(url)
+  if (dataType) return dataType
   
-  // String payloads
   if (typeof payload === 'string') {
     if (isJsonString(payload)) {
       return 'application/json'
     }
     
-    // Check for HTML/XML tags
     if (payload.search(/<[^>]*>/) !== -1) {
       if (url.includes('.xml')) {
         return 'application/xml'
@@ -52,7 +52,6 @@ export function detectContentType(payload, url = '') {
     return 'text/plain'
   }
   
-  // Object/Buffer payloads
   if (typeof payload === 'object') {
     const bufferType = detectFromBuffer(payload)
     if (bufferType) return bufferType
@@ -60,4 +59,3 @@ export function detectContentType(payload, url = '') {
   
   return dataType || 'text/html'
 }
-

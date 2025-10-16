@@ -1,6 +1,6 @@
-import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../core/index.js'
-import createPubSubService from '../../src/micro-services/pubsub-service.js'
-import { Logger, publishMessage } from '../../src/index.js'
+import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../core/index.js'
+import createPubSubService from '../../../src/micro-services/pubsub-service.js'
+import { Logger, publishMessage } from '../../../src/index.js'
 
 const logger = new Logger({
   logGroup: 'pubSubTests',
