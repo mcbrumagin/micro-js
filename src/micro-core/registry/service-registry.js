@@ -114,7 +114,7 @@ export function findServiceLocation(state, serviceName, strategy = 'random') {
   logger.debug(`looking up service "${serviceName}"`)
   
   // Special case: return all services
-  if (serviceName === 'all') {
+  if (serviceName === '*') {
     return serializeServicesMap(state.services)
   }
   
@@ -143,9 +143,16 @@ const setProxyRequestOptions = (request, response) => {
     const skipHeaders = ['host', 'connection', 'content-length']
     
     for (const [key, value] of Object.entries(request.headers || {})) {
-      if (!skipHeaders.includes(key.toLowerCase())) {
-        filteredHeaders[key] = value
-      }
+      const keyLower = key.toLowerCase()
+      
+      // Skip problematic headers
+      if (skipHeaders.includes(keyLower)) continue
+      
+      // NEW: Don't forward micro-command headers to services
+      // Services don't need to know they were called via registry
+      if (keyLower.startsWith('micro-command') || keyLower.startsWith('micro-service-')) continue
+      
+      filteredHeaders[key] = value
     }
     
     options.headers = filteredHeaders
@@ -202,9 +209,10 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   const location = selectServiceLocation(state, name, 'round-robin')
 
   let options = setProxyRequestOptions(request, response)
-  logger.debug(`proxying request to "${location}"${options ? ` with options ${JSON.stringify(options)}` : ''}`)
+  logger.debug(`proxying request to "${location}"${options?.headers ? ` with headers: ${JSON.stringify(options.headers)}` : ''}`)
   
-  const serviceResponse = await httpRequest(location, payload, options)
+  options.body = payload
+  const serviceResponse = await httpRequest(location, options)
   
   if (options?.stream && serviceResponse instanceof Response) {
     const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')

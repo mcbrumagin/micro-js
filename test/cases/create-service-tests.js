@@ -2,6 +2,7 @@ import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../core
 
 import { createService, createServices, callService, Logger, HttpError, next } from '../../src/index.js'
 import httpRequest from '../../src/http-primitives/http-request.js'
+import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
 
 const logger = new Logger({
   // logGroup: 'serviceTests',
@@ -17,10 +18,11 @@ async function testCreateService() {
       return payload
     }),
     async ([registry, server]) => {
-      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        call: {
-          name: 'test',
-          payload: { prop1: 'test', prop2: 'test' }
+      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        body: { prop1: 'test', prop2: 'test' },
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+          [HEADERS.SERVICE_NAME]: 'test'
         }
       })
       
@@ -294,15 +296,21 @@ async function testServiceLookup() {
     await createService('lookup2', function test2() { return 'test2' }),
     async ([registry]) => {
       // Test lookup single service
-      let service1Location = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        lookup: 'lookup1'
+      let service1Location = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
+          [HEADERS.SERVICE_NAME]: 'lookup1'
+        }
       })
       
       await assert(service1Location, l => typeof l === 'string' && l.includes(':'))
       
       // Test lookup all services
-      let allServices = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        lookup: 'all'
+      let allServices = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
+          [HEADERS.SERVICE_NAME]: '*'
+        }
       })
       
       await assert(allServices,
@@ -507,11 +515,12 @@ async function testFileStreamService() {
     }),
     async ([registry]) => {
       // Test streaming file via HTTP request to registry
-      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        call: {
-          name: 'fileStream',
-          payload: { url: '/test-files/index.html' }
-        }
+      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+          [HEADERS.SERVICE_NAME]: 'fileStream'
+        },
+        body: { url: '/test-files/index.html' }
       })
       
       await assert(result,
@@ -559,11 +568,12 @@ async function testLargeFileStreamService() {
       const startTime = Date.now()
       
       // Test streaming large file via HTTP request to registry (through proxy)
-      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        call: {
-          name: 'largeFileStream',
-          payload: { url: '/audio/test-track.wav' }
-        }
+      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+          [HEADERS.SERVICE_NAME]: 'largeFileStream'
+        },
+        body: { url: '/audio/test-track.wav' }
       })
       
       const endTime = Date.now()

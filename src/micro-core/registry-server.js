@@ -62,7 +62,7 @@ export default async function createRegistryServer(port) {
   // Override terminate to clean up state
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    logger.debug('Registry terminating')
+    logger.debug('registry terminating')
     resetState(state)
     await httpServerTerminate()
   }

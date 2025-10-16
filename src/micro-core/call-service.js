@@ -1,12 +1,17 @@
 import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
 import envConfig from './env-config.js'
+import { buildCallHeaders } from '../utils/micro-headers.js'
 
 export default async function callService (name, payload) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+  
+  // Use header-based commands: payload goes in body, metadata in headers
   let result = await httpRequest(registryHost, {
-    call: { name, payload }
+    body: payload,
+    headers: buildCallHeaders(name)
   })
+  
   return result
 }
 
@@ -23,6 +28,6 @@ export async function callServiceWithCache (cache, name, payload) {
   // initialize service round-robin start index based on own location port number
   let ind = Math.floor(Math.random() * len)
   let location = addresses[ind]
-  let result = await httpRequest(location, payload)
+  let result = await httpRequest(location, { body: payload })
   return result
 }

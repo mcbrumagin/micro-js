@@ -3,6 +3,7 @@ import Logger from '../utils/logger.js'
 import HttpError from '../http-primitives/http-error.js'
 import path from 'path'
 import fs from 'fs'
+import { next } from '../http-primitives/next.js'
 
 const logger = new Logger('static-file-service')
 
@@ -212,14 +213,10 @@ export default async function createStaticFileService({
       }
     }
 
-    try {
-      // TODO implement a streaming read file
-      const content = await fs.readFileSync(filePath, 'utf-8')
-      return content
-    } catch (err) {
-      logger.error(`Error reading file: ${err.stack}`)
-      throw new HttpError(500, `Error reading file: ${err.message}`)
-    }
+    // TODO implement a streaming read file
+    // const content = await fs.readFileSync(filePath, 'utf-8')
+    // return content
+    return fs.createReadStream(filePath)
   }
 
   const server = await createService('static-file-service', async function staticFileService(payload) {
@@ -231,5 +228,11 @@ export default async function createStaticFileService({
   server.quickLookup = quickLookup
   server.getFile = getFile
 
+  let originalTerminate = server.terminate.bind(server)
+  server.terminate = async () => {
+    console.log('terminating static file service')
+    await originalTerminate()
+    console.log('static file service terminated')
+  }
   return server
 }

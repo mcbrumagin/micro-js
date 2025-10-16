@@ -17,6 +17,8 @@ import {
   runTests
 } from './core/index.js'
 
+import { HEADERS, COMMANDS } from '../src/utils/micro-headers.js'
+
 overrideConsoleGlobally({
   includeLogLineNumbers: true
 })
@@ -37,7 +39,9 @@ async function testHttpServer () {
       return Date.now()
     }),
     async () => {
-      let result = await httpRequest('http://localhost:10000', { testPayload: 'testPayload' })
+      let result = await httpRequest('http://localhost:10000', {
+        body: { testPayload: 'testPayload' }
+      })
       return new Date() - Number(result) + 'ms request/response time'
     }
   )
@@ -47,8 +51,8 @@ async function testRegistryHealth() {
   await terminateAfter(
     await startRegistry(),
     async ([registry]) => {
-      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
-        health: true
+      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
       })
       
       await assert(result,
@@ -84,6 +88,7 @@ import serviceTests from './cases/create-service-tests.js'
 import routesTests from './cases/route-tests.js'
 import loggerTests from './cases/logger-tests.js'
 import registryModuleTests from './cases/registry-module-tests.js'
+import streamingTests from './cases/streaming-tests.js'
 
 import pubsubTests from './cases/services/pubsub-tests.js'
 import staticFileServiceTests from './cases/services/static-file-tests.js'
@@ -99,12 +104,11 @@ let testFns = mergeAllTestsSafely(
   serviceTests,
   routesTests,
   loggerTests,
+  streamingTests,
   pubsubTests,
   staticFileServiceTests,
   cacheServiceTests
 )
-
-// testFns.testCreateService.solo = true
 
 // TODO update readme for test object support, merge helper, solo/mute flags
 runTests(testFns)

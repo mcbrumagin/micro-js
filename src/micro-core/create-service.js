@@ -9,6 +9,7 @@ import httpRequest from '../http-primitives/http-request.js'
 import Logger from '../utils/logger.js'
 import envConfig from './env-config.js'
 import retry from '../utils/retry-helper.js'
+import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../utils/micro-headers.js'
 
 import { createServiceState, updateCache, removeFromCache } from './service/service-state.js'
 import { buildContext, buildEnhancedContext, bindServiceFunction } from './service/service-context.js'
@@ -43,11 +44,9 @@ const DEFAULT_CONFIG = {
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
   return await retry(
     async () => {
+      // Use header-based command
       const location = await httpRequest(registryHost, {
-        setup: {
-          service: name,
-          home: serviceHome // Renamed from 'domain' for clarity
-        }
+        headers: buildSetupHeaders(name, serviceHome)
       })
       return location
     },
@@ -64,11 +63,9 @@ async function setupServiceWithRegistry(name, serviceHome, registryHost, config)
  * @private
  */
 async function registerServiceWithRegistry(name, location, registryHost) {
+  // Use header-based command
   return await httpRequest(registryHost, {
-    register: {
-      service: name,
-      location
-    }
+    headers: buildRegisterHeaders(name, location)
   })
 }
 
@@ -77,11 +74,9 @@ async function registerServiceWithRegistry(name, location, registryHost) {
  * @private
  */
 async function unregisterServiceFromRegistry(name, location, registryHost) {
+  // Use header-based command
   return await httpRequest(registryHost, {
-    unregister: {
-      service: name,
-      location
-    }
+    headers: buildUnregisterHeaders(name, location)
   })
 }
 

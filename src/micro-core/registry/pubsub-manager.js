@@ -23,7 +23,7 @@ export async function publish(state, { type, message }) {
   
   for (const location of subscribers) {
     try {
-      const result = await httpRequest(location, message)
+      const result = await httpRequest(location, { body: message })
       results.push(result)
     } catch (err) {
       errors.push(err)
@@ -42,7 +42,7 @@ export function subscribe(state, { type, location }) {
   }
   
   state.subscriptions.get(type).add(location)
-  logger.debug(`Subscribed "${location}" to type "${type}"`)
+  logger.debug(`subscribed "${location}" to type "${type}"`)
 }
 
 /**
@@ -65,7 +65,7 @@ export function unsubscribe(state, { type, location }) {
     state.subscriptions.delete(type)
   }
   
-  logger.debug(`Unsubscribed "${location}" from type "${type}"`)
+  logger.debug(`unsubscribed "${location}" from type "${type}"`)
 }
 
 /**

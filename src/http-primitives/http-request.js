@@ -5,18 +5,32 @@ import fs from 'node:fs'
 
 const logger = new Logger()
 
-async function request(address, body, {
+async function request(address, {
   method = 'POST',
+  body = null,
   headers = {},
-  stream = false // If true, return raw Response for streaming
+  stream = false, // If true, return raw Response for streaming
+  timeout = 30000 // TODO override
 } = {}) {
-  if (typeof body === 'object') {
-    if (!headers['content-type']) headers['content-type'] = 'application/json'
-    body = JSON.stringify(body)
+  // Handle different body types
+  if (body !== null && body !== undefined) {
+    if (Buffer.isBuffer(body)) {
+      // Binary data - send as-is with appropriate content-type
+      if (!headers['content-type']) {
+        headers['content-type'] = 'application/octet-stream'
+      }
+    } else if (typeof body === 'object') {
+      // JSON data - stringify
+      if (!headers['content-type']) {
+        headers['content-type'] = 'application/json'
+      }
+      body = JSON.stringify(body)
+    }
+    // else: string or other primitive, send as-is
   }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // TODO override
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
   let options = { method, headers, body, signal: controller.signal }
   
   try {
@@ -40,21 +54,34 @@ async function request(address, body, {
 }
 
 async function processResponse(response) {
-
   let status = response.status
-  let result = await response.text()
+  const contentType = response.headers.get('content-type') || ''
 
   if (status >= 400 && status < 600) {
-    throw new HttpError(status, result)
+    const errorText = await response.text()
+    throw new HttpError(status, errorText)
   }
 
-  try {
-    result = result ? JSON.parse(result) : ''
-  } catch (err) {
-    logger.warn(`Failed to parse JSON response ${err.message}`)
-    // logger.debug(`Failed to parse JSON response: ${result}`)
+  // Handle binary responses (return as Buffer)
+  if (contentType.includes('octet-stream') || contentType.includes('audio/') || contentType.includes('video/') || contentType.includes('image/')) {
+    const arrayBuffer = await response.arrayBuffer()
+    return Buffer.from(arrayBuffer)
   }
 
+  // Get response as text
+  let result = await response.text()
+  
+  // Handle JSON responses (parse and return as object)
+  if (contentType.includes('application/json')) {
+    try {
+      result = result ? JSON.parse(result) : ''
+    } catch (err) {
+      logger.warn(`Failed to parse JSON response ${err.message}`)
+      // Return as text if JSON parsing fails
+    }
+  }
+  
+  // Otherwise return as text (string)
   return result
 }
 

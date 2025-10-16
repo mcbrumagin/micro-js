@@ -3,6 +3,7 @@ import httpRequest from '../http-primitives/http-request.js'
 import createService from './create-service.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
+import { buildRouteRegisterHeaders } from '../utils/micro-headers.js'
 
 const logger = new Logger()
 
@@ -17,8 +18,10 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   } else serviceName = serviceNameOrFn
 
   let registryHost = process.env.MICRO_REGISTRY_URL
+  
+  // Use header-based command
   await httpRequest(registryHost, {
-    register: { type: 'route', service: serviceName, path, dataType }
+    headers: buildRouteRegisterHeaders(serviceName, path, dataType)
   })
 
   logger.debug(`route "${path}" registered at ${registryHost}`)

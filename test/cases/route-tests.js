@@ -1,5 +1,6 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createRoute, createRoutes, createService, HttpError, Logger } from '../../src/index.js'
+import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
 
 const logger = new Logger({
   // logGroup: 'routesTests',
@@ -14,8 +15,8 @@ async function testBasicRoute() {
       return 'Hello World!'
     }),
     async ([registry]) => {
-      // Test direct HTTP request to route
-      let response = await fetch(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}/hello`)
+      // Test direct HTTP request to route - no special headers needed!
+      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/hello`)
       let result = await response.text()
       
       await assert(result, r => r === 'Hello World!')
