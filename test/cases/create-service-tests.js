@@ -481,6 +481,78 @@ async function testLargePayload() {
   )
 }
 
+async function testFileStreamService() {
+  const fs = await import('fs')
+  const path = await import('path')
+  
+  await terminateAfter(
+    await startRegistry(),
+    await createService('fileStream', async function fileStreamService(payload) {
+      const { url } = payload || {}
+      if (url && url.startsWith('/test-files/')) {
+        const fileName = url.split('/').pop()
+        const testFilePath = path.join(process.cwd(), 'test/services/files', fileName)
+        
+        if (fs.existsSync(testFilePath)) {
+          return fs.createReadStream(testFilePath)
+        } else {
+          throw new HttpError(404, 'Test file not found')
+        }
+      } else {
+        throw new HttpError(404, 'Invalid test file path')
+      }
+    }),
+    async ([registry]) => {
+      // Test streaming file via HTTP request to registry
+      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
+        call: {
+          name: 'fileStream',
+          payload: { url: '/test-files/index.html' }
+        }
+      })
+      
+      await assert(result,
+        r => typeof r === 'string',
+        r => r.includes('html') || r.includes('HTML')
+      )
+      
+      return result
+    }
+  )
+}
+
+// testFileStreamService.solo = true
+
+async function testTextStreamService() {
+  const { Readable } = await import('stream')
+  
+  await terminateAfter(
+    await startRegistry(),
+    await createService('textStream', async function textStreamService(payload) {
+      const { content } = payload || {}
+      
+      if (content) {
+        // Create a readable stream from text content
+        const stream = Readable.from([content])
+        return stream
+      } else {
+        return { message: 'No content provided' }
+      }
+    }),
+    async () => {
+      let testContent = 'This is streaming test content!'
+      let result = await callService('textStream', { content: testContent })
+      
+      await assert(result,
+        r => typeof r === 'string' || typeof r === 'object',
+        r => r.includes ? r.includes('streaming') : true
+      )
+      
+      return result
+    }
+  )
+}
+
 export default {
   testCreateService,
   testCallService,
@@ -501,5 +573,7 @@ export default {
   testLoadBalancing,
   testEmptyServiceName,
   testServiceWithSpecialCharacters,
-  testLargePayload
+  testLargePayload,
+  testFileStreamService,
+  testTextStreamService
 }

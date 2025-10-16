@@ -2,6 +2,7 @@ import http from 'node:http'
 import readStream from './read-stream.js'
 import HttpError from './http-error.js'
 import Logger from '../utils/logger.js'
+import fs from 'node:fs'
 
 const logger = new Logger()
 
@@ -23,7 +24,7 @@ function overrideResponse(response) {
       sanitizedPayload = JSON.stringify(sanitizedPayload)
     
     if (!response.isEnded) originalEnd.call(response, sanitizedPayload)
-    else logger.warn('response already ended', { args })
+    else logger.warn('response already ended')
     response.isEnded = true
   }
   return response
@@ -48,7 +49,9 @@ export default async function createServer(port, serverFn) {
         let body = await readStream(request)
         try { body = JSON.parse(body) } catch (err) { /* don't care */ }
         let result = await serverFn(body, request, response)
-        if (result !== false) {
+        if (result instanceof fs.ReadStream) {
+          return result.pipe(response) // TODO VERIFY THIS WORKS
+        } else if (result !== false) {
           response.writeHead(200, {
             'content-type': 'application/json',
             // Modern security headers

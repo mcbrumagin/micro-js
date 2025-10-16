@@ -1,26 +1,30 @@
 import HttpError from './http-error.js'
 import { Buffer } from 'node:buffer'
 import Logger from '../utils/logger.js'
+import fs from 'node:fs'
 
 const logger = new Logger()
 
-async function request(address, body) {
-  let headers = {}
-  if (body) headers['content-type'] = 'application/json'
+async function request(address, body, {
+  method = 'POST',
+  headers = {}
+} = {}) {
+  let isStream = body instanceof fs.ReadStream
+
+  if (!isStream && typeof body === 'object' && !headers['content-type']) {
+    headers['content-type'] = 'application/json'
+    body = JSON.stringify(body)
+  } else if (isStream && !headers['content-type']) {
+    headers['content-type'] = 'application/octet-stream'
+  }
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 30000) // TODO override
-
-  let options = {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal: controller.signal
-  }
+  let options = { method, headers, body, signal: controller.signal }
   
   try {
     let response = await fetch(address, options)
-    return await processResponse(response)
+    return isStream ? response : await processResponse(response)
   } catch (error) {
     // TODO test
     if (error.name === 'AbortError') {
@@ -44,7 +48,8 @@ async function processResponse(response) {
   try {
     result = result ? JSON.parse(result) : ''
   } catch (err) {
-    logger.warn('Failed to parse JSON response', {result, error: err.message})
+    logger.warn(`Failed to parse JSON response ${err.message}`)
+    // logger.debug(`Failed to parse JSON response: ${result}`)
   }
 
   return result

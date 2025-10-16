@@ -25,7 +25,7 @@ export function createServiceState() {
  * Update cache with data from registry
  */
 export function updateCache(cache, registryData) {
-  logger.debug(`updateCache: ${JSON.stringify({registryData})}`)
+  // logger.debug(`updateCache: ${JSON.stringify({registryData})}`)
   if (registryData.addresses) {
     cache.addresses = registryData.addresses
   }
@@ -39,7 +39,7 @@ export function updateCache(cache, registryData) {
  * Used when registry broadcasts service additions
  */
 export function updateCacheEntry(cache, { service, location }) {
-  logger.debug(`updateCacheEntry: ${JSON.stringify({service, location})}`)
+  // logger.debug(`updateCacheEntry: ${JSON.stringify({service, location})}`)
   if (!cache.addresses) cache.addresses = {}
   if (!cache.services) cache.services = {}
   
@@ -59,7 +59,7 @@ export function updateCacheEntry(cache, { service, location }) {
  * Remove service from cache
  */
 export function removeFromCache(cache, { service, location }) {
-  logger.debug(`removeFromCache: ${JSON.stringify({service, location})}`)
+  // logger.debug(`removeFromCache: ${JSON.stringify({service, location})}`)
   if (cache.addresses) {
     delete cache.addresses[location]
   }

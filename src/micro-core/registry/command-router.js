@@ -115,6 +115,8 @@ export async function routeCommand(state, payload, request, response, options = 
     // ignore health to keep noise down
     if (request.url !== '/health') {
       logger.debug(`resolving url "${request.url}" w/ payload ${JSON.stringify(payload)}`)
+      logger.debug(`request headers: ${JSON.stringify(request?.headers)}`)
+      logger.debug(`response?: ${!!response}`)
     }
     return resolvePossibleRoute(state, request, response, payload)
   }

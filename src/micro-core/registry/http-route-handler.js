@@ -45,7 +45,7 @@ function sendBufferedResponse(response, result) {
 /**
  * Handle a direct route (exact path match)
  */
-async function handleDirectRoute(state, routeInfo, url, response, requestBody) {
+async function handleDirectRoute(state, routeInfo, url, requestBody, request, response) {
   const { service, dataType } = routeInfo
   
   const result = await proxyServiceCall(state, { name: service, payload: requestBody || {} })
@@ -62,13 +62,18 @@ async function handleDirectRoute(state, routeInfo, url, response, requestBody) {
 /**
  * Handle a controller route (prefix match)
  */
-async function handleControllerRoute(state, controllerInfo, url, response, requestBody) {
+async function handleControllerRoute(state, controllerInfo, url, requestBody, request, response) {
   const { service, dataType } = controllerInfo
   
+  // TODO pipe breaks logs here somewhere
+
   const result = await proxyServiceCall(state, { 
     name: service, 
     payload: { url, ...(requestBody || {}) } 
   })
+
+  logger.debug(`controller route result: ${!!result}`)
+
   const normalizedResult = normalizeResult(result, url)
   
   response.writeHead(normalizedResult?.status || 200, { 
@@ -106,13 +111,14 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   // Check for direct route match
   const routeInfo = state.routes.get(url)
   if (routeInfo) {
-    return handleDirectRoute(state, routeInfo, url, response, requestBody)
+    return handleDirectRoute(state, routeInfo, url, requestBody, request, response)
   }
   
   // Check for controller route match
   const controllerInfo = findControllerRoute(state, url)
   if (controllerInfo) {
-    return handleControllerRoute(state, controllerInfo, url, response, requestBody)
+    logger.debug(`controller route match: ${JSON.stringify({controllerInfo})}`)
+    return handleControllerRoute(state, controllerInfo, url, requestBody, request, response)
   }
   
   // Handle trailing slash redirect
