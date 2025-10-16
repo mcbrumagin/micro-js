@@ -1,6 +1,7 @@
 
 function suggestTypeFromUrl(url) {
-  if (!url || url.search(/\.[A-Za-z0-9]+$/) !== -1) return
+  console.debug(`suggestTypeFromUrl url: ${url}`)
+  if (!url || (url.search(/\.[A-Za-z0-9]+$/) === -1)) return
   else if (url.includes('.xml')) return 'application/xml'
   else if (url.includes('.json')) return 'application/json'
   else if (url.includes('.js')) return 'text/javascript'

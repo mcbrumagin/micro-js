@@ -1,6 +1,6 @@
 import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../core/index.js'
 
-import { createService, createServices, callService, Logger, HttpError } from '../../src/index.js'
+import { createService, createServices, callService, Logger, HttpError, next } from '../../src/index.js'
 import httpRequest from '../../src/http-primitives/http-request.js'
 
 const logger = new Logger({
@@ -487,14 +487,17 @@ async function testFileStreamService() {
   
   await terminateAfter(
     await startRegistry(),
-    await createService('fileStream', async function fileStreamService(payload) {
+    await createService('fileStream', async function fileStreamService(payload, request, response) {
       const { url } = payload || {}
       if (url && url.startsWith('/test-files/')) {
         const fileName = url.split('/').pop()
         const testFilePath = path.join(process.cwd(), 'test/services/files', fileName)
         
         if (fs.existsSync(testFilePath)) {
-          return fs.createReadStream(testFilePath)
+          // Use next() to signal we're handling the response directly
+          response.writeHead(200, { 'content-type': 'text/html' })
+          fs.createReadStream(testFilePath).pipe(response)
+          return next({ reason: 'streaming file', file: fileName })
         } else {
           throw new HttpError(404, 'Test file not found')
         }
@@ -521,21 +524,83 @@ async function testFileStreamService() {
   )
 }
 
-// testFileStreamService.solo = true
+// TODO large file payload test
+
+async function testLargeFileStreamService() {
+  const fs = await import('fs')
+  const path = await import('path')
+  
+  await terminateAfter(
+    await startRegistry(),
+    await createService('largeFileStream', async function largeFileStreamService(payload, request, response) {
+      const { url } = payload || {}
+      if (url && url.startsWith('/audio/')) {
+        const fileName = url.split('/').pop()
+        const testFilePath = path.join(process.cwd(), 'test/services/files', fileName)
+        
+        if (fs.existsSync(testFilePath)) {
+          const stats = fs.statSync(testFilePath)
+          logger.debug(`Streaming large file: ${fileName}, size: ${stats.size} bytes`)
+          
+          // Use next() to signal we're handling the response directly
+          response.writeHead(200, { 
+            'content-type': 'audio/wav',
+            'content-length': stats.size
+          })
+          const stream = fs.createReadStream(testFilePath)
+          stream.pipe(response)
+          return next({ reason: 'streaming large audio file', file: fileName, size: stats.size })
+        } else {
+          throw new HttpError(404, 'Audio file not found')
+        }
+      } else {
+        throw new HttpError(404, 'Invalid audio file path')
+      }
+    }),
+    async ([registry]) => {
+      const startTime = Date.now()
+      
+      // Test streaming large file via HTTP request to registry (through proxy)
+      let result = await httpRequest(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`, {
+        call: {
+          name: 'largeFileStream',
+          payload: { url: '/audio/test-track.wav' }
+        }
+      })
+      
+      const endTime = Date.now()
+      const duration = endTime - startTime
+      
+      logger.debug(`Large file stream test completed in ${duration}ms`)
+      logger.debug(`Result type: ${typeof result}, length: ${result?.length || 'N/A'}`)
+      
+      // Check if we got data back
+      await assert(result,
+        r => typeof r === 'string' || Buffer.isBuffer(r),
+        r => (r?.length || 0) > 1000000, // Should be > 1MB
+      )
+      
+      return { duration, size: result?.length }
+    }
+  )
+}
 
 async function testTextStreamService() {
   const { Readable } = await import('stream')
   
   await terminateAfter(
     await startRegistry(),
-    await createService('textStream', async function textStreamService(payload) {
+    await createService('textStream', async function textStreamService(payload, request, response) {
       const { content } = payload || {}
       
       if (content) {
-        // Create a readable stream from text content
+        // Create a readable stream from text content and pipe to response
+        response.writeHead(200, { 'content-type': 'text/plain' })
         const stream = Readable.from([content])
-        return stream
+        stream.pipe(response)
+        return next({ reason: 'streaming text' })
       } else {
+        // Normal JSON response when no content
         return { message: 'No content provided' }
       }
     }),
@@ -544,11 +609,50 @@ async function testTextStreamService() {
       let result = await callService('textStream', { content: testContent })
       
       await assert(result,
-        r => typeof r === 'string' || typeof r === 'object',
-        r => r.includes ? r.includes('streaming') : true
+        r => typeof r === 'string',
+        r => r.includes('streaming')
       )
       
       return result
+    }
+  )
+}
+
+async function testMixedResponseHandling() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('hybrid', async function hybridService(payload, request, response) {
+      const { raw, customHeader } = payload || {}
+      
+      if (raw) {
+        // Direct response handling with custom headers
+        response.writeHead(200, { 
+          'content-type': 'text/plain',
+          'x-custom-header': customHeader || 'default-value'
+        })
+        response.end('Raw response from service')
+        return next({ reason: 'raw response with custom headers' })
+      } else {
+        // Normal JSON response
+        return { type: 'json', message: 'Normal response' }
+      }
+    }),
+    async () => {
+      // Test normal JSON response
+      let jsonResult = await callService('hybrid', { data: 'test' })
+      await assert(jsonResult,
+        r => r.type === 'json',
+        r => r.message === 'Normal response'
+      )
+      
+      // Test raw response handling
+      let rawResult = await callService('hybrid', { raw: true, customHeader: 'test-value' })
+      await assert(rawResult,
+        r => typeof r === 'string',
+        r => r.includes('Raw response')
+      )
+      
+      return { jsonResult, rawResult }
     }
   )
 }
@@ -575,5 +679,7 @@ export default {
   testServiceWithSpecialCharacters,
   testLargePayload,
   testFileStreamService,
-  testTextStreamService
+  testLargeFileStreamService,
+  testTextStreamService,
+  testMixedResponseHandling
 }

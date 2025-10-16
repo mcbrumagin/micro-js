@@ -5,6 +5,7 @@
 
 import { updateCacheEntry } from './service-state.js'
 import { updateContext } from './service-context.js'
+import { Next } from '../../http-primitives/next.js'
 
 /**
  * Check if payload is a cache update from registry
@@ -31,13 +32,16 @@ export function isCacheUpdatePayload(payload) {
  * 2. If yes, updates cache and returns success
  * 3. If no, delegates to actual service function
  * 
+ * The handler forwards request and response objects to the service function,
+ * allowing services to directly control HTTP responses (streaming, custom headers, etc.)
+ * 
  * @param {Function} serviceFn - The actual service handler function
  * @param {Object} cache - Service cache object
  * @param {Object} context - Service execution context
  * @returns {Function} Wrapped handler
  */
 export function createCacheAwareHandler(serviceFn, cache, context) {
-  return async function cacheAwareHandler(payload) {
+  return async function cacheAwareHandler(payload, request, response) {
     // Check if this is a cache update from registry
     if (isCacheUpdatePayload(payload)) {
       const { service, location } = payload
@@ -56,8 +60,16 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
       }
     }
     
-    // Not a cache update - delegate to actual service function
-    return await serviceFn(payload)
+    // Not a cache update - delegate to actual service function with request/response
+    const result = await serviceFn(payload, request, response)
+    
+    // If service returned Next instance, convert to false for http-server
+    // This signals that the service has handled the response directly
+    if (result instanceof Next) {
+      return false
+    }
+    
+    return result
   }
 }
 
@@ -72,7 +84,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
  * @returns {Function} Wrapped handler with auth
  */
 export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
-  return async function secureCacheAwareHandler(payload, request) {
+  return async function secureCacheAwareHandler(payload, request, response) {
     // Validate token if provided
     if (isCacheUpdatePayload(payload)) {
       // TODO: Validate request headers contain matching token
@@ -92,7 +104,15 @@ export function createSecureCacheAwareHandler(serviceFn, cache, context, registr
       }
     }
     
-    return await serviceFn(payload)
+    // Forward request and response to service function
+    const result = await serviceFn(payload, request, response)
+    
+    // Convert Next instance to false for http-server
+    if (result instanceof Next) {
+      return false
+    }
+    
+    return result
   }
 }
 

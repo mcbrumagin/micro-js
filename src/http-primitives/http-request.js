@@ -11,8 +11,8 @@ async function request(address, body, {
 } = {}) {
   let isStream = body instanceof fs.ReadStream
 
-  if (!isStream && typeof body === 'object' && !headers['content-type']) {
-    headers['content-type'] = 'application/json'
+  if (!isStream && typeof body === 'object') {
+    if (!headers['content-type']) headers['content-type'] = 'application/json'
     body = JSON.stringify(body)
   } else if (isStream && !headers['content-type']) {
     headers['content-type'] = 'application/octet-stream'

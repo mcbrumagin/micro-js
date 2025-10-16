@@ -22,9 +22,11 @@ function normalizeResult(result, url) {
     return result
   }
   
+  let dataType = detectContentType(result, url)
+  logger.debug(`detected content type: ${dataType}`)
   return {
     payload: result,
-    dataType: detectContentType(result, url)
+    dataType
   }
 }
 
@@ -48,7 +50,15 @@ function sendBufferedResponse(response, result) {
 async function handleDirectRoute(state, routeInfo, url, requestBody, request, response) {
   const { service, dataType } = routeInfo
   
-  const result = await proxyServiceCall(state, { name: service, payload: requestBody || {} })
+  const result = await proxyServiceCall(state, {
+    name: service,
+    payload: requestBody || {},
+    request,
+    response
+  })
+
+  logger.debug(`direct route result: ${!!result}`)
+
   const normalizedResult = normalizeResult(result, url)
   
   response.writeHead(normalizedResult?.status || 200, { 
@@ -69,10 +79,12 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
 
   const result = await proxyServiceCall(state, { 
     name: service, 
-    payload: { url, ...(requestBody || {}) } 
+    payload: { url, ...(requestBody || {}) },
+    request,
+    response
   })
 
-  logger.debug(`controller route result: ${!!result}`)
+  logger.debug(`controller route result: ${!!result} ... url: ${url}`)
 
   const normalizedResult = normalizeResult(result, url)
   

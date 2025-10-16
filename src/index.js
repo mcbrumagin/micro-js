@@ -5,6 +5,7 @@ import publishMessage from './micro-core/publish-message.js'
 import registryServer from './micro-core/registry-server.js'
 import Logger, { overrideConsoleGlobally } from './utils/logger.js'
 import HttpError from './http-primitives/http-error.js'
+import { next, Next } from './http-primitives/next.js'
 
 export {
   registryServer,
@@ -16,5 +17,7 @@ export {
   createRoutes,
   HttpError,
   Logger,
-  overrideConsoleGlobally
+  overrideConsoleGlobally,
+  next,
+  Next
 }

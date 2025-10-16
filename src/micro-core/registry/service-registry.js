@@ -115,7 +115,7 @@ export function findServiceLocation(state, serviceName, strategy = 'random') {
 /**
  * Proxy a call to a service (with load balancing)
  */
-export async function proxyServiceCall(state, { name, payload = {} }) {
+export async function proxyServiceCall(state, { name, payload = {}, request, response }) {
   if (!name) {
     const err = new HttpError(400, 'Proxy call requires service "name" property')
     err.details = { name, payload }
@@ -130,8 +130,16 @@ export async function proxyServiceCall(state, { name, payload = {} }) {
   
   // Use round-robin for proxy calls
   const location = selectServiceLocation(state, name, 'round-robin')
-  const result = await httpRequest(location, payload)
-  
-  return result
+
+  let options
+  // moderately transparent proxying of request
+  if (request) {
+    options = { method: 'POST', headers: request.headers }
+    options.headers['x-micro-override-method'] = request.method
+  }
+
+  logger.debug(`proxying request to "${location}"${options ? ` with options ${JSON.stringify(options)}` : ''}`)
+  // logger.debug(`payload: ${JSON.stringify(payload)}`)
+  return await httpRequest(location, payload, options)
 }
 
