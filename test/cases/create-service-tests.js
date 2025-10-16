@@ -524,8 +524,6 @@ async function testFileStreamService() {
   )
 }
 
-// TODO large file payload test
-
 async function testLargeFileStreamService() {
   const fs = await import('fs')
   const path = await import('path')

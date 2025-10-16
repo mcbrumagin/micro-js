@@ -88,12 +88,14 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
 
   const normalizedResult = normalizeResult(result, url)
   
-  response.writeHead(normalizedResult?.status || 200, { 
-    'content-type': normalizedResult?.dataType || dataType 
-  })
-  sendBufferedResponse(response, normalizedResult)
-  
-  return false // Signal to skip default response
+  if (!response.isEnded) {
+    response.writeHead(normalizedResult?.status || 200, { 
+      'content-type': normalizedResult?.dataType || dataType 
+    })
+    sendBufferedResponse(response, normalizedResult)
+  }
+  else logger.warn('response already ended') // TODO code-smell?
+  return false // signal to skip default response
 }
 
 /**
