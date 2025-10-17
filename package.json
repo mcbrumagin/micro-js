@@ -3,6 +3,15 @@
   "version": "0.2.0",
   "type": "module",
   "main": "src/index.js",
+  "homepage": "https://github.com/mcbrumagin/micro-js",
+  "description": "A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, pub/sub messaging, HTTP routing, and load balancing.",
+  "keywords": [
+    "microservices",
+    "service discovery",
+    "pub/sub",
+    "HTTP routing",
+    "load balancing"
+  ],
   "exports": {
     ".": "./src/index.js",
     "./create-service": "./src/micro-core/create-service.js",

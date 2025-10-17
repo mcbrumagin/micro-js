@@ -89,6 +89,10 @@ import routesTests from './cases/route-tests.js'
 import loggerTests from './cases/logger-tests.js'
 import registryModuleTests from './cases/registry-module-tests.js'
 import streamingTests from './cases/streaming-tests.js'
+import headerCommandTests from './cases/header-command-tests.js'
+import errorHandlingTests from './cases/error-handling-tests.js'
+import edgeCaseTests from './cases/edge-case-tests.js'
+import loadBalancerTests from './cases/load-balancer-tests.js'
 
 import pubsubTests from './cases/services/pubsub-tests.js'
 import staticFileServiceTests from './cases/services/static-file-tests.js'
@@ -105,6 +109,10 @@ let testFns = mergeAllTestsSafely(
   routesTests,
   loggerTests,
   streamingTests,
+  headerCommandTests,
+  errorHandlingTests,
+  edgeCaseTests,
+  loadBalancerTests,
   pubsubTests,
   staticFileServiceTests,
   cacheServiceTests

@@ -23,20 +23,137 @@ const logger = new Logger()
 
 /**
  * Get registry API documentation
- * Parses the main handler function to show available commands
+ * Returns information about available commands and required headers
  */
-function getRegistryApiDocumentation(handlerFn) {
-  let message = handlerFn.toString()
+async function getRegistryApiDocumentation() {
+  // TODO lookup version, links, etc from package.json
+  // update package.json to include useful metadata
+  // TODO check if micro is installed as a module, global command,
+  //   or running directly in the dev environment
+
   try {
-    message = handlerFn.toString()
-      .match(/payload\.(.+?)\) /ig)
-      ?.join('\n')
-      .replace(/payload\./ig, '')
-      .replace(/\) /ig, '') || message
-  } catch (err) {
-    // Return full function string if parsing fails
+    if (!process.env.ENVIRONMENT?.toLowerCase().includes('dev')) {
+      if (process.env.ENVIRONMENT?.toLowerCase().includes('prod')) {
+        // TODO should this error be even less revealing?
+        return new HttpError(404, 'Documentation disabled in production environment')
+      } else return {
+        // if not prod or dev, return a generic documentation link
+        documentation: 'https://github.com/mcbrumagin/micro-js'
+      }
+    } else {
+      // TODO make sure this works when it is installed as a module
+      // for dev, return detailed documentation
+      const packageJson = await import(process.cwd() + '/package.json', { with: { type: 'json' } })
+      return {
+        name: packageJson.default.name,
+        version: packageJson.default.version,
+        description: packageJson.default.description,
+        documentation: packageJson.default.homepage,
+        
+        // TODO generate examples dynamically using header helper functions
+        commands: {
+          health: {
+            header: 'micro-command: health',
+            description: 'Check registry health status',
+            requiredHeaders: ['micro-command'],
+            example: {
+              headers: { 'micro-command': 'health' }
+            }
+          },
+          
+          'service-setup': {
+            header: 'micro-command: service-setup',
+            description: 'Allocate a port for a new service',
+            requiredHeaders: ['micro-command', 'micro-service-name', 'micro-service-home'],
+            example: {
+              headers: {
+                'micro-command': 'service-setup',
+                'micro-service-name': 'myService',
+                'micro-service-home': 'http://localhost'
+              }
+            }
+          },
+          
+          'service-register': {
+            header: 'micro-command: service-register',
+            description: 'Register a service instance',
+            requiredHeaders: ['micro-command', 'micro-service-name', 'micro-service-location'],
+            example: {
+              headers: {
+                'micro-command': 'service-register',
+                'micro-service-name': 'myService',
+                'micro-service-location': 'http://localhost:10001'
+              }
+            }
+          },
+          
+          'service-unregister': {
+            header: 'micro-command: service-unregister',
+            description: 'Unregister a service instance',
+            requiredHeaders: ['micro-command', 'micro-service-name', 'micro-service-location']
+          },
+          
+          'service-lookup': {
+            header: 'micro-command: service-lookup',
+            description: 'Find the location of a service',
+            requiredHeaders: ['micro-command', 'micro-service-name']
+          },
+          
+          'service-call': {
+            header: 'micro-command: service-call',
+            description: 'Call a registered service',
+            requiredHeaders: ['micro-command', 'micro-service-name'],
+            note: 'Request body is forwarded to the service'
+          },
+          
+          'route-register': {
+            header: 'micro-command: route-register',
+            description: 'Register an HTTP route',
+            requiredHeaders: ['micro-command', 'micro-service-name', 'micro-route-path'],
+            optionalHeaders: ['micro-route-datatype', 'micro-route-type']
+          },
+          
+          'pubsub-publish': {
+            header: 'micro-command: pubsub-publish',
+            description: 'Publish a message to a channel',
+            requiredHeaders: ['micro-command', 'micro-pubsub-channel'],
+            note: 'Message body is sent to all subscribers'
+          },
+          
+          'pubsub-subscribe': {
+            header: 'micro-command: pubsub-subscribe',
+            description: 'Subscribe to a pub/sub channel',
+            requiredHeaders: ['micro-command', 'micro-pubsub-channel', 'micro-service-location']
+          },
+          
+          'pubsub-unsubscribe': {
+            header: 'micro-command: pubsub-unsubscribe',
+            description: 'Unsubscribe from a pub/sub channel',
+            requiredHeaders: ['micro-command', 'micro-pubsub-channel', 'micro-service-location']
+          }
+        },
+        
+        routes: {
+          description: 'HTTP routes take priority over command headers',
+          note: 'Access registered routes directly via their URL path (e.g., /api/users)'
+        },
+        
+        usage: {
+          curl: 'curl -H "micro-command: health" http://localhost:9000',
+          fetch: 'fetch("http://localhost:9000", { headers: { "micro-command": "health" } })'
+        }
+      }
+    }
+  } catch (error) {
+    // TODO remove try/catch after dev/installed/global edge-cases are covered
+    if (!process.env.ENVIRONMENT?.toLowerCase().includes('prod')) {
+      console.error('Error getting registry API documentation:', error)
+      throw new HttpError(404, 'Documentation disabled in development environment')
+    } else {
+      console.error('Error getting registry API documentation:', error)
+      throw new HttpError(500, 'Error getting registry API documentation')
+    }
   }
-  return message
 }
 
 /**
@@ -62,11 +179,27 @@ async function handleRegister(state, payload, headers = {}) {
   
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
+    if (!serviceName) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-name header')
+    }
+    if (!serviceLocation) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
+    }
     return registerService(state, { 
       service: serviceName, 
       location: serviceLocation 
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
+    if (!serviceName) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'ROUTE_REGISTER requires micro-service-name header')
+    }
+    if (!routePath) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'ROUTE_REGISTER requires micro-route-path header')
+    }
     return registerRoute(state, { 
       service: serviceName, 
       path: routePath, 
@@ -115,7 +248,7 @@ export async function routeCommand(state, payload, request, response, options = 
   }
   
   // No route or command matched - return API documentation
-  return getRegistryApiDocumentation(handlerFn || routeCommand)
+  return getRegistryApiDocumentation()
 }
 
 /**
@@ -133,6 +266,14 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return handleHealthCheck()
     
     case COMMANDS.SERVICE_SETUP:
+      if (!serviceName) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-name header')
+      }
+      if (!serviceHome) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-home header')
+      }
       return allocateServicePort(state, { 
         service: serviceName, 
         home: serviceHome 
@@ -161,30 +302,44 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       })
     
     case COMMANDS.PUBSUB_PUBLISH:
+      if (!pubsubChannel) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'PUBSUB_PUBLISH requires micro-pubsub-channel header')
+      }
       return publish(state, { 
         type: pubsubChannel, 
         message: payload 
       })
     
     case COMMANDS.PUBSUB_SUBSCRIBE:
+      if (!pubsubChannel) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-pubsub-channel header')
+      }
+      if (!serviceLocation) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-service-location header')
+      }
       return subscribe(state, { 
         type: pubsubChannel, 
         location: serviceLocation 
       })
     
     case COMMANDS.PUBSUB_UNSUBSCRIBE:
+      if (!pubsubChannel) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-pubsub-channel header')
+      }
+      if (!serviceLocation) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-service-location header')
+      }
       return unsubscribe(state, { 
         type: pubsubChannel, 
         location: serviceLocation 
       })
     
     default:
-      // TODO remove? should be unneeded/redundant?
-      // If no recognized command, check for HTTP route
-      if (request.url) {
-        return resolvePossibleRoute(state, request, response, payload)
-      }
-      
       const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, `Unknown command: ${command}`)
   }

@@ -50,6 +50,14 @@ function stringify(obj, depth = 0, maxDepth = 2) {
   return string
 }
 
+function prettyPrint(obj, maxStringLength = 1000) {
+  let prettyString = stringify(obj, 0, 2)
+  if (prettyString.length > maxStringLength) {
+    prettyString = prettyString.slice(0, maxStringLength) + '...'
+  }
+  return prettyString
+}
+
 const colors = {
   red: '\x1b[31m',
   green: '\x1b[32m',
@@ -219,6 +227,10 @@ export default class Logger {
         + `| Include lines: ${this.options.includeLogLineNumbers ? 'enabled' : 'disabled (set LOG_INCLUDE_LINES=true to enable)'}\n`
         + `| Exclude full path in log lines: ${this.options.excludeFullPathInLogLines ? 'enabled' : 'disabled (set LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true to enable)'}\n`
     ))
+  }
+
+  prettyPrint(...args) {
+    return prettyPrint(...args)
   }
 
   writeColor(...args) {

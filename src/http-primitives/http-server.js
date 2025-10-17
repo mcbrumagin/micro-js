@@ -3,6 +3,7 @@ import readStream from './read-stream.js'
 import HttpError from './http-error.js'
 import Logger from '../utils/logger.js'
 import fs from 'node:fs'
+import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
 const logger = new Logger()
 
@@ -81,8 +82,8 @@ export default async function createServer(port, serverFn) {
             contentType = 'application/octet-stream'
             responseBody = result
           } else if (typeof result === 'string') {
-            // Strings - send as plain text (no JSON quotes)
-            contentType = 'text/plain'
+            // Strings - detect if HTML, XML, JSON, or plain text
+            contentType = detectContentType(result, request.url)
             responseBody = result
           } else {
             // Everything else (objects, arrays, numbers, booleans, null) - send as JSON

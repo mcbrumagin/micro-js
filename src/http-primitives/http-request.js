@@ -13,20 +13,36 @@ async function request(address, {
   timeout = 30000 // TODO override
 } = {}) {
   // Handle different body types
-  if (body !== null && body !== undefined) {
-    if (Buffer.isBuffer(body)) {
-      // Binary data - send as-is with appropriate content-type
-      if (!headers['content-type']) {
-        headers['content-type'] = 'application/octet-stream'
-      }
-    } else if (typeof body === 'object') {
-      // JSON data - stringify
+  if (Buffer.isBuffer(body)) {
+    // Binary data - send as-is with appropriate content-type
+    if (!headers['content-type']) {
+      headers['content-type'] = 'application/octet-stream'
+    }
+  } else if (body !== null && body !== undefined && typeof body === 'object') {
+    // JSON objects/arrays - stringify
+    if (!headers['content-type']) {
+      headers['content-type'] = 'application/json'
+    }
+    body = JSON.stringify(body)
+  } else if (body === null || body === undefined || typeof body === 'number' || typeof body === 'boolean') {
+    // Primitives (null, undefined, numbers, booleans) - send as JSON to preserve type
+    if (!headers['content-type']) {
+      headers['content-type'] = 'application/json'
+    }
+    body = JSON.stringify(body)
+  } else if (typeof body === 'string') {
+    // Strings - send as JSON if empty (to preserve empty string), otherwise as text
+    if (body === '') {
       if (!headers['content-type']) {
         headers['content-type'] = 'application/json'
       }
-      body = JSON.stringify(body)
+      body = JSON.stringify(body) // "" becomes '""'
+    } else {
+      if (!headers['content-type']) {
+        headers['content-type'] = 'text/plain'
+      }
+      // Non-empty strings send as-is
     }
-    // else: string or other primitive, send as-is
   }
 
   const controller = new AbortController()

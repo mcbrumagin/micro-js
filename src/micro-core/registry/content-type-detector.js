@@ -55,7 +55,12 @@ export function detectContentType(payload, url = '') {
   if (typeof payload === 'object') {
     const bufferType = detectFromBuffer(payload)
     if (bufferType) return bufferType
+    
+    // Plain JavaScript objects/arrays should be JSON
+    if (payload !== null) {
+      return 'application/json'
+    }
   }
   
-  return dataType || 'text/html'
+  return dataType || 'text/plain'
 }
