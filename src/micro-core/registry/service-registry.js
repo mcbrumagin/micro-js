@@ -279,10 +279,15 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   validateServiceCall(state, name)
 
   // use round-robin for proxy calls
-  const location = selectServiceLocation(state, name, 'round-robin')
+  let location = selectServiceLocation(state, name, 'round-robin')
 
   let options = setProxyRequestOptions(request, response)
   logger.debug(`proxying request to "${location}"${options?.headers ? ` with headers: ${JSON.stringify(options.headers)}` : ''}`)
+  
+  console.log('proxyServiceCall: location:', location)
+  console.log('proxyServiceCall: request.url:', request.url)
+  location = `${location}${request.url}`
+  console.log('proxyServiceCall: location:', location)
   
   options.body = payload
   const serviceResponse = await httpRequest(location, options)

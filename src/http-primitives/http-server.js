@@ -79,6 +79,8 @@ export default async function createServer(port, serverFn, options = {}) {
             }
           }
         }
+
+        // TODO pipe request to serverFn for file uploads?
         
         let result = await serverFn(body, request, response)
         if (result instanceof fs.ReadStream) {
@@ -94,7 +96,10 @@ export default async function createServer(port, serverFn, options = {}) {
             responseBody = result
           } else if (typeof result === 'string') {
             // Strings - detect if HTML, XML, JSON, or plain text
-            contentType = detectContentType(result, request.url)
+            if (!response.getHeader('content-type')) {
+              console.log('http-server: result is a string - detecting contentType', { result, request: request.url })
+              contentType = detectContentType(result, request.url)
+            }
             responseBody = result
           } else {
             // Everything else (objects, arrays, numbers, booleans, null) - send as JSON

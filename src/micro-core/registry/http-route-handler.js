@@ -79,6 +79,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
 
   const result = await proxyServiceCall(state, { 
     name: service, 
+    // TODO we have url in request... do we need this in payload?
     payload: { url, ...(requestBody || {}) },
     request,
     response
@@ -88,6 +89,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
 
   const normalizedResult = normalizeResult(result, url)
   
+  console.log('handleControllerRoute', { normalizedResult, service, dataType })
   if (!response.isEnded) {
     response.writeHead(normalizedResult?.status || 200, { 
       'content-type': normalizedResult?.dataType || dataType 
@@ -125,6 +127,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   // Check for direct route match
   const routeInfo = state.routes.get(url)
   if (routeInfo) {
+    // TODO ensure url is passed through proxy call to service
     return handleDirectRoute(state, routeInfo, url, requestBody, request, response)
   }
   
@@ -132,8 +135,9 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   const controllerInfo = findControllerRoute(state, url)
   if (controllerInfo) {
     logger.debug(`controller route match: ${JSON.stringify({controllerInfo})}`)
+    // TODO ensure url is passed through proxy call to service
     return handleControllerRoute(state, controllerInfo, url, requestBody, request, response)
-  }
+  } else console.log('no route match', { url, routeInfo, controllerInfo })
   
   // Handle trailing slash redirect
   const redirectResult = handleTrailingSlashRedirect(url, response)
@@ -142,6 +146,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   }
   
   // No route matched - return routes for debugging
+  console.log('no route matched - returning routes for debugging', { routes: Object.fromEntries(state.routes) })
   return { 
     payload: Object.fromEntries(state.routes),
     dataType: 'application/json' 

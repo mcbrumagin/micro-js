@@ -268,6 +268,38 @@ async function testStaticFileWithNoUrl() {
   }
 }
 
+async function testStaticFileResponseHeaders() {
+  const tempDir = await createTempTestFiles()
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: 'index.html',
+        externalRootDir: true
+      }),
+      async () => {
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/index.html`)
+        // console.log(response)
+        console.log('content-type:', response.headers.get('content-type'))
+        console.log('content-length:', response.headers.get('content-length'))
+        console.log('last-modified:', response.headers.get('last-modified'))
+        await assert(response,
+          r => r.status === 200,
+          r => r.headers.get('content-type') === 'text/html',
+          r => !!r.headers.get('content-length'),
+          r => !!r.headers.get('last-modified')
+        )
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+// testStaticFileResponseHeaders.solo = true
+
 export default {
   testBasicStaticFileServiceWorkingDir,
   testBasicStaticFileServiceExternalTempDir,
@@ -277,5 +309,6 @@ export default {
   testStaticFileWithCustomResolver,
   testStaticFileInvalidRootDir,
   testStaticFileUrlSanitization,
-  testStaticFileWithNoUrl
+  testStaticFileWithNoUrl,
+  testStaticFileResponseHeaders
 }

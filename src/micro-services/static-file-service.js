@@ -4,6 +4,7 @@ import HttpError from '../http-primitives/http-error.js'
 import path from 'path'
 import fs from 'fs'
 import { next } from '../http-primitives/next.js'
+import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
 const logger = new Logger('static-file-service')
 
@@ -179,7 +180,7 @@ export default async function createStaticFileService({
 
   const quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
   
-  const getFile = async payload => {
+  const getFile = async (payload, request, response) => {
     const url = payload?.url
     logger.debug(`getting file for url: "${url}"`)
 
@@ -196,7 +197,14 @@ export default async function createStaticFileService({
       logger.debug(`file not found in lookup for url: "${url}"`)
       if (resolverFn) {
         try {
-          let result = await resolverFn(url)
+
+          let suggestedContentType = detectContentType(null, url)
+          console.log('staticFileService: suggestedContentType:', suggestedContentType)
+          response.setHeader('content-type', suggestedContentType)
+          const setContentType = (contentType) => {
+            response.setHeader('content-type', contentType)
+          }
+          let result = await resolverFn(url, setContentType)
           // TODO should handle fs readFileSync?
           if (result !== false && result != null) return result
         } catch (err) {
@@ -216,12 +224,19 @@ export default async function createStaticFileService({
     // TODO implement a streaming read file
     // const content = await fs.readFileSync(filePath, 'utf-8')
     // return content
+
+    console.log('staticFileService: filePath:', filePath)
+    let contentType = detectContentType(null, filePath)
+    response.setHeader('content-type', contentType)
     return fs.createReadStream(filePath)
+    // return next({ reason: 'streaming file', file: filePath })
   }
 
-  const server = await createService('static-file-service', async function staticFileService(payload) {
+  const server = await createService('static-file-service', async function staticFileService(payload, request, response) {
+    // console.log('staticFileService: request:', request, request instanceof Request)
+    // console.log('staticFileService: response:', response, response instanceof Response)
     // logger.warn('request url: ', request?.url)
-    return getFile(payload)
+    return getFile(payload, request, response)
   })
 
   // attach lookup map and helper fns

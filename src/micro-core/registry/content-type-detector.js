@@ -39,6 +39,7 @@ export function detectContentType(payload, url = '') {
   
   if (typeof payload === 'string') {
     if (isJsonString(payload)) {
+      console.log('detectContentType: payload is a JSON string - returning application/json')
       return 'application/json'
     }
     
@@ -58,6 +59,7 @@ export function detectContentType(payload, url = '') {
     
     // Plain JavaScript objects/arrays should be JSON
     if (payload !== null) {
+      console.log('detectContentType: payload is an object - returning application/json')
       return 'application/json'
     }
   }
