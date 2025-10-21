@@ -1,3 +1,7 @@
+import HttpError from '../../http-primitives/http-error.js'
+import Logger from '../../utils/logger.js'
+
+const logger = new Logger()
 
 /**
  * Get registry API documentation
@@ -123,12 +127,11 @@ export default async function getRegistryApiDocumentation() {
       }
     }
   } catch (error) {
+    logger.error('Error getting registry API documentation:', error)
     // TODO remove try/catch after dev/installed/global edge-cases are covered
     if (!process.env.ENVIRONMENT?.toLowerCase().includes('prod')) {
-      console.error('Error getting registry API documentation:', error)
       throw new HttpError(404, 'Documentation disabled in development environment')
     } else {
-      console.error('Error getting registry API documentation:', error)
       throw new HttpError(500, 'Error getting registry API documentation')
     }
   }

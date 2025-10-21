@@ -199,7 +199,7 @@ export default async function createStaticFileService({
         try {
 
           let suggestedContentType = detectContentType(null, url)
-          console.log('staticFileService: suggestedContentType:', suggestedContentType)
+          logger.debug('staticFileService - suggestedContentType:', suggestedContentType)
           response.setHeader('content-type', suggestedContentType)
           // TODO needed?
           const setContentType = (contentType) => {
@@ -229,18 +229,12 @@ export default async function createStaticFileService({
       || stats.birthtime.toISOString() // creation time
     }
 
-    // TODO implement a streaming read file
-    // const content = await fs.readFileSync(filePath, 'utf-8')
-    // return content
-
-    console.log('staticFileService: filePath:', filePath)
+    logger.debug('staticFileService - filePath:', filePath)
     let contentType = detectContentType(null, filePath)
+
     response?.setHeader('content-type', contentType) // ? for helper function without response
-    // TODO async?
     response?.setHeader('content-length', fs.statSync(filePath).size)
-    const lastModified = getLastModified(filePath)
-    console.log('staticFileService: lastModified:', lastModified)
-    response?.setHeader('last-modified', lastModified)
+    response?.setHeader('last-modified', getLastModified(filePath))
 
     return fs.createReadStream(filePath)
 
@@ -250,12 +244,8 @@ export default async function createStaticFileService({
     // return next({ reason: 'streaming file', file: filePath })
   }
 
-  const server = await createService('static-file-service', async function staticFileService(payload, request, response) {
-    // console.log('staticFileService: request:', request, request instanceof Request)
-    // console.log('staticFileService: response:', response, response instanceof Response)
-    // logger.warn('request url: ', request?.url)
-    return getFile(payload, request, response)
-  })
+
+  const server = await createService('static-file-service', getFile)
 
   // attach lookup map and helper fns
   server.quickLookup = quickLookup
@@ -263,9 +253,9 @@ export default async function createStaticFileService({
 
   let originalTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    console.log('terminating static file service')
+    logger.debug('terminating static file service')
     await originalTerminate()
-    console.log('static file service terminated')
+    logger.debug('static file service terminated')
   }
   return server
 }

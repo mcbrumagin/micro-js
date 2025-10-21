@@ -1,9 +1,7 @@
 // Modern environment configuration utility for Node.js 24+
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-// import Logger from '../utils/logger.js'
-
-// const logger = new Logger()
+// NOTE no custom logger here, this config is required for Logger initialization
 
 // TODO implement secret management
 
@@ -38,7 +36,7 @@ class EnvConfig {
       try {
         return JSON.parse(value)
       } catch {
-        console.warn(`Failed to parse JSON environment variable: ${value}`)
+        cosole.warn(`Failed to parse JSON environment variable: ${value}`)
       }
     }
     
@@ -84,7 +82,6 @@ class EnvConfig {
         }
       }
       
-      // console.debug(`Loaded environment configuration from ${filePath}`)
     } catch (error) {
       if (error.code !== 'ENOENT') {
         console.warn(`Failed to load environment file ${filePath}:`, error.message)

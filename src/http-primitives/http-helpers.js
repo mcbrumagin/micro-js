@@ -1,6 +1,5 @@
 
 function suggestTypeFromUrl(url) {
-  console.debug(`suggestTypeFromUrl url: ${url}`)
   if (!url || (url.search(/\.[A-Za-z0-9]+$/) === -1)) return
   else if (url.includes('.html')) return 'text/html'
   else if (url.includes('.xml')) return 'application/xml'

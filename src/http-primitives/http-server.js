@@ -97,7 +97,6 @@ export default async function createServer(port, serverFn, options = {}) {
           } else if (typeof result === 'string') {
             // Strings - detect if HTML, XML, JSON, or plain text
             if (!response.getHeader('content-type')) {
-              console.log('http-server: result is a string - detecting contentType', { result, request: request.url })
               contentType = detectContentType(result, request.url)
             }
             responseBody = result

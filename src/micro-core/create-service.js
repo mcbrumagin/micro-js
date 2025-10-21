@@ -116,16 +116,6 @@ export default async function createService(name, serviceFn, options = {}) {
      may require that anon services are only accessible locally, and skip server creation
      this would also require anon routes to be local to wherever the register is executed from
   */
- 
-  // old implementation: prohibits anonymous functions, only named functions are allowed
-  // if (
-  //   !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
-  //   !(typeof name === 'function' && typeof name.name === 'string' && name.name)
-  // ) {
-  //   throw new Error(
-  //     'Please provide a named function, or a service name and its function separately'
-  //   )
-  // }
 
   // handle named function case (serviceFn, options)
   if (typeof name === 'function') {
@@ -133,7 +123,7 @@ export default async function createService(name, serviceFn, options = {}) {
     options = options && Object.keys(options).length === 0 ? serviceFn : options
     serviceFn = name
     name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
-    if (name.includes('Anon$')) console.warn(`createService generated name for anonymous function ${name}`)
+    if (name.includes('Anon$')) logger.warn(`generated name for anonymous function ${name}`)
   }
 
   validateServiceName(name)
