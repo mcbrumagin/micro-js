@@ -5,6 +5,8 @@
 
 import httpRequest from '../../http-primitives/http-request.js'
 import HttpError from '../../http-primitives/http-error.js'
+import { buildPublishHeaders } from '../../utils/micro-headers.js'
+
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger()
@@ -23,7 +25,11 @@ export async function publish(state, { type, message }) {
   
   for (const location of subscribers) {
     try {
-      const result = await httpRequest(location, { body: message })
+      // TODO need micro headers here
+      const result = await httpRequest(location, {
+        body: message,
+        headers: buildPublishHeaders(type)
+      })
       results.push(result)
     } catch (err) {
       errors.push(err)

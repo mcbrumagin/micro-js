@@ -164,7 +164,7 @@ export default async function createService(name, serviceFn, options = {}) {
   const registryData = await registerServiceWithRegistry(name, location, registryHost)
   updateCache(cache, registryData)
 
-  logger.debug(`service "${name}" registered at ${registryHost}`)
+  logger.info(`service "${name}" registered with registry at "${registryHost}" using location "${location}"`)
 
   // add service metadata
   server.service = name

@@ -61,6 +61,7 @@ async function request(address, {
     }
     // Log fetch errors for debugging
     logger.error(`Fetch failed for ${address}: ${error.message}`)
+    console.trace()
     logger.debug(`Options: ${JSON.stringify(options)}`)
     logger.debug(`Error cause: ${error.cause}`)
     throw error

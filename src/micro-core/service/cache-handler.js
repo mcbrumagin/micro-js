@@ -43,6 +43,7 @@ export function isCacheUpdatePayload(payload) {
 export function createCacheAwareHandler(serviceFn, cache, context) {
   return async function cacheAwareHandler(payload, request, response) {
     // Check if this is a cache update from registry
+    // TODO check for micro headers to indicate cache update
     if (isCacheUpdatePayload(payload)) {
       const { service, location } = payload
       
@@ -86,6 +87,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
 export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
   return async function secureCacheAwareHandler(payload, request, response) {
     // Validate token if provided
+    // TODO check for micro headers to indicate cache update
     if (isCacheUpdatePayload(payload)) {
       // TODO: Validate request headers contain matching token
       // const authHeader = request?.headers?.['x-registry-token']
