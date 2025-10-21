@@ -531,6 +531,35 @@ async function testFileUploadCustomErrorHandler() {
   }
 }
 
+async function testLargeFileUpload() {
+  const uploadDir = await createTempUploadDir()
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createFileUploadService({
+        uploadDir,
+        fileFieldName: 'file'
+      }),
+      async (registry, uploadService) => {
+        const testFilePath = path.join(process.cwd(), 'test', 'services', 'files', 'test-track.wav')
+        const form = new FormData()
+        form.append('file', fs.createReadStream(testFilePath), 'test-track.wav')
+        const result = await createMultipartRequest(form)
+        await assert(result,
+          r => r.success === true,
+          r => r.file.originalName === 'test-track.wav',
+          r => r.file.savedName === 'test-track.wav',
+          r => r.file.size === 9098142
+        )
+        return result
+      }
+    )
+  } finally {
+    cleanupTempFiles(uploadDir)
+  }
+}
+
 async function testValidatorMimeTypeWildcard() {
   const validator = validators.mimeType(['image/*', 'video/*'])
   
@@ -575,6 +604,7 @@ export default {
   testFileUploadListFiles,
   testFileUploadCustomSuccessHandler,
   testFileUploadCustomErrorHandler,
+  testLargeFileUpload,
   testValidatorMimeTypeWildcard,
   testValidatorExtensionNormalization
 }

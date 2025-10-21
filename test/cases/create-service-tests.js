@@ -533,6 +533,7 @@ async function testFileStreamService() {
   )
 }
 
+// TODO is this redundant? does this ACTUALLY work correctly? is it big enough?
 async function testLargeFileStreamService() {
   const fs = await import('fs')
   const path = await import('path')
@@ -556,6 +557,8 @@ async function testLargeFileStreamService() {
           })
           const stream = fs.createReadStream(testFilePath)
           stream.pipe(response)
+
+          // TODO this works here, but not in upload service for some reason
           return next({ reason: 'streaming large audio file', file: fileName, size: stats.size })
         } else {
           throw new HttpError(404, 'Audio file not found')

@@ -6,7 +6,7 @@
 import { Buffer } from 'node:buffer'
 import Logger from '../../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
-import { proxyServiceCall } from './service-registry.js'
+import { proxyServiceCall, streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
 
 const logger = new Logger()
@@ -49,13 +49,33 @@ function sendBufferedResponse(response, result) {
  */
 async function handleDirectRoute(state, routeInfo, url, requestBody, request, response) {
   const { service, dataType } = routeInfo
+
+  // TODO create helper function to handle streaming and buffered proxy calls
+
+  const contentType = request.headers['content-type'] || ''
+  const useStreaming = contentType.includes('multipart/')
+
+  logger.debug('useStreaming:', useStreaming)
+  logger.debug('contentType:', contentType)
   
-  const result = await proxyServiceCall(state, {
-    name: service,
-    payload: requestBody || {},
-    request,
-    response
-  })
+  let result
+  if (useStreaming) {
+    // Use streaming proxy - pipes request directly without buffering (for file uploads)
+    logger.debug(`Using streaming proxy for multipart content: ${service}`)
+    result = await streamProxyServiceCall(state, { 
+      name: service, 
+      request, 
+      response 
+    })
+  } else {
+    // Use buffered proxy - backward compatible for JSON/text payloads
+    result = await proxyServiceCall(state, { 
+      name: service, 
+      payload: requestBody || {}, 
+      request, 
+      response 
+    })
+  }
 
   logger.debug(`direct route result: ${!!result}`)
 
@@ -75,21 +95,34 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
 async function handleControllerRoute(state, controllerInfo, url, requestBody, request, response) {
   const { service, dataType } = controllerInfo
   
-  // TODO pipe breaks logs here somewhere
+  // TODO create helper function to handle streaming and buffered proxy calls
 
-  const result = await proxyServiceCall(state, { 
-    name: service, 
-    // TODO we have url in request... do we need this in payload?
-    payload: { url, ...(requestBody || {}) },
-    request,
-    response
-  })
+  const contentType = request.headers['content-type'] || ''
+  const useStreaming = contentType.includes('multipart/')
+
+  logger.debug('useStreaming:', useStreaming)
+  logger.debug('contentType:', contentType)
+
+  let result
+  if (useStreaming) {
+    result = await streamProxyServiceCall(state, { 
+      name: service, 
+      request, 
+      response 
+    })
+  } else {
+    result = await proxyServiceCall(state, { 
+      name: service, 
+      payload: { url, ...(requestBody || {}) }, 
+      request, 
+      response 
+    })
+  }
 
   logger.debug(`controller route result: ${!!result} ... url: ${url}`)
 
   const normalizedResult = normalizeResult(result, url)
   
-  console.log('handleControllerRoute', { normalizedResult, service, dataType })
   if (!response.isEnded) {
     response.writeHead(normalizedResult?.status || 200, { 
       'content-type': normalizedResult?.dataType || dataType 
@@ -137,7 +170,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
     logger.debug(`controller route match: ${JSON.stringify({controllerInfo})}`)
     // TODO ensure url is passed through proxy call to service
     return handleControllerRoute(state, controllerInfo, url, requestBody, request, response)
-  } else console.log('no route match', { url, routeInfo, controllerInfo })
+  } // else logger.debug('no route match', { url, routeInfo, controllerInfo })
   
   // Handle trailing slash redirect
   const redirectResult = handleTrailingSlashRedirect(url, response)
@@ -146,7 +179,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   }
   
   // No route matched - return routes for debugging
-  console.log('no route matched - returning routes for debugging', { routes: Object.fromEntries(state.routes) })
+  logger.debug('no route matched - returning routes for debugging', { routes: Object.fromEntries(state.routes) })
   return { 
     payload: Object.fromEntries(state.routes),
     dataType: 'application/json' 

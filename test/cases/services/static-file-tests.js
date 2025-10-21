@@ -1,6 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../../core/index.js'
 import { callService, Logger } from '../../../src/index.js'
 import createStaticFileService from '../../../src/micro-services/static-file-service.js'
+import { HEADERS, COMMANDS } from '../../../src/utils/micro-headers.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -52,10 +53,9 @@ async function testBasicStaticFileServiceWorkingDir() {
       }),
       async () => {
         let result = await callService('static-file-service', { url: '/' })
-        await assert(result, 
-          r => r.includes('"name": "micro-js",'),
-          r => r.includes('{'),
-          r => r.includes('}')
+        await assert(result || 'no result',
+          r => r !== 'no result',
+          r => r.name === 'micro-js'
         )
         return result
       }
@@ -244,7 +244,7 @@ async function testStaticFileUrlSanitization() {
   }
 }
 
-async function testStaticFileWithNoUrl() {
+async function testStaticFileWithDefaultRequestUrl() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
@@ -256,11 +256,13 @@ async function testStaticFileWithNoUrl() {
         externalRootDir: true
       }),
       async () => {
-        await assertErr(
-          () => callService('static-file-service', { url: '' }),
-          err => err.status === 400,
-          err => err.message.includes('url is required')
+        let result = await callService('static-file-service')
+        await assert(
+          result,
+          r => r.includes('Index Page'),
+          r => r.includes('<html>'),
         )
+        return result
       }
     )
   } finally {
@@ -280,11 +282,13 @@ async function testStaticFileResponseHeaders() {
         externalRootDir: true
       }),
       async () => {
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/index.html`)
-        // console.log(response)
-        console.log('content-type:', response.headers.get('content-type'))
-        console.log('content-length:', response.headers.get('content-length'))
-        console.log('last-modified:', response.headers.get('last-modified'))
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/index.html`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service'
+          }
+        })
+        
         await assert(response,
           r => r.status === 200,
           r => r.headers.get('content-type') === 'text/html',
@@ -298,8 +302,6 @@ async function testStaticFileResponseHeaders() {
   }
 }
 
-// testStaticFileResponseHeaders.solo = true
-
 export default {
   testBasicStaticFileServiceWorkingDir,
   testBasicStaticFileServiceExternalTempDir,
@@ -309,6 +311,6 @@ export default {
   testStaticFileWithCustomResolver,
   testStaticFileInvalidRootDir,
   testStaticFileUrlSanitization,
-  testStaticFileWithNoUrl,
+  testStaticFileWithDefaultRequestUrl,
   testStaticFileResponseHeaders
 }

@@ -402,7 +402,8 @@ export default async function createFileUploadService({
     
     // Return false to indicate that the response is handled by the function itself
     // This prevents the framework from trying to send another response
-    return false // TODO return next()?
+    return false // TODO return next()? preventDefault()? next({ preventDefault: true })?
+    // return next({ reason: 'file upload', file: filePath })
   }, {
     streamPayload: true // Don't buffer the request - we need the raw stream for multipart uploads
   })

@@ -40,9 +40,9 @@ export function registerRoute(state, { service, path, dataType = 'dynamic' }) {
  * Find a controller route that matches the URL prefix
  */
 export function findControllerRoute(state, url) {
-  // console.log('findControllerRoute', { url, controllerRoutes: Object.fromEntries(state.controllerRoutes) })
+  // logger.debug('findControllerRoute', { url, controllerRoutes: Object.fromEntries(state.controllerRoutes) })
   for (const [basePath, routeInfo] of state.controllerRoutes) {
-    // console.log('findControllerRoute', { basePath, routeInfo })
+    // logger.debug('findControllerRoute', { basePath, routeInfo })
     const regex = new RegExp(`^${basePath}`, 'i')
     if (regex.test(url)) {
       return routeInfo

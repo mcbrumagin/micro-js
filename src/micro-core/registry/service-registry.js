@@ -167,12 +167,14 @@ const setProxyRequestOptions = (request, response) => {
 const handleStreamingResponse = async (serviceResponse, response) => {
   const contentType = serviceResponse.headers.get('content-type')
   const contentLength = serviceResponse.headers.get('content-length')
-  logger.debug(`streaming response from service: ${contentType}, ${contentLength} bytes`)
+  const lastModified = serviceResponse.headers.get('last-modified')
+  logger.debug(`streaming response from service: ${contentType}, ${contentLength} bytes, last-modified: ${lastModified}`)
   
-  // Copy response headers
+  // Copy response headers // TODO copy other headers?
   response.writeHead(serviceResponse.status, {
     'content-type': contentType,
-    ...(contentLength && { 'content-length': contentLength })
+    ...(contentLength && { 'content-length': contentLength }),
+    ...(lastModified && { 'last-modified': lastModified })
   })
   
   // stream the response body using Node.js streams
@@ -284,10 +286,8 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   let options = setProxyRequestOptions(request, response)
   logger.debug(`proxying request to "${location}"${options?.headers ? ` with headers: ${JSON.stringify(options.headers)}` : ''}`)
   
-  console.log('proxyServiceCall: location:', location)
-  console.log('proxyServiceCall: request.url:', request.url)
   location = `${location}${request.url}`
-  console.log('proxyServiceCall: location:', location)
+  logger.debug('proxyServiceCall - location:', location)
   
   options.body = payload
   const serviceResponse = await httpRequest(location, options)
@@ -295,6 +295,7 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   if (options?.stream && serviceResponse instanceof Response) {
     const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')
     if (isStreamable && serviceResponse.body) {
+      logger.debug('proxyServiceCall - streaming response')
       return await handleStreamingResponse(serviceResponse, response)
     }
   }

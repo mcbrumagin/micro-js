@@ -17,8 +17,8 @@
   "scripts": {
     "test": "echo \"Tests are run via micro-js test suite\" && exit 0"
   },
-  "peerDependencies": {
-    "micro-js": "^1.0.0"
+  "TODO_peerDependencies": {
+    "micro-js": "^0.2.1"
   },
   "dependencies": {
     "busboy": "^1.6.0"

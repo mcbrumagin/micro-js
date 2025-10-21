@@ -181,7 +181,7 @@ export default async function createStaticFileService({
   const quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
   
   const getFile = async (payload, request, response) => {
-    const url = payload?.url
+    const url = payload?.url || request?.url
     logger.debug(`getting file for url: "${url}"`)
 
     if (simpleSecurity) simpleSecurityCheck(url, preventSystemFileAccess)
@@ -201,6 +201,7 @@ export default async function createStaticFileService({
           let suggestedContentType = detectContentType(null, url)
           console.log('staticFileService: suggestedContentType:', suggestedContentType)
           response.setHeader('content-type', suggestedContentType)
+          // TODO needed?
           const setContentType = (contentType) => {
             response.setHeader('content-type', contentType)
           }
@@ -221,14 +222,31 @@ export default async function createStaticFileService({
       }
     }
 
+    const getLastModified = (filePath) => {
+      const stats = fs.statSync(filePath)
+      return stats.mtime.toISOString() // modification time
+      || stats.ctime.toISOString() // change time
+      || stats.birthtime.toISOString() // creation time
+    }
+
     // TODO implement a streaming read file
     // const content = await fs.readFileSync(filePath, 'utf-8')
     // return content
 
     console.log('staticFileService: filePath:', filePath)
     let contentType = detectContentType(null, filePath)
-    response.setHeader('content-type', contentType)
+    response?.setHeader('content-type', contentType) // ? for helper function without response
+    // TODO async?
+    response?.setHeader('content-length', fs.statSync(filePath).size)
+    const lastModified = getLastModified(filePath)
+    console.log('staticFileService: lastModified:', lastModified)
+    response?.setHeader('last-modified', lastModified)
+
     return fs.createReadStream(filePath)
+
+    // TODO return next()? preventDefault()? next({ preventDefault: true })?
+    // TODO this hangs for some reason...
+    // fs.createReadStream(filePath)
     // return next({ reason: 'streaming file', file: filePath })
   }
 

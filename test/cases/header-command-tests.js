@@ -260,12 +260,14 @@ async function testCallNonExistentServiceWithHeaders() {
 /**
  * Test that HTTP routes have priority over command headers
  */
-async function testRoutePriorityOverCommandHeaders() {
+async function testCommandHeaderPriorityOverRoutes() {
   await terminateAfter(
     await startRegistry(),
-    await createService('wrongService', () => 'WRONG'),
     await createRoute('/priority-test', async function rightService() {
-      return 'CORRECT'
+      return 'WRONG'
+    }),
+    await createService('headerCommandTest', (payload, request, response) => {
+      return `CORRECT: ${request.url}`
     }),
     async () => {
       // Send request with both route URL AND command headers
@@ -275,14 +277,15 @@ async function testRoutePriorityOverCommandHeaders() {
           headers: {
             // These should be IGNORED because /priority-test matches a route
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'wrongService'
+            [HEADERS.SERVICE_NAME]: 'headerCommandTest'
           }
         }
       )
       
       await assert(result, 
-        r => r === 'CORRECT',
-        r => r !== 'WRONG'
+        r => r.includes('CORRECT'),
+        r => r.includes('priority-test'),
+        r => r.includes('WRONG') === false
       )
       return result
     }
@@ -635,7 +638,7 @@ export default {
   testMissingServiceNameForSetup,
   testMissingServiceLocationForRegister,
   testCallNonExistentServiceWithHeaders,
-  testRoutePriorityOverCommandHeaders,
+  testCommandHeaderPriorityOverRoutes,
   testRoutesWithoutCommandHeaders,
   testCommandHeadersForNonRouteUrls,
   testContentTypePreservation,

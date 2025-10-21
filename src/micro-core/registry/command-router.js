@@ -114,7 +114,7 @@ export async function routeCommand(state, payload, request, response, options = 
     }
   }
 
-  console.log('no route or command matched', { headers, url: request.url })
+  logger.debug('no route or command matched', { headers, url: request.url })
   
   // No route or command matched - return API documentation
   return getRegistryApiDocumentation()
@@ -165,6 +165,11 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       // Detect if we should use streaming proxy (for multipart uploads, large files, etc.)
       const contentType = request.headers['content-type'] || ''
       const useStreaming = contentType.includes('multipart/')
+
+      // TODO create helper function to handle streaming and buffered proxy calls here
+
+      logger.debug('useStreaming:', useStreaming)
+      logger.debug('contentType:', contentType)
       
       if (useStreaming) {
         // Use streaming proxy - pipes request directly without buffering (for file uploads)
