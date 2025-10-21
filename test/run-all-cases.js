@@ -94,9 +94,10 @@ import errorHandlingTests from './cases/error-handling-tests.js'
 import edgeCaseTests from './cases/edge-case-tests.js'
 import loadBalancerTests from './cases/load-balancer-tests.js'
 
+import cacheServiceTests from './cases/services/cache-tests.js'
 import pubsubTests from './cases/services/pubsub-tests.js'
 import staticFileServiceTests from './cases/services/static-file-tests.js'
-import cacheServiceTests from './cases/services/cache-tests.js'
+import fileUploadTests from './cases/services/file-upload-tests.js'
 
 // TODO solo support for test suites
 // TODO cli support for test runs by name or suite
@@ -113,9 +114,10 @@ let testFns = mergeAllTestsSafely(
   errorHandlingTests,
   edgeCaseTests,
   loadBalancerTests,
+  cacheServiceTests,
   pubsubTests,
   staticFileServiceTests,
-  cacheServiceTests
+  fileUploadTests
 )
 
 // TODO update readme for test object support, merge helper, solo/mute flags

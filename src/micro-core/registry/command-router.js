@@ -11,7 +11,8 @@ import {
   registerService, 
   unregisterService, 
   findServiceLocation, 
-  proxyServiceCall 
+  proxyServiceCall,
+  streamProxyServiceCall
 } from './service-registry.js'
 import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
@@ -293,13 +294,27 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return findServiceLocation(state, serviceName)
     
     case COMMANDS.SERVICE_CALL:
-      // Pass request/response to enable streaming
-      return proxyServiceCall(state, { 
-        name: serviceName, 
-        payload, 
-        request, 
-        response 
-      })
+      // Detect if we should use streaming proxy (for multipart uploads, large files, etc.)
+      const contentType = request.headers['content-type'] || ''
+      const useStreaming = contentType.includes('multipart/')
+      
+      if (useStreaming) {
+        // Use streaming proxy - pipes request directly without buffering (for file uploads)
+        logger.debug(`Using streaming proxy for multipart content: ${serviceName}`)
+        return streamProxyServiceCall(state, { 
+          name: serviceName, 
+          request, 
+          response 
+        })
+      } else {
+        // Use buffered proxy - backward compatible for JSON/text payloads
+        return proxyServiceCall(state, { 
+          name: serviceName, 
+          payload, 
+          request, 
+          response 
+        })
+      }
     
     case COMMANDS.PUBSUB_PUBLISH:
       if (!pubsubChannel) {

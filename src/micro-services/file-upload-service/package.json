@@ -1,0 +1,33 @@
+{
+  "name": "@micro-js/file-upload-service",
+  "version": "1.0.0",
+  "description": "A flexible file upload service for micro-js that handles streaming multipart uploads with validation and custom filename handling",
+  "keywords": [
+    "microservices",
+    "file-upload",
+    "busboy",
+    "streaming",
+    "multipart",
+    "micro-js"
+  ],
+  "license": "MIT",
+  "author": "micro-js contributors",
+  "type": "module",
+  "main": "file-upload-service.js",
+  "scripts": {
+    "test": "echo \"Tests are run via micro-js test suite\" && exit 0"
+  },
+  "peerDependencies": {
+    "micro-js": "^1.0.0"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/micro-js/file-upload-service"
+  }
+}

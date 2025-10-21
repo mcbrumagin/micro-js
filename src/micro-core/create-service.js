@@ -34,7 +34,8 @@ const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('MICRO_RETRY_LIMIT', 3),
   retryInitialDelay: envConfig.get('MICRO_RETRY_DELAY', 20),
   muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false),
-  sharedCache: null // Optional pre-created cache for batch operations
+  sharedCache: null, // Optional pre-created cache for batch operations
+  streamPayload: false // If true, don't buffer request body - pass raw stream to handler
 }
 
 /**
@@ -157,7 +158,7 @@ export default async function createService(name, serviceFn, options = {}) {
 
   let server
   try {
-    server = await httpServer(port, handler)
+    server = await httpServer(port, handler, { streamPayload: config.streamPayload })
     server.name = name
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) { // port already in use

@@ -1,6 +1,6 @@
 {
   "name": "micro-js",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/micro-js",
@@ -18,15 +18,14 @@
     "./create-route": "./src/micro-core/create-route.js",
     "./call-service": "./src/micro-core/call-service.js",
     "./registry-server": "./src/micro-core/registry-server.js",
-    
     "./env-config": "./src/micro-core/env-config.js",
     "./http-error": "./src/http-primitives/http-error.js",
     "./logger": "./src/utils/logger.js",
-
-    "./static-file-service": "./src/micro-services/static-file-service.js",
     "./cache-service": "./src/micro-services/cache-service.js",
     "./pubsub-service": "./src/micro-services/pubsub-service.js",
-    "./auth-service": "./src/micro-services/auth-service.js"
+    "./auth-service": "./src/micro-services/auth-service.js",
+    "./static-file-service": "./src/micro-services/static-file-service.js",
+    "./file-upload-service": "./src/micro-services/file-upload-service/file-upload-service.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -40,5 +39,8 @@
     "README.md",
     "LICENSE"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "form-data": "^4.0.4"
+  }
 }

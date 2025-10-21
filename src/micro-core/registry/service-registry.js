@@ -198,6 +198,79 @@ const handleStreamingResponse = async (serviceResponse, response) => {
 }
 
 /**
+ * Stream proxy a call to a service (for large payloads, multipart, etc.)
+ * Pipes the request stream directly to the service without buffering
+ */
+export async function streamProxyServiceCall(state, { name, request, response }) {
+  const http = (await import('node:http')).default
+  
+  validateServiceCall(state, name)
+
+  // use round-robin for proxy calls
+  const location = selectServiceLocation(state, name, 'round-robin')
+  const url = new URL(location)
+
+  logger.debug(`streaming proxy request to "${location}"`)
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      method: request.method,
+      headers: {
+        ...request.headers,
+        host: url.host // Override host header for target service
+      }
+    }
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      // Forward status code and headers to client
+      response.writeHead(proxyRes.statusCode, proxyRes.headers)
+      
+      // Pipe response body directly to client
+      proxyRes.pipe(response)
+      
+      proxyRes.on('end', () => {
+        logger.debug('Streaming proxy response complete')
+        resolve(false) // false = response handled
+      })
+      
+      proxyRes.on('error', (err) => {
+        logger.error('Proxy response error:', err)
+        if (!response.writableEnded) {
+          response.end()
+        }
+        reject(err)
+      })
+    })
+
+    proxyReq.on('error', (err) => {
+      logger.error('Proxy request error:', err)
+      if (!response.headersSent) {
+        response.writeHead(502)
+        response.end('Bad Gateway')
+      }
+      reject(err)
+    })
+
+    request.on('error', (err) => {
+      logger.error('Request stream error:', err)
+      proxyReq.destroy()
+      reject(err)
+    })
+
+    request.on('end', () => {
+      logger.debug('Request stream ended')
+    })
+
+    // Pipe request body directly to service (no buffering)
+    // Make sure to properly end the proxy request when input ends
+    request.pipe(proxyReq, { end: true })
+  })
+}
+
+/**
  * Proxy a call to a service (with load balancing)
  * Supports transparent streaming when service returns non-JSON content
  */

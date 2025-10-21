@@ -31,9 +31,11 @@ function overrideResponse(response) {
   return response
 }
 
-export default async function createServer(port, serverFn) {
+export default async function createServer(port, serverFn, options = {}) {
   if (!port) throw new Error('"port" is required')
   if (!serverFn) throw new Error('"serverFn" is required')
+
+  const { streamPayload = false } = options
 
   return new Promise((resolve, reject) => {
     // Use modern HTTP server options for better performance
@@ -47,25 +49,34 @@ export default async function createServer(port, serverFn) {
     }, async (request, response) => {
       response = overrideResponse(response) // TODO VERIFY
       try {
-        let body = await readStream(request)
+        let body
         const contentType = request.headers['content-type'] || ''
         
-        // Determine if we should parse as JSON based on content-type
-        // Binary content types should NOT be parsed as JSON
-        const isBinaryContent = contentType.includes('multipart/') || 
-                               contentType.includes('octet-stream') ||
-                               contentType.includes('audio/') ||
-                               contentType.includes('video/') ||
-                               contentType.includes('image/')
+        // Auto-detect if we should stream based on content-type (for multipart uploads)
+        const shouldStream = streamPayload || contentType.includes('multipart/')
         
-        // Parse body as JSON if it's not binary
-        if (!isBinaryContent && body && body.length > 0) {
-          try { 
-            // Convert buffer to string, then parse as JSON
-            const bodyStr = Buffer.isBuffer(body) ? body.toString('utf8') : body
-            body = JSON.parse(bodyStr)
-          } catch (err) { 
-            // If JSON parsing fails, keep as-is (could be plain text or buffer)
+        // If streamPayload is true or multipart detected, don't buffer the request
+        if (shouldStream) {
+          body = null
+        } else {
+          body = await readStream(request)
+          
+          // Determine if we should parse as JSON based on content-type
+          // Binary content types should NOT be parsed as JSON
+          const isBinaryContent = contentType.includes('octet-stream') ||
+                                 contentType.includes('audio/') ||
+                                 contentType.includes('video/') ||
+                                 contentType.includes('image/')
+          
+          // Parse body as JSON if it's not binary
+          if (!isBinaryContent && body && body.length > 0) {
+            try { 
+              // Convert buffer to string, then parse as JSON
+              const bodyStr = Buffer.isBuffer(body) ? body.toString('utf8') : body
+              body = JSON.parse(bodyStr)
+            } catch (err) { 
+              // If JSON parsing fails, keep as-is (could be plain text or buffer)
+            }
           }
         }
         
