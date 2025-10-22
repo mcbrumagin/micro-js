@@ -31,7 +31,10 @@ export const HEADERS = {
  * Command types (values for micro-command header)
  */
 export const COMMANDS = {
+  // Shared
   HEALTH: 'health',
+
+  // Registry
   SERVICE_SETUP: 'service-setup',
   SERVICE_REGISTER: 'service-register',
   SERVICE_UNREGISTER: 'service-unregister',
@@ -40,7 +43,10 @@ export const COMMANDS = {
   ROUTE_REGISTER: 'route-register',
   PUBSUB_PUBLISH: 'pubsub-publish',
   PUBSUB_SUBSCRIBE: 'pubsub-subscribe',
-  PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe'
+  PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe',
+
+  // Service
+  CACHE_UPDATE: 'cache-update'
 }
 
 /**
@@ -73,6 +79,16 @@ export function buildUnregisterHeaders(serviceName, location) {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_UNREGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location
+  }
+}
+
+/**
+ * Build headers for service lookup
+ */
+export function buildLookupHeaders(serviceName) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
+    [HEADERS.SERVICE_NAME]: serviceName
   }
 }
 
@@ -127,6 +143,17 @@ export function buildUnsubscribeHeaders(channel, location) {
   return {
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_UNSUBSCRIBE,
     [HEADERS.PUBSUB_CHANNEL]: channel,
+    [HEADERS.SERVICE_LOCATION]: location
+  }
+}
+
+/**
+ * Build headers for cache update notifications
+ */
+export function buildCacheUpdateHeaders(serviceName, location) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
+    [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location
   }
 }

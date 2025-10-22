@@ -7,7 +7,7 @@ import httpRequest from '../../http-primitives/http-request.js'
 import HttpError from '../../http-primitives/http-error.js'
 import Logger from '../../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
-import { publish, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
+import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
 
 const logger = new Logger()
@@ -67,8 +67,8 @@ export async function registerService(state, { service, location }) {
   // Add to reverse lookup
   state.addresses.set(location, service)
   
-  // Notify other services about the new registration
-  await publish(state, { type: 'register', message: { service, location } })
+  // Notify other services about the new registration using cache update headers
+  await publishCacheUpdate(state, { service, location })
   
   // Subscribe the new service to registration events
   subscribe(state, { type: 'register', location })

@@ -27,6 +27,7 @@ async function createTempTestFiles() {
   
   // Create assets directory
   const assetsDir = path.join(publicDir, 'assets')
+  console.info('assetsDir:', assetsDir)
   fs.mkdirSync(assetsDir)
   fs.writeFileSync(path.join(assetsDir, 'logo.png'), 'fake-png-data')
   fs.writeFileSync(path.join(assetsDir, 'icon.svg'), '<svg></svg>')
@@ -132,7 +133,7 @@ async function testStaticFileWithWildcardMapping() {
         urlRoot: '/',
         fileMap: {
           '/': 'index.html',
-          '/public/*': 'public/*'
+          '/public/*': 'public'
         },
         externalRootDir: true
       }),
@@ -302,6 +303,36 @@ async function testStaticFileResponseHeaders() {
   }
 }
 
+async function testStaticFileDirectoryTreePopulation() {
+  const tempDir = await createTempTestFiles()
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/': 'index.html',
+          '/public/*': 'public'
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        let result = await callService('static-file-service', { url: '/public/assets/logo.png' })
+        await assert(result, r => r.includes('fake-png-data'))
+        return result
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+// testStaticFileDirectoryTreePopulation.solo = true
+
+// TODO write a new file and test that it can be found (and added to quicklookup?)
+// async function testStaticFileWithEagerLookup() {}
+
 export default {
   testBasicStaticFileServiceWorkingDir,
   testBasicStaticFileServiceExternalTempDir,
@@ -312,5 +343,6 @@ export default {
   testStaticFileInvalidRootDir,
   testStaticFileUrlSanitization,
   testStaticFileWithDefaultRequestUrl,
-  testStaticFileResponseHeaders
+  testStaticFileResponseHeaders,
+  testStaticFileDirectoryTreePopulation
 }

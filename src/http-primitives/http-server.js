@@ -21,11 +21,12 @@ function overrideResponse(response) {
   response.isEnded = false
   const originalEnd = response.end.bind(response)
   response.end = (sanitizedPayload) => {
+    // logger.info('response.end', { type: typeof sanitizedPayload, isBuffer: Buffer.isBuffer(sanitizedPayload) })
     if (!Buffer.isBuffer(sanitizedPayload) && typeof sanitizedPayload === 'object')
       sanitizedPayload = JSON.stringify(sanitizedPayload)
     
     if (!response.isEnded) originalEnd.call(response, sanitizedPayload)
-    else logger.warn('response already ended')
+    else logger.warn('response already ended', { port, name: serverFn.name })
     response.isEnded = true
   }
   return response

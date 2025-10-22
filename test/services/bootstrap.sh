@@ -1,4 +1,5 @@
 export MICRO_REGISTRY_URL=http://localhost:11000
+# export LOG_LEVEL=info
 
 echo "setting up registry server at ${MICRO_REGISTRY_URL}"
 

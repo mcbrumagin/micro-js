@@ -5,7 +5,7 @@
 
 import httpRequest from '../../http-primitives/http-request.js'
 import HttpError from '../../http-primitives/http-error.js'
-import { buildPublishHeaders } from '../../utils/micro-headers.js'
+import { buildPublishHeaders, buildCacheUpdateHeaders } from '../../utils/micro-headers.js'
 
 import Logger from '../../utils/logger.js'
 
@@ -25,10 +25,37 @@ export async function publish(state, { type, message }) {
   
   for (const location of subscribers) {
     try {
-      // TODO need micro headers here
       const result = await httpRequest(location, {
         body: message,
         headers: buildPublishHeaders(type)
+      })
+      results.push(result)
+    } catch (err) {
+      errors.push(err)
+    }
+  }
+  
+  return { results, errors }
+}
+
+/**
+ * Publish cache update notifications to all subscribers
+ * Uses micro headers to identify internal cache update calls
+ */
+export async function publishCacheUpdate(state, { service, location }) {
+  const results = []
+  const errors = []
+  
+  const subscribers = state.subscriptions.get('register')
+  if (!subscribers) {
+    return { results, errors }
+  }
+  
+  for (const subscriberLocation of subscribers) {
+    try {
+      const result = await httpRequest(subscriberLocation, {
+        body: null, // No body needed - all info is in headers
+        headers: buildCacheUpdateHeaders(service, location)
       })
       results.push(result)
     } catch (err) {

@@ -1,3 +1,13 @@
+/**
+ * Test Runner
+ * 
+ * Basic Usage:
+ * - Run all tests: ./test.sh
+ * - Run solo tests only: Mark test function with .solo = true (e.g., testName.solo = true)
+ * - Solo tests will run exclusively, ignoring all other tests in the suite
+ * - Otherwise, comment out test suites for now, the runner is lacking some features
+ */
+
 import { Logger } from '../../src/index.js'
 
 const logger = new Logger({

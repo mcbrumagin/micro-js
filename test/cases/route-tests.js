@@ -161,6 +161,8 @@ async function testRouteValidation() {
   )
 }
 
+testBasicRoute.solo = true
+
 export default {
   testBasicRoute,
   testRouteWithService,

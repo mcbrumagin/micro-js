@@ -8,6 +8,7 @@ import Logger from '../../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
 import { proxyServiceCall, streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
+import { Next } from '../../http-primitives/next.js'
 
 const logger = new Logger()
 
@@ -79,6 +80,11 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
 
   logger.debug(`direct route result: ${!!result}`)
 
+  // TODO done() instead of next()? preventDefault()?
+  if (result instanceof Next) { //|| result === false /* TODO remove */) {
+    return result
+  }
+
   const normalizedResult = normalizeResult(result, url)
   
   response.writeHead(normalizedResult?.status || 200, { 
@@ -121,15 +127,21 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
 
   logger.debug(`controller route result: ${!!result} ... url: ${url}`)
 
+  // TODO done() instead of next()? preventDefault()?
+  if (result instanceof Next) { //|| result === false /* TODO remove */) {
+    return result
+  }
+
   const normalizedResult = normalizeResult(result, url)
   
+  // console.log('response.end.toString()', response.end.toString())
   if (!response.isEnded) {
     response.writeHead(normalizedResult?.status || 200, { 
       'content-type': normalizedResult?.dataType || dataType 
     })
     sendBufferedResponse(response, normalizedResult)
   }
-  else logger.warn('response already ended') // TODO code-smell?
+  else logger.warn('response already ended', { url, useStreaming, request: request.method }) // TODO code-smell?
   return false // signal to skip default response
 }
 
