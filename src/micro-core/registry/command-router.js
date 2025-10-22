@@ -98,13 +98,15 @@ export async function routeCommand(state, payload, request, response, options = 
   const headers = request.headers || {}
   
   // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
-  if (isHeaderBasedCommand(headers)) {
+  const isHeaderCommand = isHeaderBasedCommand(headers)
+  logger.debug('commandRouter - isHeaderCommand:', isHeaderCommand)
+  if (isHeaderCommand) {
     return routeCommandByHeaders(state, payload, request, response, options)
   }
   
   // PRIORITY 2: Check for HTTP routes (most specific - based on URL path)
   // Routes should work without any special headers
-  if (request.url /* TODO VERIFY && request.url !== '/' */ && request.url !== '/health') {
+  if (request.url) { //&& request.url !== '/health' /* TODO VERIFY */) {
     const routeMatch = state.routes.get(request.url)
     const controllerMatch = !routeMatch && findControllerRoute(state, request.url)
     

@@ -668,6 +668,23 @@ async function testMixedResponseHandling() {
   )
 }
 
+// TODO use checksum to verify different definitions
+// need to consider rolling-updates and other use cases
+// could have registration locking/unlocking to temporarily allow unique dupes
+// could also just warn and leave this up to the user to manage for now
+async function testErrorCreatingMultipleDifferentServicesSameName() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('serviceDupe', () => ({ instance: 1 })),
+    async () => {
+      await assertErr(
+        () => createService('serviceDupe', () => ({ instance: 2 })),
+        err => err.message.includes('Duplicate service with different definition found: "serviceDupe"')
+      )
+    },
+  )
+}
+
 export default {
   testCreateService,
   testCallService,
@@ -692,5 +709,6 @@ export default {
   testFileStreamService,
   testLargeFileStreamService,
   testTextStreamService,
-  testMixedResponseHandling
+  testMixedResponseHandling,
+  // TODO // testErrorCreatingMultipleDifferentServicesSameName
 }

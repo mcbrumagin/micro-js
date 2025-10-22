@@ -1,5 +1,5 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
-import { createService, callService, Logger } from '../../src/index.js'
+import { createService, callService, createRoutes, Logger } from '../../src/index.js'
 
 const logger = new Logger({
   // logGroup: 'loadBalancerTests',
@@ -437,6 +437,27 @@ async function testLoadBalancingDistributionOverTime() {
   )
 }
 
+async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService() {
+  let serviceFn = function routeService() { return { instance: 1 } }
+  await terminateAfter(
+    await startRegistry(),
+    await createRoutes({
+      '/route1': serviceFn,
+      '/route2': serviceFn,
+    }), async ([registry]) => {
+      const results = []
+      for (let i = 0; i < 10; i++) {
+        results.push(await callService('routeService'))
+      }
+      
+      await assert(results,
+        r => r.length === 10,
+        r => r.every(result => result.instance === 1)
+      )
+    }
+  )
+}
+
 export default {
   testRoundRobinTwoInstances,
   testRoundRobinThreeInstances,
@@ -449,6 +470,7 @@ export default {
   testLoadBalancingPayloadPreservation,
   testLoadBalancingBinaryPayloads,
   testHighConcurrentLoad,
-  testLoadBalancingDistributionOverTime
+  testLoadBalancingDistributionOverTime,
+  testNoLoadBalancingWhenCreatingMultipleRoutesSameService
 }
 

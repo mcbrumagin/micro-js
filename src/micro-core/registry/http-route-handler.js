@@ -81,7 +81,7 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
   logger.debug(`direct route result: ${!!result}`)
 
   // TODO done() instead of next()? preventDefault()?
-  if (result instanceof Next) { //|| result === false /* TODO remove */) {
+  if (result instanceof Next || result === false /* TODO remove */) {
     return result
   }
 
@@ -128,7 +128,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
   logger.debug(`controller route result: ${!!result} ... url: ${url}`)
 
   // TODO done() instead of next()? preventDefault()?
-  if (result instanceof Next) { //|| result === false /* TODO remove */) {
+  if (result instanceof Next || result === false /* TODO remove */) {
     return result
   }
 
@@ -171,6 +171,9 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   
   // Check for direct route match
   const routeInfo = state.routes.get(url)
+  logger.debug('resolvePossibleRoute - routeInfo:', routeInfo)
+  logger.debug('resolvePossibleRoute - url:', url)
+  logger.debug('resolvePossibleRoute - state.routes:', Object.fromEntries(state.routes))
   if (routeInfo) {
     // TODO ensure url is passed through proxy call to service
     return handleDirectRoute(state, routeInfo, url, requestBody, request, response)

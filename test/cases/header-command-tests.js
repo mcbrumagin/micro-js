@@ -73,6 +73,8 @@ async function testServiceLookupWithHeaders() {
           [HEADERS.SERVICE_NAME]: 'lookup-test'
         }
       })
+
+      logger.debug('lookupResult:', lookupResult)
       
       await assert(lookupResult,
         r => typeof r === 'string',
@@ -83,6 +85,8 @@ async function testServiceLookupWithHeaders() {
     }
   )
 }
+
+// testServiceLookupWithHeaders.solo = true
 
 /**
  * Test service call command with headers (JSON payload)

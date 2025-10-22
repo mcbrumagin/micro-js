@@ -12,32 +12,43 @@ async function request(address, {
   stream = false, // If true, return raw Response for streaming
   timeout = 30000 // TODO override
 } = {}) {
+
   // Handle different body types
   if (Buffer.isBuffer(body)) {
+
     // Binary data - send as-is with appropriate content-type
     if (!headers['content-type']) {
       headers['content-type'] = 'application/octet-stream'
     }
+
   } else if (body !== null && body !== undefined && typeof body === 'object') {
+
     // JSON objects/arrays - stringify
     if (!headers['content-type']) {
       headers['content-type'] = 'application/json'
     }
     body = JSON.stringify(body)
+
   } else if (body === null || body === undefined || typeof body === 'number' || typeof body === 'boolean') {
+
     // Primitives (null, undefined, numbers, booleans) - send as JSON to preserve type
     if (!headers['content-type']) {
       headers['content-type'] = 'application/json'
     }
     body = JSON.stringify(body)
+
   } else if (typeof body === 'string') {
+
     // Strings - send as JSON if empty (to preserve empty string), otherwise as text
     if (body === '') {
+
       if (!headers['content-type']) {
         headers['content-type'] = 'application/json'
       }
       body = JSON.stringify(body) // "" becomes '""'
+
     } else {
+
       if (!headers['content-type']) {
         headers['content-type'] = 'text/plain'
       }
@@ -52,6 +63,7 @@ async function request(address, {
   try {
     let response = await fetch(address, options)
     
+    logger.debug('httpRequest - stream:', stream)
     if (stream) return response // this allows caller to pipe the response stream
     else return await processResponse(response)
   } catch (error) {
@@ -60,10 +72,10 @@ async function request(address, {
       throw new HttpError(408, 'Request timeout')
     }
     // Log fetch errors for debugging
-    logger.error(`Fetch failed at "${address}": ${error.message}`)
+    // TODO debugError
+    logger.error(`Fetch failed at "${address}" - Error: ${error.message}`)
     // console.trace()
-    logger.debug(`Options: ${JSON.stringify(options)}`)
-    logger.debug(`Error cause: ${error.cause}`)
+    // logger.debug(`Options: ${JSON.stringify(options)}`)
     throw error
   } finally {
     clearTimeout(timeoutId)

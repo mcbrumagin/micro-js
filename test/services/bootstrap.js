@@ -1,4 +1,4 @@
-import { registryServer, createService, createRoute, callService } from '../../src/index.js'
+import { registryServer, createService, createRoutes, callService } from '../../src/index.js'
 import createCacheService from '../../src/micro-services/cache-service.js'
 import createPubsubService from '../../src/micro-services/pubsub-service.js'
 import createStaticFileService from '../../src/micro-services/static-file-service.js'
@@ -24,9 +24,13 @@ async function main() {
     fileFieldName: 'file'
   })
 
+  const getHealth = () => ({ status: 'ok' })
   // make the services publicly accessible
-  await createRoute('/upload/*', 'file-upload-service')
-  await createRoute('/*', 'static-file-service') // NOTE always last
+  await createRoutes({
+    '/upload/*': fileUploadService,
+    '/*': staticFileService,
+    '/health': getHealth
+  })
 
   // cache service example
   await cacheService.set('test', 'Hello from cache!')

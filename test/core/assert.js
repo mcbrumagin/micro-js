@@ -94,6 +94,8 @@ export async function assertErr(errOrFn, ...assertFns) {
         .then(val => err = val)
     } catch (e) {
       err = e
+    } finally {
+      if (err.terminate) await err.terminate()
     }
   } else err = errOrFn
 

@@ -54,9 +54,14 @@ export default async function createRegistryServer(port) {
       
       return result
     } catch (err) {
-      logger.error(err.stack)
-      response.writeHead(err.status || 500)
-      response.end(err.stack)
+      // logger.error(err.stack) // TODO debugError
+      // response.writeHead(err.status || 500)
+
+      // response.statusCode = err.status || 500
+      // response.setHeader('content-type', 'text/plain')
+      // response.end(err.stack)
+      err.status = err.status || 500
+      throw err
     }
   }, {
     streamPayload: false // Registry buffers by default, but streaming proxy will handle multipart
