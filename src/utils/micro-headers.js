@@ -18,6 +18,10 @@ export const HEADERS = {
   USE_AUTH_SERVICE: 'micro-use-auth-service',
   SERVICE_HOME: 'micro-service-home',
   
+  // Authentication
+  AUTH_TOKEN: 'micro-auth-token',           // User auth token for service calls
+  REGISTRY_TOKEN: 'micro-registry-token',   // Internal registry/service token
+  
   // TODO VERIFY
   // Route operations (for registration only - routes use request.url for routing)
   ROUTE_DATATYPE: 'micro-route-datatype',
@@ -46,6 +50,10 @@ export const COMMANDS = {
   PUBSUB_SUBSCRIBE: 'pubsub-subscribe',
   PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe',
 
+  // Authentication
+  AUTH_LOGIN: 'auth-login',
+  AUTH_REFRESH: 'auth-refresh',
+
   // Service
   CACHE_UPDATE: 'cache-update'
 }
@@ -69,7 +77,7 @@ export function buildRegisterHeaders(serviceName, location, useAuthService) {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
-    [HEADERS.USE_AUTH_SERVICE]: useAuthService
+    ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService })
   }
 }
 
@@ -157,6 +165,24 @@ export function buildCacheUpdateHeaders(serviceName, location) {
     [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location
+  }
+}
+
+/**
+ * Build headers for auth login
+ */
+export function buildAuthLoginHeaders() {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN
+  }
+}
+
+/**
+ * Build headers for auth refresh
+ */
+export function buildAuthRefreshHeaders() {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.AUTH_REFRESH
   }
 }
 

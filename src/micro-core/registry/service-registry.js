@@ -9,6 +9,7 @@ import Logger from '../../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
+import { HEADERS } from '../../utils/micro-headers.js'
 
 const logger = new Logger()
 
@@ -19,6 +20,71 @@ const tryParseJson = text => {
     return JSON.parse(text)
   } catch (err) {
     return text
+  }
+}
+
+/**
+ * Verify auth token for a service call
+ * @param {Object} state - Registry state
+ * @param {string} serviceName - Name of the service being called
+ * @param {string} authToken - Auth token from request headers
+ * @returns {Promise<Object>} Verification result with user context
+ */
+async function verifyAuthToken(state, serviceName, authToken) {
+  // Check if service requires auth
+  const authServiceName = state.serviceAuth.get(serviceName)
+  if (!authServiceName) {
+    return { verified: true } // No auth required
+  }
+  
+  // Check if auth service is registered
+  if (!state.services.has(authServiceName)) {
+    throw new HttpError(503, `Auth service "${authServiceName}" not found`)
+  }
+  
+  // Missing auth token
+  if (!authToken) {
+    throw new HttpError(401, 'Authentication token required')
+  }
+  
+  try {
+    const authLocation = selectServiceLocation(state, authServiceName, 'round-robin')
+    logger.debug(`verifying token with auth service at ${authLocation}`)
+    
+    const verifyResult = await httpRequest(authLocation, {
+      method: 'POST',
+      body: { verifyToken: { token: authToken } },
+      headers: { 'content-type': 'application/json' }
+    })
+    
+    // Auth service returned error
+    if (verifyResult instanceof HttpError) {
+      throw verifyResult
+    }
+    
+    // Token verification failed
+    if (verifyResult.error || !verifyResult.user) {
+      const message = verifyResult.message || 'Invalid or expired token'
+      throw new HttpError(401, message)
+    }
+    
+    logger.debug(`token verified for user: ${verifyResult.user}`)
+    return { verified: true, user: verifyResult.user }
+    
+  } catch (error) {
+    // Auth service unreachable
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      throw new HttpError(503, `Auth service "${authServiceName}" unavailable`)
+    }
+    
+    // Re-throw known errors
+    if (error instanceof HttpError) {
+      throw error
+    }
+    
+    // Unknown error
+    logger.error('Auth verification error:', error)
+    throw new HttpError(500, 'Authentication verification failed')
   }
 }
 
@@ -56,9 +122,6 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * Register a service instance
  */
 export async function registerService(state, { service, location, useAuthService }) {
-
-  // TODO figure out how to update the registry - this service requires auth for external calls
-  
   logger.debug(`registering service "${service}" for location "${location}"`)
   
   // Add to services map
@@ -69,6 +132,12 @@ export async function registerService(state, { service, location, useAuthService
   
   // Add to reverse lookup
   state.addresses.set(location, service)
+  
+  // Store auth service mapping if specified
+  if (useAuthService) {
+    state.serviceAuth.set(service, useAuthService)
+    logger.debug(`service "${service}" will use auth service "${useAuthService}"`)
+  }
   
   // Notify other services about the new registration using cache update headers
   await publishCacheUpdate(state, { service, location })
@@ -103,6 +172,8 @@ export function unregisterService(state, { service, location }) {
   // Clean up empty service entries
   if (serviceInstances.size === 0) {
     state.services.delete(service)
+    // Also remove auth mapping when no instances remain
+    state.serviceAuth.delete(service)
   }
   
   // Clean up all subscriptions for this location
@@ -211,6 +282,10 @@ export async function streamProxyServiceCall(state, { name, request, response })
   
   validateServiceCall(state, name)
 
+  // Verify auth token if service requires authentication
+  const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
+  await verifyAuthToken(state, name, authToken)
+
   // use round-robin for proxy calls
   const location = selectServiceLocation(state, name, 'round-robin')
   const url = new URL(location)
@@ -282,6 +357,10 @@ export async function streamProxyServiceCall(state, { name, request, response })
 export async function proxyServiceCall(state, { name, payload = {}, request, response }) {
   
   validateServiceCall(state, name)
+
+  // Verify auth token if service requires authentication
+  const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
+  await verifyAuthToken(state, name, authToken)
 
   // use round-robin for proxy calls
   let location = selectServiceLocation(state, name, 'round-robin')

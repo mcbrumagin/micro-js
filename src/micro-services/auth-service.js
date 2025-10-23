@@ -27,9 +27,10 @@ export default async function createAuthService({
   const cache = createInMemoryCache({ expireTime: 60000 * 30, evictionInterval: 60000 })
 
   const authenticate = async (payload) => {
+    logger.debug(`authenticating user ${payload.user}`)
     // TODO accept user/pass or refresh token
     if (payload.user !== config.ADMIN_USER || payload.password !== config.ADMIN_SECRET) {
-      return new HttpError(401, 'Invalid credentials')
+      throw new HttpError(401, 'Invalid credentials')
     }
     const token = calculateSHA256Checksum(`${payload.user}:${payload.password}`)
     cache.set(`token:${token}`, {
@@ -47,20 +48,19 @@ export default async function createAuthService({
   const verifyToken = async (payload) => {
     const token = cache.get(`token:${payload.token}`)
     if (!token) {
-      return new HttpError(401, 'Invalid token')
+      throw new HttpError(401, 'Invalid token')
     }
     if (token.expires < Date.now()) {
-      return new HttpError(401, 'Token expired')
+      throw new HttpError(401, 'Token expired')
     }
     return token
-    return payload
   }
 
   const server = await createService('auth-service', async function authService(payload) {
-    if (payload.authenticate) return authenticate(payload)
-    else if (payload.generateToken) return generateToken(payload)
-    else if (payload.verifyToken) return verifyToken(payload)
-    return new HttpError(400, 'Invalid payload')
+    if (payload.authenticate) return authenticate(payload.authenticate)
+    else if (payload.generateToken) return generateToken(payload.generateToken)
+    else if (payload.verifyToken) return verifyToken(payload.verifyToken)
+    throw new HttpError(400, 'Invalid payload')
   })
 
   // TODO helper fns

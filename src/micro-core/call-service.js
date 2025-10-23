@@ -3,6 +3,13 @@ import HttpError from '../http-primitives/http-error.js'
 import envConfig from './env-config.js'
 import { buildCallHeaders } from '../utils/micro-headers.js'
 
+function throwErrorFromResult(result) {
+  if (result.status >= 400 && result.status < 600) {
+    throw new HttpError(result.status, result.message || result.name || 'Unknown error')
+  }
+  throw result
+}
+
 export default async function callService (name, payload) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   
@@ -12,6 +19,7 @@ export default async function callService (name, payload) {
     headers: buildCallHeaders(name)
   })
   
+  console.info(`callService result: ${JSON.stringify(result)}`)
   return result
 }
 

@@ -37,6 +37,8 @@ async function testCreateService() {
   )
 }
 
+// testCreateService.solo = true
+
 async function testCallService() {
   await terminateAfter(
     await startRegistry(),

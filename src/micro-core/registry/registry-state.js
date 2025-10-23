@@ -8,6 +8,9 @@ export function createRegistryState() {
     // Service name -> Set<location>
     services: new Map(),
     
+    // Service name -> auth service name (for auth-protected services)
+    serviceAuth: new Map(),
+    
     // Location -> service name (reverse lookup)
     addresses: new Map(),
     
@@ -30,6 +33,7 @@ export function createRegistryState() {
  */
 export function resetState(state) {
   state.services.clear()
+  state.serviceAuth.clear()
   state.addresses.clear()
   state.routes.clear()
   state.controllerRoutes.clear()

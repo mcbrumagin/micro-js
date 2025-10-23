@@ -18,6 +18,7 @@ import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../../utils/micro-headers.js'
 import getRegistryApiDocumentation from './documentation.js'
+import HttpError from '../../http-primitives/http-error.js'
 
 import Logger from '../../utils/logger.js'
 
@@ -195,7 +196,6 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_PUBLISH:
       if (!pubsubChannel) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'PUBSUB_PUBLISH requires micro-pubsub-channel header')
       }
       return publish(state, { 
@@ -205,11 +205,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_SUBSCRIBE:
       if (!pubsubChannel) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-pubsub-channel header')
       }
       if (!serviceLocation) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-service-location header')
       }
       return subscribe(state, { 
@@ -219,11 +217,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_UNSUBSCRIBE:
       if (!pubsubChannel) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-pubsub-channel header')
       }
       if (!serviceLocation) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-service-location header')
       }
       return unsubscribe(state, { 
@@ -231,8 +227,23 @@ async function routeCommandByHeaders(state, payload, request, response, options)
         location: serviceLocation 
       })
     
+    case COMMANDS.AUTH_LOGIN:
+    case COMMANDS.AUTH_REFRESH:
+      // Default to 'auth-service' if no specific auth service is configured
+      const authServiceName = 'auth-service'
+      if (!state.services.has(authServiceName)) {
+        throw new HttpError(503, `Auth service "${authServiceName}" not found`)
+      }
+      
+      // Proxy the auth request to the auth service
+      return proxyServiceCall(state, { 
+        name: authServiceName, 
+        payload, 
+        request, 
+        response 
+      })
+    
     default:
-      const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, `Unknown command: ${command}`)
   }
 }
