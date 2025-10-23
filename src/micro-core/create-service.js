@@ -45,7 +45,6 @@ const DEFAULT_CONFIG = {
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
   return await retry(
     async () => {
-      // Use header-based command
       const location = await httpRequest(registryHost, {
         headers: buildSetupHeaders(name, serviceHome)
       })
@@ -64,7 +63,6 @@ async function setupServiceWithRegistry(name, serviceHome, registryHost, config)
  * @private
  */
 async function registerServiceWithRegistry(name, location, registryHost, useAuthService) {
-  // Use header-based command
   return await httpRequest(registryHost, {
     headers: buildRegisterHeaders(name, location, useAuthService)
   })
@@ -75,7 +73,6 @@ async function registerServiceWithRegistry(name, location, registryHost, useAuth
  * @private
  */
 async function unregisterServiceFromRegistry(name, location, registryHost) {
-  // Use header-based command
   return await httpRequest(registryHost, {
     headers: buildUnregisterHeaders(name, location)
   })

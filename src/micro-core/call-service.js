@@ -17,7 +17,6 @@ export default async function callService (name, payload, {
 } = {}) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   
-  // Use header-based commands: payload goes in body, metadata in headers
   let result = await httpRequest(registryHost, {
     body: payload,
     headers: { ...buildCallHeaders(name, authToken), 'content-type': contentType }

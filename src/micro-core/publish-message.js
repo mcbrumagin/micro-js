@@ -12,8 +12,7 @@ import { buildPublishHeaders } from '../utils/micro-headers.js'
 export default async function publishMessage(channel, message) {
   let registryHost = process.env.MICRO_REGISTRY_URL
   if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
-
-  // Use header-based command: message goes in body, channel in header
+    
   let result = await httpRequest(registryHost, {
     body: message,
     headers: buildPublishHeaders(channel)

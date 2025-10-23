@@ -163,6 +163,7 @@ function handleTrailingSlashRedirect(url, response) {
  */
 export async function resolvePossibleRoute(state, request, response, payload) {
   const { url } = request
+  logger.debug('resolving url:', url)
   
   let requestBody = null
   if (payload && typeof payload === 'object') {
@@ -171,9 +172,9 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   
   // Check for direct route match
   const routeInfo = state.routes.get(url)
-  logger.debug('resolvePossibleRoute - routeInfo:', routeInfo)
-  logger.debug('resolvePossibleRoute - url:', url)
-  logger.debug('resolvePossibleRoute - state.routes:', Object.fromEntries(state.routes))
+  // logger.debug('resolvePossibleRoute - routeInfo:', routeInfo)
+  // logger.debug('resolvePossibleRoute - url:', url)
+  // logger.debug('resolvePossibleRoute - state.routes:', Object.fromEntries(state.routes))
   if (routeInfo) {
     // TODO ensure url is passed through proxy call to service
     return handleDirectRoute(state, routeInfo, url, requestBody, request, response)
@@ -192,12 +193,13 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   if (redirectResult === false) {
     return false
   }
-  
-  // No route matched - return routes for debugging
-  logger.debug('no route matched - returning routes for debugging', { routes: Object.fromEntries(state.routes) })
-  return { 
-    payload: Object.fromEntries(state.routes),
-    dataType: 'application/json' 
-  }
-}
 
+  logger.debug('no route matched')
+  if (process.env.ENVIRONMENT?.toLowerCase().includes('dev')) {
+    logger.debug('returning routes for debugging', { routes: Object.fromEntries(state.routes) })
+    return { 
+      payload: Object.fromEntries(state.routes),
+      dataType: 'application/json' 
+    }
+  } else throw new HttpError(404, 'No route')
+}

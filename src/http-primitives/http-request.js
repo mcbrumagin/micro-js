@@ -63,7 +63,7 @@ async function request(address, {
   try {
     let response = await fetch(address, options)
     
-    logger.debug('httpRequest - stream:', stream)
+    // logger.debug('httpRequest - stream:', stream)
     if (stream) return response // this allows caller to pipe the response stream
     else return await processResponse(response)
   } catch (error) {

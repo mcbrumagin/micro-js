@@ -2,7 +2,8 @@
 class HttpError extends Error {
   constructor(status, message) {
     var [message, ...stack] = message ? message.split('\n') : ['']
-    stack = '\n' + stack.join('\n')
+    
+    stack = '\n' + stack.join('\n') // TODO only first line for prod?
 
     // clean up the beginning of the message for cascading errors
     if (message.includes('HttpClientError')
@@ -26,7 +27,9 @@ class HttpError extends Error {
     this.isServerError = isServerError
     this.isClientError = isClientError
 
-    this.stack += '\n' + stack.trim()
+    // Mute error stack in anything but dev
+    if (!(process.env.ENVIRONMENT?.toLowerCase().includes('dev'))) this.stack = `${this.name}: ${message.trim()}`
+    else this.stack += '\n' + stack.trim()
   }
 }
 

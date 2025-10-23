@@ -114,7 +114,7 @@ export async function routeCommand(state, payload, request, response, options = 
 }
 
 /**
- * Header-based command routing (NEW)
+ * Header-based command routing
  */
 async function routeCommandByHeaders(state, payload, request, response, options) {
   const { defaultStartPort = 10000 } = options
@@ -122,6 +122,8 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   const { command, serviceName, serviceLocation, serviceHome, pubsubChannel } = parseCommandHeaders(headers)
   
   logger.debug(`header-based command: ${command}`)
+
+  // TODO verify MICRO_REGISTRY_TOKEN header
   
   switch (command) {
     case COMMANDS.HEALTH:
@@ -232,6 +234,6 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       })
     
     default:
-      throw new HttpError(400, `Unknown command: ${command}`)
+      throw new HttpError(400, `Unknown command`)
   }
 }
