@@ -687,6 +687,122 @@ async function testErrorCreatingMultipleDifferentServicesSameName() {
   )
 }
 
+async function testAnonymousFunctionService() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService((payload) => {
+      return { message: 'from anonymous', payload }
+    }),
+    async ([registry, server]) => {
+      await assert(server,
+        s => s.name && typeof s.name === 'string',
+        s => s.name.includes('Anon$'),
+        s => s.location && s.location.includes('http://localhost:')
+      )
+      
+      let result = await callService(server.name, { test: 'data' })
+      await assert(result,
+        r => r.message === 'from anonymous',
+        r => r.payload.test === 'data'
+      )
+      
+      return { serviceName: server.name, result }
+    }
+  )
+}
+
+async function testAnonymousAsyncFunctionService() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService(async (payload) => {
+      await sleep(10)
+      return { async: true, payload }
+    }),
+    async ([registry, server]) => {
+      await assert(server.name,
+        name => name.includes('Anon$')
+      )
+      
+      let result = await callService(server.name, { value: 42 })
+      await assert(result,
+        r => r.async === true,
+        r => r.payload.value === 42
+      )
+      
+      return result
+    }
+  )
+}
+
+async function testAnonymousArrowFunctionService() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService(payload => ({ arrow: true, ...payload })),
+    async ([registry, server]) => {
+      await assert(server.name,
+        name => name.includes('Anon$')
+      )
+      
+      let result = await callService(server.name, { original: 'value' })
+      await assert(result,
+        r => r.arrow === true,
+        r => r.original === 'value'
+      )
+      
+      return result
+    }
+  )
+}
+
+async function testAnonymousWithContextCall() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('helper', payload => `helper: ${payload}`),
+    await createService(async function(payload) {
+      return await this.call('helper', payload)
+    }),
+    async ([registry, helper, anon]) => {
+      await assert(anon.name,
+        name => name.includes('Anon$')
+      )
+      
+      let result = await callService(anon.name, 'test')
+      await assert(result,
+        r => r === 'helper: test'
+      )
+      
+      return result
+    }
+  )
+}
+
+async function testMultipleAnonymousServices() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService(payload => ({ service: 1, payload })),
+    await createService(payload => ({ service: 2, payload })),
+    await createService(payload => ({ service: 3, payload })),
+    async ([registry, s1, s2, s3]) => {
+      await assert([s1.name, s2.name, s3.name],
+        names => names.every(n => n.includes('Anon$')),
+        names => new Set(names).size === 3
+      )
+      
+      let r1 = await callService(s1.name, 'test')
+      let r2 = await callService(s2.name, 'test')
+      let r3 = await callService(s3.name, 'test')
+      
+      await assert([r1, r2, r3],
+        results => results[0].service === 1,
+        results => results[1].service === 2,
+        results => results[2].service === 3
+      )
+      
+      return { services: [s1.name, s2.name, s3.name] }
+    }
+  )
+}
+
 export default {
   testCreateService,
   testCallService,
@@ -713,4 +829,9 @@ export default {
   testTextStreamService,
   testMixedResponseHandling,
   // TODO // testErrorCreatingMultipleDifferentServicesSameName
+  testAnonymousFunctionService,
+  testAnonymousAsyncFunctionService,
+  testAnonymousArrowFunctionService,
+  testAnonymousWithContextCall,
+  testMultipleAnonymousServices
 }

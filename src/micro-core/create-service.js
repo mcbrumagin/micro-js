@@ -114,15 +114,7 @@ export default async function createService(name, serviceFn, options = {}) {
     )
   }
 
-  /* TODO need tests for anonymous services
-    NOTE:
-     may require that anon services are only accessible locally, and skip server creation
-     this would also require anon routes to be local to wherever the register is executed from
-  */
-
-  // handle named function case (serviceFn, options)
   if (typeof name === 'function') {
-    // TODO test options overrides
     options = options && Object.keys(options).length === 0 ? serviceFn : options
     serviceFn = name
     name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
@@ -135,7 +127,6 @@ export default async function createService(name, serviceFn, options = {}) {
   const serviceHome = determineServiceHome(registryHost)
 
   const config = { ...DEFAULT_CONFIG, ...options }
-  // accept auth service name or function
   config.useAuthService = config.useAuthService?.name || config.useAuthService
   
   // get allocated runtime port, if not hardcoded
@@ -157,10 +148,8 @@ export default async function createService(name, serviceFn, options = {}) {
     server = await httpServer(port, handler, { streamPayload: config.streamPayload })
     server.name = name
   } catch (err) {
-    if (err.message.includes('listen EADDRINUSE')) { // port already in use
-      // TODO if hardcoded port, warn and exit
-      // retry service creation (registry will assign different port)
-      return createService(name, serviceFn, options) // TODO different retry limit?
+    if (err.message.includes('listen EADDRINUSE')) {
+      return createService(name, serviceFn, options)
     } else {
       throw err
     }
@@ -213,10 +202,9 @@ export function createServices(...fns) {
   fns.unshift(fns.pop()) // rearrange for spread
   let [options, ...serviceFns] = fns
   if (typeof options === 'function') {
-    serviceFns.push(options) // not an options object
+    serviceFns.push(options) // just another service
     options = {}
   }
 
-  // TODO bulk register and cache creation
   return createServiceBatch(serviceFns, createService, options)
 }

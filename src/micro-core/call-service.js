@@ -4,12 +4,12 @@ import envConfig from './env-config.js'
 import { buildCallHeaders } from '../utils/micro-headers.js'
 
 // TODO implement for returned errors? do we need this?
-function throwErrorFromResult(result) {
-  if (result.status >= 400 && result.status < 600) {
-    throw new HttpError(result.status, result.message || result.name || 'Unknown error')
-  }
-  throw result
-}
+// function throwErrorFromResult(result) {
+//   if (result.status >= 400 && result.status < 600) {
+//     throw new HttpError(result.status, result.message || result.name || 'Unknown error')
+//   }
+//   throw result
+// }
 
 export default async function callService (name, payload, {
   contentType = 'application/json',

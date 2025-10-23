@@ -69,7 +69,6 @@ async function handleRegister(state, payload, headers = {}) {
       const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
     }
-    // TODO validate useAuthService
     return registerService(state, { 
       service: serviceName,
       location: serviceLocation,

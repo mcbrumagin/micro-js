@@ -32,7 +32,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     logger.debug('createRoute - server.name:', server.name)
     serviceName = server.name
   } else if (typeof serviceNameOrFn === 'function') {
-    const functionName = serviceNameOrFn.name // TODO VERIFY ANON
+    const functionName = serviceNameOrFn.name
     
     const existingLocation = functionName && await falseOnFailure(async () => await httpRequest(registryHost, {
       headers: buildLookupHeaders(functionName)

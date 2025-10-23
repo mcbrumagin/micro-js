@@ -52,6 +52,48 @@ function selectRoundRobin(serviceName, addresses) {
 }
 
 /**
+ * TODO implement least connections strategy
+ */
+function selectLeastConnections(addresses) {
+  return addresses.sort((a, b) => a.connections - b.connections)[0]
+}
+
+/**
+ * TODO implement least response time strategy
+ */
+function selectLeastResponseTime(addresses) {
+  return addresses.sort((a, b) => a.responseTime - b.responseTime)[0]
+}
+
+/**
+ * TODO implement least response time with low connection preference
+ */
+function selectLeastResponseTimeWithLowConnectionPreference(addresses) {
+  return addresses.sort((a, b) => a.responseTime - b.responseTime + (a.connections - b.connections))[0]
+}
+
+/**
+ * TODO implement least memory usage strategy
+ */
+function selectLeastMemoryUsage(addresses) {
+  return addresses.sort((a, b) => a.memoryUsage - b.memoryUsage)[0]
+}
+
+/**
+ * TODO implement least CPU usage strategy
+ */
+function selectLeastCpuUsage(addresses) {
+  return addresses.sort((a, b) => a.cpuUsage - b.cpuUsage)[0]
+}
+
+/**
+ * TODO implement least disk usage strategy
+ */
+function selectLeastDiskUsage(addresses) {
+  return addresses.sort((a, b) => a.diskUsage - b.diskUsage)[0]
+}
+
+/**
  * Select a service location using the specified strategy
  */
 export function selectServiceLocation(state, serviceName, strategy = 'round-robin') {
