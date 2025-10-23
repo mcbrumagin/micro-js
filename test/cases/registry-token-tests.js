@@ -21,11 +21,9 @@ function setEnv(key, value) {
   }
 }
 
-// Helper to save and restore environment
 function withEnv(envVars, fn) {
   const saved = {}
   return async (...args) => {
-    // Save current values
     for (const key in envVars) {
       saved[key] = process.env[key]
       setEnv(key, envVars[key])
@@ -34,7 +32,6 @@ function withEnv(envVars, fn) {
     try {
       return await fn(...args)
     } finally {
-      // Restore original values
       for (const key in saved) {
         if (saved[key] === undefined) {
           setEnv(key, undefined)
@@ -346,7 +343,6 @@ async function testAllProtectedCommandsValidated() {
           COMMANDS.PUBSUB_UNSUBSCRIBE
         ]
         
-        // All protected commands should fail without token
         for (const command of protectedCommands) {
           try {
             await httpRequest('http://localhost:19011', {
@@ -357,7 +353,6 @@ async function testAllProtectedCommandsValidated() {
                 [HEADERS.SERVICE_LOCATION]: 'http://localhost:19012',
                 [HEADERS.ROUTE_PATH]: '/test',
                 [HEADERS.PUBSUB_CHANNEL]: 'test-channel'
-                // No REGISTRY_TOKEN
               }
             })
             throw new Error(`Expected ${command} to require token`)

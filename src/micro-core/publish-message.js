@@ -4,7 +4,6 @@ import envConfig from './env-config.js'
 
 /**
  * Publish a message to a pubsub channel via the registry
- * Similar to callService but for pub/sub messaging
  * 
  * @param {string} channel - The channel name to publish to
  * @param {any} message - The message payload to send

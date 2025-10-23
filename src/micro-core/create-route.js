@@ -32,10 +32,8 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     logger.debug('createRoute - server.name:', server.name)
     serviceName = server.name
   } else if (typeof serviceNameOrFn === 'function') {
-    // For functions, first check if a service with this function name already exists
     const functionName = serviceNameOrFn.name // TODO VERIFY ANON
     
-    // Try to lookup existing service by function name
     const existingLocation = functionName && await falseOnFailure(async () => await httpRequest(registryHost, {
       headers: buildLookupHeaders(functionName)
     }))
@@ -43,23 +41,18 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     logger.debug('createRoute - existingLocation:', existingLocation)
     logger.debug('createRoute - functionName:', functionName)
     if (existingLocation) {
-      // Service already exists, use the existing service name
       serviceName = functionName
       logger.debug(`route "${path}" using existing service "${serviceName}" at "${existingLocation}"`)
     } else {
-      // Service doesn't exist, create new service
       server = await createService(serviceNameOrFn)
       serviceName = server.name
       logger.debug(`route "${path}" created new service "${serviceName}"`)
     }
   } else {
-    // For strings, assume it's a service name and use it directly
     serviceName = serviceNameOrFn
-    // logger.debug('createRoute - serviceName:', serviceName)
     logger.debug(`route "${path}" using service name "${serviceName}"`)
   }
 
-  // Register the route with the registry
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
   
   await httpRequest(registryHost, {

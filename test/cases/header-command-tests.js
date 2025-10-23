@@ -9,7 +9,6 @@ const logger = new Logger({
   // warnLevel: true
 })
 
-// Helper to get registry token from environment for protected commands
 const getRegistryToken = () => process.env.MICRO_REGISTRY_TOKEN
 
 // ============================================================================
@@ -491,7 +490,6 @@ async function testPubSubPublishWithHeaders() {
     await startRegistry(),
     await createService('subscriber', message => ({ received: message })),
     async ([registry, service]) => {
-      // First subscribe
       await httpRequest(
         process.env.MICRO_REGISTRY_URL, {
           headers: {

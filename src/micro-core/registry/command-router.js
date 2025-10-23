@@ -137,7 +137,6 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   
   logger.debug(`header-based command: ${command}`)
 
-  // Validate registry token for protected commands
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }

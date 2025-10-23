@@ -28,15 +28,9 @@ export default async function createPubSubService({ useAuthService = null } = {}
   async function publish(channel, message) {
     logger.debug(`publishing to channel "${channel}"`)
     
-    // Use header-based command
-    const headers = buildPublishHeaders(channel)
-    if (registryToken) {
-      headers['micro-registry-token'] = registryToken
-    }
-    
     const result = await httpRequest(registryHost, {
       body: message,
-      headers
+      headers: buildPublishHeaders(channel, registryToken)
     })
     
     return result
@@ -55,17 +49,14 @@ export default async function createPubSubService({ useAuthService = null } = {}
     const subId = `sub_${channel}_${++subscriptionCounter}_${Date.now()}`
     logger.debug(`subscribing to channel "${channel}" with ID "${subId}"`)
 
-    // Create channel handler service if this is the first subscription to this channel
     if (!channelHandlers[channel]) {
       const serviceName = `pubsub_handler_${channel}_${Date.now()}`
       const callbacks = new Map()
       
-      // Create persistent handler service for this channel
       const server = await createService(serviceName, async function(message) {
         const results = []
         const errors = []
         
-        // Call all local handlers for this channel
         for (const [subId, handler] of callbacks) {
           try {
             const result = await handler(message)
@@ -81,17 +72,14 @@ export default async function createPubSubService({ useAuthService = null } = {}
 
       const location = server.location
 
-      // Subscribe the channel handler to registry (use header-based command)
       await httpRequest(registryHost, {
         headers: buildSubscribeHeaders(channel, location, registryToken)
       })
 
-      // Track the channel handler
       channelHandlers[channel] = { server, location, callbacks }
       logger.debug(`created handler service for channel "${channel}" at "${location}"`)
     }
 
-    // Add callback to channel's local handler map
     channelHandlers[channel].callbacks.set(subId, handler)
     logger.debug(`added subscription "${subId}" to channel "${channel}" (${channelHandlers[channel].callbacks.size} total)`)
     
@@ -116,19 +104,15 @@ export default async function createPubSubService({ useAuthService = null } = {}
 
     logger.debug(`removed subscription "${subId}" from channel "${channel}" (${channelHandlers[channel].callbacks.size} remaining)`)
 
-    // If no more subscribers for this channel, clean up the handler service
     if (channelHandlers[channel].callbacks.size === 0) {
       const { server, location } = channelHandlers[channel]
 
-      // Unsubscribe from registry (use header-based command)
       await httpRequest(registryHost, {
         headers: buildUnsubscribeHeaders(channel, location, registryToken)
       })
 
-      // Terminate the handler service
       await server.terminate()
 
-      // Remove from tracking
       delete channelHandlers[channel]
       logger.debug(`terminated handler service for channel "${channel}"`)
     }
@@ -157,18 +141,15 @@ export default async function createPubSubService({ useAuthService = null } = {}
       const { server, location } = channelHandlers[channel]
       
       try {
-        // Unsubscribe from registry (use header-based command)
         await httpRequest(registryHost, {
           headers: buildUnsubscribeHeaders(channel, location, registryToken)
         })
 
-        // Terminate handler service
         await server.terminate()
       } catch (err) {
         logger.error(`error cleaning up channel ${channel}:`, err.message)
       }
       
-      // Clear tracking
       delete channelHandlers[channel]
     }
   }

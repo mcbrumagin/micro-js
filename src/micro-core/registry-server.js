@@ -17,9 +17,7 @@ const logger = new Logger()
  * Create and start the registry server
  */
 export default async function createRegistryServer(port) {
-  // Validate environment configuration before starting
   validateRegistryEnvironment()
-  // Initialize state
   const state = createRegistryState()
   
   // Determine port from argument or environment
