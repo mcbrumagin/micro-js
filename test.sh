@@ -1,5 +1,10 @@
 export MICRO_REGISTRY_URL=http://localhost:10000
 
+export ENVIRONMENT=dev
+
+# Registry token for testing (individual tests may override)
+export MICRO_REGISTRY_TOKEN=dev-test-token-12345
+
 # TODO dynamically set to info for full test run
 export LOG_LEVEL=info
 export LOG_INCLUDE_LINES=true

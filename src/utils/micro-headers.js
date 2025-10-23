@@ -61,34 +61,37 @@ export const COMMANDS = {
 /**
  * Build headers for service setup
  */
-export function buildSetupHeaders(serviceName, serviceHome) {
+export function buildSetupHeaders(serviceName, serviceHome, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
     [HEADERS.SERVICE_NAME]: serviceName,
-    [HEADERS.SERVICE_HOME]: serviceHome
+    [HEADERS.SERVICE_HOME]: serviceHome,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
 /**
  * Build headers for service registration
  */
-export function buildRegisterHeaders(serviceName, location, useAuthService) {
+export function buildRegisterHeaders(serviceName, location, useAuthService, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
-    ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService })
+    ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService }),
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
 /**
  * Build headers for service unregistration
  */
-export function buildUnregisterHeaders(serviceName, location) {
+export function buildUnregisterHeaders(serviceName, location, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_UNREGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
-    [HEADERS.SERVICE_LOCATION]: location
+    [HEADERS.SERVICE_LOCATION]: location,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
@@ -116,45 +119,49 @@ export function buildCallHeaders(serviceName, authToken = null) {
 /**
  * Build headers for route registration
  */
-export function buildRouteRegisterHeaders(serviceName, routePath, dataType, routeType = 'route') {
+export function buildRouteRegisterHeaders(serviceName, routePath, dataType, routeType = 'route', registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.ROUTE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.ROUTE_PATH]: routePath,
     [HEADERS.ROUTE_DATATYPE]: dataType || 'application/json',
-    [HEADERS.ROUTE_TYPE]: routeType
+    [HEADERS.ROUTE_TYPE]: routeType,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
 /**
  * Build headers for pub/sub publish
  */
-export function buildPublishHeaders(channel) {
+export function buildPublishHeaders(channel, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_PUBLISH,
-    [HEADERS.PUBSUB_CHANNEL]: channel
+    [HEADERS.PUBSUB_CHANNEL]: channel,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
 /**
  * Build headers for pub/sub subscribe
  */
-export function buildSubscribeHeaders(channel, location) {
+export function buildSubscribeHeaders(channel, location, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
     [HEADERS.PUBSUB_CHANNEL]: channel,
-    [HEADERS.SERVICE_LOCATION]: location
+    [HEADERS.SERVICE_LOCATION]: location,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 
 /**
  * Build headers for pub/sub unsubscribe
  */
-export function buildUnsubscribeHeaders(channel, location) {
+export function buildUnsubscribeHeaders(channel, location, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_UNSUBSCRIBE,
     [HEADERS.PUBSUB_CHANNEL]: channel,
-    [HEADERS.SERVICE_LOCATION]: location
+    [HEADERS.SERVICE_LOCATION]: location,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 

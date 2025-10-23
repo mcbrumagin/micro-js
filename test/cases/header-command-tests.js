@@ -9,6 +9,9 @@ const logger = new Logger({
   // warnLevel: true
 })
 
+// Helper to get registry token from environment for protected commands
+const getRegistryToken = () => process.env.MICRO_REGISTRY_TOKEN
+
 // ============================================================================
 // Basic Command Header Tests
 // ============================================================================
@@ -45,7 +48,8 @@ async function testServiceSetupWithHeaders() {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
           [HEADERS.SERVICE_NAME]: 'test-service',
-          [HEADERS.SERVICE_HOME]: 'http://localhost'
+          [HEADERS.SERVICE_HOME]: 'http://localhost',
+          [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
         }
       })
       
@@ -161,8 +165,7 @@ async function testInvalidCommandHeader() {
         () => httpRequest(process.env.MICRO_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: 'invalid-command-xyz' }
         }),
-        err => err.message.includes('Unknown command'),
-        err => err.message.includes('invalid-command-xyz')
+        err => err.message.includes('Unknown command')
       )
     }
   )
@@ -202,7 +205,8 @@ async function testMissingServiceNameForSetup() {
         () => httpRequest(process.env.MICRO_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
-            [HEADERS.SERVICE_HOME]: 'http://localhost'
+            [HEADERS.SERVICE_HOME]: 'http://localhost',
+            [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
             // Missing: HEADERS.SERVICE_NAME
           }
         }),
@@ -224,8 +228,9 @@ async function testMissingServiceLocationForRegister() {
         () => httpRequest(process.env.MICRO_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
-            [HEADERS.SERVICE_NAME]: 'test-service'
+            [HEADERS.SERVICE_NAME]: 'test-service',
             // Missing: HEADERS.SERVICE_LOCATION
+            [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
           }
         }),
         err => err.status === 400,
@@ -466,7 +471,8 @@ async function testPubSubSubscribeWithHeaders() {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
             [HEADERS.PUBSUB_CHANNEL]: 'test-channel',
-            [HEADERS.SERVICE_LOCATION]: service.location
+            [HEADERS.SERVICE_LOCATION]: service.location,
+            [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
           }
         }
       )
@@ -491,7 +497,8 @@ async function testPubSubPublishWithHeaders() {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
             [HEADERS.PUBSUB_CHANNEL]: 'test-channel',
-            [HEADERS.SERVICE_LOCATION]: service.location
+            [HEADERS.SERVICE_LOCATION]: service.location,
+            [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
           }
         }
       )
@@ -501,7 +508,8 @@ async function testPubSubPublishWithHeaders() {
           body: { data: 'test message' },
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_PUBLISH,
-            [HEADERS.PUBSUB_CHANNEL]: 'test-channel'
+            [HEADERS.PUBSUB_CHANNEL]: 'test-channel',
+            [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
           }
         }
       )

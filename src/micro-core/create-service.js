@@ -43,10 +43,12 @@ const DEFAULT_CONFIG = {
  * @private
  */
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  
   return await retry(
     async () => {
       const location = await httpRequest(registryHost, {
-        headers: buildSetupHeaders(name, serviceHome)
+        headers: buildSetupHeaders(name, serviceHome, registryToken)
       })
       return location
     },
@@ -63,8 +65,10 @@ async function setupServiceWithRegistry(name, serviceHome, registryHost, config)
  * @private
  */
 async function registerServiceWithRegistry(name, location, registryHost, useAuthService) {
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  
   return await httpRequest(registryHost, {
-    headers: buildRegisterHeaders(name, location, useAuthService)
+    headers: buildRegisterHeaders(name, location, useAuthService, registryToken)
   })
 }
 
@@ -73,8 +77,10 @@ async function registerServiceWithRegistry(name, location, registryHost, useAuth
  * @private
  */
 async function unregisterServiceFromRegistry(name, location, registryHost) {
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  
   return await httpRequest(registryHost, {
-    headers: buildUnregisterHeaders(name, location)
+    headers: buildUnregisterHeaders(name, location, registryToken)
   })
 }
 

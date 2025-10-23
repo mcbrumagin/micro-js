@@ -1,5 +1,6 @@
 import httpRequest from '../http-primitives/http-request.js'
 import { buildPublishHeaders } from '../utils/micro-headers.js'
+import envConfig from './env-config.js'
 
 /**
  * Publish a message to a pubsub channel via the registry
@@ -12,10 +13,12 @@ import { buildPublishHeaders } from '../utils/micro-headers.js'
 export default async function publishMessage(channel, message) {
   let registryHost = process.env.MICRO_REGISTRY_URL
   if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
+  
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
     
   let result = await httpRequest(registryHost, {
     body: message,
-    headers: buildPublishHeaders(channel)
+    headers: buildPublishHeaders(channel, registryToken)
   })
   
   return result

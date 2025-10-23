@@ -19,10 +19,24 @@ import { resolvePossibleRoute } from './http-route-handler.js'
 import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../../utils/micro-headers.js'
 import getRegistryApiDocumentation from './documentation.js'
 import HttpError from '../../http-primitives/http-error.js'
+import { validateRegistryToken } from './registry-auth.js'
 
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger()
+
+/**
+ * Commands that require registry token validation
+ */
+const PROTECTED_COMMANDS = new Set([
+  COMMANDS.SERVICE_SETUP,
+  COMMANDS.SERVICE_REGISTER,
+  COMMANDS.SERVICE_UNREGISTER,
+  COMMANDS.ROUTE_REGISTER,
+  COMMANDS.PUBSUB_PUBLISH,
+  COMMANDS.PUBSUB_SUBSCRIBE,
+  COMMANDS.PUBSUB_UNSUBSCRIBE
+])
 
 /**
  * Health check command
@@ -123,7 +137,10 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   
   logger.debug(`header-based command: ${command}`)
 
-  // TODO verify MICRO_REGISTRY_TOKEN header
+  // Validate registry token for protected commands
+  if (PROTECTED_COMMANDS.has(command)) {
+    validateRegistryToken(request)
+  }
   
   switch (command) {
     case COMMANDS.HEALTH:

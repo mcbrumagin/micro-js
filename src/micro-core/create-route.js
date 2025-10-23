@@ -3,6 +3,7 @@ import httpRequest from '../http-primitives/http-request.js'
 import createService from './create-service.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
+import envConfig from './env-config.js'
 import { buildRouteRegisterHeaders, buildLookupHeaders } from '../utils/micro-headers.js'
 import http from 'node:http'
 
@@ -59,8 +60,10 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   }
 
   // Register the route with the registry
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  
   await httpRequest(registryHost, {
-    headers: buildRouteRegisterHeaders(serviceName, path, dataType)
+    headers: buildRouteRegisterHeaders(serviceName, path, dataType, 'route', registryToken)
   })
 
   logger.debug(`route "${path}" registered at ${registryHost}`)

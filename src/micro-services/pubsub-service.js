@@ -14,6 +14,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
     includeLogLineNumbers: true
   })
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
   
   // Track ONE handler service per channel
   // Map: channel -> { server, location, callbacks: Map<subId, handler> }
@@ -28,9 +29,14 @@ export default async function createPubSubService({ useAuthService = null } = {}
     logger.debug(`publishing to channel "${channel}"`)
     
     // Use header-based command
+    const headers = buildPublishHeaders(channel)
+    if (registryToken) {
+      headers['micro-registry-token'] = registryToken
+    }
+    
     const result = await httpRequest(registryHost, {
       body: message,
-      headers: buildPublishHeaders(channel)
+      headers
     })
     
     return result
@@ -77,7 +83,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
 
       // Subscribe the channel handler to registry (use header-based command)
       await httpRequest(registryHost, {
-        headers: buildSubscribeHeaders(channel, location)
+        headers: buildSubscribeHeaders(channel, location, registryToken)
       })
 
       // Track the channel handler
@@ -116,7 +122,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
 
       // Unsubscribe from registry (use header-based command)
       await httpRequest(registryHost, {
-        headers: buildUnsubscribeHeaders(channel, location)
+        headers: buildUnsubscribeHeaders(channel, location, registryToken)
       })
 
       // Terminate the handler service
@@ -153,7 +159,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
       try {
         // Unsubscribe from registry (use header-based command)
         await httpRequest(registryHost, {
-          headers: buildUnsubscribeHeaders(channel, location)
+          headers: buildUnsubscribeHeaders(channel, location, registryToken)
         })
 
         // Terminate handler service

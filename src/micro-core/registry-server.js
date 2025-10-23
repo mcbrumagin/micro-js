@@ -9,6 +9,7 @@ import Logger from '../utils/logger.js'
 import envConfig from './env-config.js'
 import { createRegistryState, resetState } from './registry/registry-state.js'
 import { routeCommand } from './registry/command-router.js'
+import { validateRegistryEnvironment } from './registry/registry-auth.js'
 
 const logger = new Logger()
 
@@ -16,6 +17,8 @@ const logger = new Logger()
  * Create and start the registry server
  */
 export default async function createRegistryServer(port) {
+  // Validate environment configuration before starting
+  validateRegistryEnvironment()
   // Initialize state
   const state = createRegistryState()
   
