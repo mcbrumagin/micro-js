@@ -132,6 +132,9 @@ export default async function createService(name, serviceFn, options = {}) {
   const serviceHome = determineServiceHome(registryHost)
 
   const config = { ...DEFAULT_CONFIG, ...options }
+  // accept auth service name or function
+  config.useAuthService = config.useAuthService?.name || config.useAuthService
+  
   // get allocated runtime port, if not hardcoded
   const location = await setupServiceWithRegistry(name, serviceHome, registryHost, config)
   const port = extractPort(location)

@@ -3,25 +3,38 @@ import createCacheService from '../../src/micro-services/cache-service.js'
 import createPubsubService from '../../src/micro-services/pubsub-service.js'
 import createStaticFileService from '../../src/micro-services/static-file-service.js'
 import createFileUploadService from '../../src/micro-services/file-upload-service/file-upload-service.js'
+import createAuthService from '../../src/micro-services/auth-service.js'
 import { overrideConsoleGlobally } from '../../src/index.js'
+import { HEADERS } from '../../src/utils/micro-headers.js'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 
 overrideConsoleGlobally({
   includeLogLineNumbers: true,
   // in
 })
 
+const testRawMultipartFile = `------geckoformboundary85c5b05d9412d0694e8082bfaef6fac3\r
+Content-Disposition: form-data; name="file"; filename="test-upload-0.txt"\r
+Content-Type: text/plain\r
+\r
+test-upload-1234\r
+------geckoformboundary85c5b05d9412d0694e8082bfaef6fac3--\r
+`
+
 async function main() {
   let registry = await registryServer()
   let cacheService = await createCacheService({ expireTime: 10000, evictionInterval: 1000 })
   let pubsubService = await createPubsubService()
   let staticFileService = await createStaticFileService({ rootDir: 'files', fileMap: { '/': 'index.html' } })
+  let authService = await createAuthService()
 
 
   // TODO update dir handling similar to static file service
   let fileUploadService = await createFileUploadService({
     uploadDir: path.join(process.cwd(), 'files'),
-    fileFieldName: 'file'
+    fileFieldName: 'file',
+    useAuthService: authService
   })
 
   const getHealth = () => ({ status: 'ok' })
@@ -75,6 +88,17 @@ async function main() {
 
   console.info(`custom file cache service call 2`)
   await callService('custom-file-cache-service', { url: '/' })
+
+  let authResult = await callService('auth-service', { authenticate: { user: 'admin', password: 'password' } })
+  let token = authResult.token
+  let verifyResult = await callService('auth-service', { verifyToken: { token } })
+  console.info(`verifyResult: ${JSON.stringify(verifyResult)}`)
+
+  // let uploadResult = await callService('file-upload-service', Readable.from(testRawMultipartFile), {
+  //   authToken: token,
+  //   contentType: 'multipart/form-data; boundary=geckoformboundary85c5b05d9412d0694e8082bfaef6fac3'
+  // })
+  // console.info(`uploadResult: ${JSON.stringify(uploadResult)}`)
 
 
 

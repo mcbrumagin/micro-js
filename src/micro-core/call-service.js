@@ -3,6 +3,7 @@ import HttpError from '../http-primitives/http-error.js'
 import envConfig from './env-config.js'
 import { buildCallHeaders } from '../utils/micro-headers.js'
 
+// TODO implement for returned errors? do we need this?
 function throwErrorFromResult(result) {
   if (result.status >= 400 && result.status < 600) {
     throw new HttpError(result.status, result.message || result.name || 'Unknown error')
@@ -10,16 +11,18 @@ function throwErrorFromResult(result) {
   throw result
 }
 
-export default async function callService (name, payload) {
+export default async function callService (name, payload, {
+  contentType = 'application/json',
+  authToken = null
+} = {}) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   
   // Use header-based commands: payload goes in body, metadata in headers
   let result = await httpRequest(registryHost, {
     body: payload,
-    headers: buildCallHeaders(name)
+    headers: { ...buildCallHeaders(name, authToken), 'content-type': contentType }
   })
   
-  console.info(`callService result: ${JSON.stringify(result)}`)
   return result
 }
 

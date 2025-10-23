@@ -77,18 +77,6 @@ async function handleRegister(state, payload, headers = {}) {
       type: routeType
     })
   }
-  
-  // Legacy payload-based registration
-  const { type = 'service' } = payload.register || {}
-  
-  if (type === 'service') {
-    return registerService(state, payload.register)
-  } else if (type === 'route') {
-    return registerRoute(state, payload.register)
-  } else {
-    const HttpError = (await import('../../http-primitives/http-error.js')).default
-    throw new HttpError(400, 'Invalid registration type')
-  }
 }
 
 /**

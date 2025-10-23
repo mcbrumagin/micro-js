@@ -181,7 +181,8 @@ export default async function createStaticFileService({
   externalRootDir = false,
   customSecurityCheck = null,
   simpleSecurity = true,
-  preventSystemFileAccess = true
+  preventSystemFileAccess = true,
+  useAuthService = null
 }, resolverFn, defaultFn = $404) {
 
   if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
@@ -270,7 +271,7 @@ export default async function createStaticFileService({
 
 
   // --- create service and helpers to expose ---------------------------------
-  const server = await createService('static-file-service', getFile)
+  const server = await createService('static-file-service', getFile, { useAuthService })
 
   // attach lookup map and helper fns
   server.quickLookup = quickLookup

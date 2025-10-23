@@ -352,6 +352,21 @@
             hideMessage();
 
             try {
+
+                // await callService('auth-service', { authenticate: { user: 'admin', password: 'password' } })
+                let authResult = await fetch('/', {
+                    method: 'POST',
+                    body: JSON.stringify({ authenticate: { user: 'admin', password: 'password' } }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'micro-command': 'auth-login'
+                    }
+                });
+
+                authResult = await authResult.json();
+
+                console.log({authResult: authResult});
+
                 const xhr = new XMLHttpRequest();
 
                 // Track upload progress
@@ -386,6 +401,7 @@
 
                 // TODO
                 xhr.open('POST', '/upload/file-test.wav', true);
+                xhr.setRequestHeader('micro-auth-token', authResult.token);
                 xhr.send(formData);
 
             } catch (error) {

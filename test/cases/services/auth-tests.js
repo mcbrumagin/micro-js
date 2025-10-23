@@ -3,13 +3,13 @@
  * Tests for auth service integration, token verification, and protected service calls
  */
 
-import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../core/index.js'
-import createService from '../../src/micro-core/create-service.js'
-import createAuthService from '../../src/micro-services/auth-service.js'
-import callService from '../../src/micro-core/call-service.js'
-import httpRequest from '../../src/http-primitives/http-request.js'
-import { buildAuthLoginHeaders, buildCallHeaders, HEADERS } from '../../src/utils/micro-headers.js'
-import envConfig from '../../src/micro-core/env-config.js'
+import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../../core/index.js'
+import createService from '../../../src/micro-core/create-service.js'
+import createAuthService from '../../../src/micro-services/auth-service.js'
+import callService from '../../../src/micro-core/call-service.js'
+import httpRequest from '../../../src/http-primitives/http-request.js'
+import { buildAuthLoginHeaders, buildCallHeaders, HEADERS } from '../../../src/utils/micro-headers.js'
+import envConfig from '../../../src/micro-core/env-config.js'
 
 const TEST_ADMIN_USER = process.env.ADMIN_USER
 const TEST_ADMIN_SECRET = process.env.ADMIN_SECRET
@@ -405,7 +405,7 @@ async function testRouteWithAuth() {
     }, { useAuthService: 'auth-service' }),
     async ([registry, authService, routeService]) => {
       // Register a route
-      const createRoute = (await import('../../src/micro-core/create-route.js')).default
+      const createRoute = (await import('../../../src/micro-core/create-route.js')).default
       await createRoute('/api/protected', 'route-service')
       
       // Get auth token
@@ -456,11 +456,11 @@ async function testMultipleAuthServices() {
         if (payload.verifyToken.token === 'custom-token') {
           return { user: 'custom-user' }
         } else {
-          const HttpError = (await import('../../src/http-primitives/http-error.js')).default
+          const HttpError = (await import('../../../src/http-primitives/http-error.js')).default
           throw new HttpError(401, 'Invalid custom token')
         }
       }
-      const HttpError = (await import('../../src/http-primitives/http-error.js')).default
+      const HttpError = (await import('../../../src/http-primitives/http-error.js')).default
       throw new HttpError(400, 'Invalid payload')
     }),
     await createService('service1', async function(payload) {
@@ -546,7 +546,7 @@ async function testAuthServiceUnregistration() {
 
 // Import the buildAuthRefreshHeaders function
 async function buildAuthRefreshHeaders() {
-  const { buildAuthRefreshHeaders: buildRefreshHeaders } = await import('../../src/utils/micro-headers.js')
+  const { buildAuthRefreshHeaders: buildRefreshHeaders } = await import('../../../src/utils/micro-headers.js')
   return buildRefreshHeaders()
 }
 

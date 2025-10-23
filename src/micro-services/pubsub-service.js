@@ -8,7 +8,7 @@ import Logger from '../utils/logger.js'
 import envConfig from '../micro-core/env-config.js'
 import { buildPublishHeaders, buildSubscribeHeaders, buildUnsubscribeHeaders } from '../utils/micro-headers.js'
 
-export default async function createPubSubService() {
+export default async function createPubSubService({ useAuthService = null } = {}) {
   const logger = new Logger({
     logGroup: 'pubsub',
     includeLogLineNumbers: true
@@ -71,7 +71,7 @@ export default async function createPubSubService() {
         }
         
         return { results, errors }
-      })
+      }, { useAuthService })
 
       const location = server.location
 

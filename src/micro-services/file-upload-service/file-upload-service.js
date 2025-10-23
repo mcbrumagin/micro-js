@@ -34,7 +34,7 @@ function handleStreamingUpload(_payload, req, res, options) {
     getFileName = null,
     validateFile = null,
     onSuccess = null,
-    onError = null
+    onError = null,
   } = options
 
   const bb = busboy({ headers: req.headers })
@@ -381,7 +381,8 @@ export default async function createFileUploadService({
   getFileName = null,
   validateFile = null,
   onSuccess = null,
-  onError = null
+  onError = null,
+  useAuthService = null
 } = {}) {
   // Ensure upload directory exists
   await ensureUploadDir(uploadDir)
@@ -405,6 +406,7 @@ export default async function createFileUploadService({
     return false // TODO return next()? preventDefault()? next({ preventDefault: true })?
     // return next({ reason: 'file upload', file: filePath })
   }, {
+    useAuthService,
     streamPayload: true // Don't buffer the request - we need the raw stream for multipart uploads
   })
 

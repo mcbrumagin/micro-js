@@ -65,31 +65,32 @@ function initializeCacheService(expireTime, evictionInterval) {
     return true
   }
 
-  function bindCacheHelpers(cacheSystem, cacheService) {
-
-    cacheSystem.getCache = () => cache
-    cacheSystem.getExpireCache = () => expireCache
-    cacheSystem.getSettings = () => settings
   
-    cacheSystem.set = (key, value) => cacheService({ set: { [key]: value } })
-    cacheSystem.get = (key) => cacheService({ get: key })
-    cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
-    cacheSystem.getex = (key) => cacheService({ getex: key })
-    cacheSystem.del = (key) => cacheService({ del: { [key]: true } })
-    cacheSystem.clear = () => cacheService({ clear: true })
-    cacheSystem.settings = (settings) => cacheService({ settings })
-  }
 
-  return { cacheService, evictionIntervalId, bindCacheHelpers }
+  return { cacheService, evictionIntervalId }
 }
 
+function bindCacheHelpers(cacheSystem, cacheService) {
+
+  cacheSystem.getCache = () => cache
+  cacheSystem.getExpireCache = () => expireCache
+  cacheSystem.getSettings = () => settings
+
+  cacheSystem.set = (key, value) => cacheService({ set: { [key]: value } })
+  cacheSystem.get = (key) => cacheService({ get: key })
+  cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
+  cacheSystem.getex = (key) => cacheService({ getex: key })
+  cacheSystem.del = (key) => cacheService({ del: { [key]: true } })
+  cacheSystem.clear = () => cacheService({ clear: true })
+  cacheSystem.settings = (settings) => cacheService({ settings })
+}
 
 
 export function createInMemoryCache({
   expireTime = 60000 * 10,
   evictionInterval = 30000
 } = {}) {
-  let { cacheService, evictionIntervalId, bindCacheHelpers } = initializeCacheService(expireTime, evictionInterval)
+  let { cacheService, evictionIntervalId } = initializeCacheService(expireTime, evictionInterval)
 
   let cacheSystem = {}
   cacheSystem.terminate = () => {
@@ -102,11 +103,12 @@ export function createInMemoryCache({
 
 export default async function createCacheService({
   expireTime = 60000 * 10,
-  evictionInterval = 30000
+  evictionInterval = 30000,
+  useAuthService = null
 } = {}) {
-  let { cacheService, evictionIntervalId, bindCacheHelpers } = initializeCacheService(expireTime, evictionInterval)
+  let { cacheService, evictionIntervalId } = initializeCacheService(expireTime, evictionInterval)
 
-  let server = await createService('cache', cacheService)
+  let server = await createService('cache', cacheService, { useAuthService })
 
   // Override terminate to clean up interval
   let originalTerminate = server.terminate.bind(server)
@@ -116,7 +118,7 @@ export default async function createCacheService({
     await originalTerminate()
   }
 
-  bindCacheHelpers(server)
+  bindCacheHelpers(server, cacheService)
 
   return server
 }

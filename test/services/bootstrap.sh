@@ -1,6 +1,9 @@
 export MICRO_REGISTRY_URL=http://localhost:11000
-# export LOG_LEVEL=info
 
+export ADMIN_USER=admin
+export ADMIN_SECRET=password
+
+export LOG_LEVEL=info
 export LOG_INCLUDE_LINES=true
 export LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true
 

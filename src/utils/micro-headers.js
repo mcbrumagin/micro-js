@@ -105,10 +105,11 @@ export function buildLookupHeaders(serviceName) {
 /**
  * Build headers for service calls
  */
-export function buildCallHeaders(serviceName) {
+export function buildCallHeaders(serviceName, authToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-    [HEADERS.SERVICE_NAME]: serviceName
+    [HEADERS.SERVICE_NAME]: serviceName,
+    ...(authToken && { [HEADERS.AUTH_TOKEN]: authToken })
   }
 }
 

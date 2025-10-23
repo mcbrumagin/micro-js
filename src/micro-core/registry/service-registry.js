@@ -136,7 +136,7 @@ export async function registerService(state, { service, location, useAuthService
   // Store auth service mapping if specified
   if (useAuthService) {
     state.serviceAuth.set(service, useAuthService)
-    logger.debug(`service "${service}" will use auth service "${useAuthService}"`)
+    logger.info(`service "${service}" using auth "${useAuthService}"`)
   }
   
   // Notify other services about the new registration using cache update headers
