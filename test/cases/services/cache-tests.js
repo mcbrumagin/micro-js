@@ -1,5 +1,5 @@
 import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../core/index.js'
-import createCacheService from '../../../src/micro-services/cache-service.js'
+import createCacheService, { createInMemoryCache } from '../../../src/micro-services/cache-service.js'
 import { callService, createService, Logger } from '../../../src/index.js'
 import { isCacheUpdateRequest } from '../../../src/micro-core/service/cache-handler.js'
 import { buildCacheUpdateHeaders, parseCommandHeaders } from '../../../src/utils/micro-headers.js'
@@ -17,7 +17,7 @@ async function testBasicSetAndGet() {
   await terminateAfter(
     await startRegistry(),
     await createCacheService(),
-    async () => {
+    async ([registry, cache]) => {
       // Set a value
       const setResult = await callService('cache', { set: { key1: 'value1' } })
       await assert(setResult, r => r === true)
@@ -478,6 +478,16 @@ async function testServiceRegistrationCacheUpdate() {
   )
 }
 
+function testCacheMemoryOnly() {
+  let cache = createInMemoryCache({ isMemoryOnly: true })
+  cache.set('test', 'value1')
+  let value = cache.get('test')
+  
+  return assert(value,
+    v => v === 'value1'
+  )
+}
+
 export default {
   testBasicSetAndGet,
   testSetMultipleKeys,
@@ -492,5 +502,6 @@ export default {
   testSetMultipleExpirations,
   testConcurrentOperations,
   testCacheUpdateWithHeaders,
-  testServiceRegistrationCacheUpdate
+  testServiceRegistrationCacheUpdate,
+  testCacheMemoryOnly
 }

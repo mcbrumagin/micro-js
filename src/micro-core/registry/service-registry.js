@@ -55,7 +55,10 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
 /**
  * Register a service instance
  */
-export async function registerService(state, { service, location }) {
+export async function registerService(state, { service, location, useAuthService }) {
+
+  // TODO figure out how to update the registry - this service requires auth for external calls
+  
   logger.debug(`registering service "${service}" for location "${location}"`)
   
   // Add to services map

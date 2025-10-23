@@ -43,13 +43,10 @@ export async function runTests(testFns) {
   process.on('unhandledRejection', (reason, promise) => {
     console.error(logger.writeColor('magenta', 'Exiting early due to Unhandled Promise Rejection'))
     console.error(reason.stack)
-    // TODO check reason for this warning
-    // console.warn(logger.removeExtraWhitespace(
-    //   `This likely means your assert function is being \
-    //     called synchronously without a return statement.
-    //   Either add await before every assert/assertErr, \
-    //     or make sure its promise is returned by the test function.`
-    // ))
+    if (reason.stack.includes('AssertError: Assert Error')) console.warn(logger.removeExtraWhitespace(
+      `This likely means your assert function is being called synchronously without a return statement.
+      Either add await before every assert/assertErr, or make sure its promise is returned by the test function.`
+    ))
     process.exit(1)
   })
 

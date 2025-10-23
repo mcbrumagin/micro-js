@@ -1,11 +1,9 @@
 import createService from '../micro-core/create-service.js'
 import Logger from '../utils/logger.js'
 
-export default async function createCacheService({
-  expireTime = 60000 * 10,
-  evictionInterval = 30000,
-} = {}) {
-  let logger = new Logger({logGroup: 'cache'})
+let logger = new Logger({logGroup: 'cache'})
+
+function initializeCacheService(expireTime, evictionInterval) {
   let cache = {}
   let expireCache = {} // mirror of cache for eviction
   let settings = {
@@ -47,7 +45,7 @@ export default async function createCacheService({
   // Start eviction interval ONCE at service creation
   evictionIntervalId = setInterval(performEviction, settings.evictionInterval)
 
-  async function cacheService(payload) {
+  function cacheService(payload) {
     logger.debug(`cache service received payload: ${JSON.stringify(payload)}`)
 
     if (payload.get === '*') return cache
@@ -66,7 +64,48 @@ export default async function createCacheService({
     else return false && logger.warn(`cache service failed to process: ${payload}`)
     return true
   }
+
+  function bindCacheHelpers(cacheSystem, cacheService) {
+
+    cacheSystem.getCache = () => cache
+    cacheSystem.getExpireCache = () => expireCache
+    cacheSystem.getSettings = () => settings
   
+    cacheSystem.set = (key, value) => cacheService({ set: { [key]: value } })
+    cacheSystem.get = (key) => cacheService({ get: key })
+    cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
+    cacheSystem.getex = (key) => cacheService({ getex: key })
+    cacheSystem.del = (key) => cacheService({ del: { [key]: true } })
+    cacheSystem.clear = () => cacheService({ clear: true })
+    cacheSystem.settings = (settings) => cacheService({ settings })
+  }
+
+  return { cacheService, evictionIntervalId, bindCacheHelpers }
+}
+
+
+
+export function createInMemoryCache({
+  expireTime = 60000 * 10,
+  evictionInterval = 30000
+} = {}) {
+  let { cacheService, evictionIntervalId, bindCacheHelpers } = initializeCacheService(expireTime, evictionInterval)
+
+  let cacheSystem = {}
+  cacheSystem.terminate = () => {
+    logger.debug('cache service cleaning up interval')
+    clearInterval(evictionIntervalId)
+  }
+  bindCacheHelpers(cacheSystem, cacheService)
+  return cacheSystem
+}
+
+export default async function createCacheService({
+  expireTime = 60000 * 10,
+  evictionInterval = 30000
+} = {}) {
+  let { cacheService, evictionIntervalId, bindCacheHelpers } = initializeCacheService(expireTime, evictionInterval)
+
   let server = await createService('cache', cacheService)
 
   // Override terminate to clean up interval
@@ -77,20 +116,7 @@ export default async function createCacheService({
     await originalTerminate()
   }
 
-
-  // attach helper fns
-
-  server.getCache = () => cache
-  server.getExpireCache = () => expireCache
-  server.getSettings = () => settings
-
-  server.set = (key, value) => cacheService({ set: { [key]: value } })
-  server.get = (key) => cacheService({ get: key })
-  server.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
-  server.getex = (key) => cacheService({ getex: key })
-  server.del = (key) => cacheService({ del: { [key]: true } })
-  server.clear = () => cacheService({ clear: true })
-  server.settings = (settings) => cacheService({ settings })
+  bindCacheHelpers(server)
 
   return server
 }

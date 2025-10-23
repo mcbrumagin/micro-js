@@ -15,6 +15,7 @@ export const HEADERS = {
   // Service operations
   SERVICE_NAME: 'micro-service-name',
   SERVICE_LOCATION: 'micro-service-location',
+  USE_AUTH_SERVICE: 'micro-use-auth-service',
   SERVICE_HOME: 'micro-service-home',
   
   // TODO VERIFY
@@ -63,11 +64,12 @@ export function buildSetupHeaders(serviceName, serviceHome) {
 /**
  * Build headers for service registration
  */
-export function buildRegisterHeaders(serviceName, location) {
+export function buildRegisterHeaders(serviceName, location, useAuthService) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
-    [HEADERS.SERVICE_LOCATION]: location
+    [HEADERS.SERVICE_LOCATION]: location,
+    [HEADERS.USE_AUTH_SERVICE]: useAuthService
   }
 }
 
@@ -167,6 +169,7 @@ export function parseCommandHeaders(headers) {
     command: headers[HEADERS.COMMAND],
     serviceName: headers[HEADERS.SERVICE_NAME],
     serviceLocation: headers[HEADERS.SERVICE_LOCATION],
+    useAuthService: headers[HEADERS.USE_AUTH_SERVICE],
     serviceHome: headers[HEADERS.SERVICE_HOME],
     routePath: headers[HEADERS.ROUTE_PATH],
     routeDataType: headers[HEADERS.ROUTE_DATATYPE],

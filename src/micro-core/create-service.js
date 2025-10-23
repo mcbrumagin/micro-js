@@ -63,10 +63,10 @@ async function setupServiceWithRegistry(name, serviceHome, registryHost, config)
  * Register service with registry
  * @private
  */
-async function registerServiceWithRegistry(name, location, registryHost) {
+async function registerServiceWithRegistry(name, location, registryHost, useAuthService) {
   // Use header-based command
   return await httpRequest(registryHost, {
-    headers: buildRegisterHeaders(name, location)
+    headers: buildRegisterHeaders(name, location, useAuthService)
   })
 }
 
@@ -161,7 +161,7 @@ export default async function createService(name, serviceFn, options = {}) {
   }
 
   // gets initial cache from registration
-  const registryData = await registerServiceWithRegistry(name, location, registryHost)
+  const registryData = await registerServiceWithRegistry(name, location, registryHost, config.useAuthService)
   updateCache(cache, registryData)
 
   logger.info(`service "${name}" registered with registry at "${registryHost}" using location "${location}"`)

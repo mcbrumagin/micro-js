@@ -42,7 +42,7 @@ function handleSetup(state, payload, defaultStartPort) {
  * Supports both header-based and legacy payload-based
  */
 async function handleRegister(state, payload, headers = {}) {
-  const { command, serviceName, serviceLocation, routePath, routeDataType, routeType } = parseCommandHeaders(headers)
+  const { command, serviceName, serviceLocation, useAuthService, routePath, routeDataType, routeType } = parseCommandHeaders(headers)
   
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
@@ -54,9 +54,11 @@ async function handleRegister(state, payload, headers = {}) {
       const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
     }
+    // TODO validate useAuthService
     return registerService(state, { 
-      service: serviceName, 
-      location: serviceLocation 
+      service: serviceName,
+      location: serviceLocation,
+      useAuthService: useAuthService
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
