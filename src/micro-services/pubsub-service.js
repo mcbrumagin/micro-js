@@ -26,7 +26,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
    * Uses registry's built-in publish functionality
    */
   async function publish(channel, message) {
-    logger.debug(`publishing to channel "${channel}"`)
+    logger.debug('publish - channel:', channel)
     
     const result = await httpRequest(registryHost, {
       body: message,
@@ -47,7 +47,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
     }
 
     const subId = `sub_${channel}_${++subscriptionCounter}_${Date.now()}`
-    logger.debug(`subscribing to channel "${channel}" with ID "${subId}"`)
+    logger.debug('subscribe - channel:', channel, 'id:', subId)
 
     if (!channelHandlers[channel]) {
       const serviceName = `pubsub_handler_${channel}_${Date.now()}`
@@ -62,7 +62,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
             const result = await handler(message)
             results.push(result)
           } catch (err) {
-            logger.error(`error in subscription ${subId} for channel "${channel}":`, err.stack)
+            logger.debugErr(`Subscription error in ${subId} for channel "${channel}":`, err)
             errors.push(err)
           }
         }
@@ -77,11 +77,11 @@ export default async function createPubSubService({ useAuthService = null } = {}
       })
 
       channelHandlers[channel] = { server, location, callbacks }
-      logger.debug(`created handler service for channel "${channel}" at "${location}"`)
+      logger.debug('subscribe - created handler service at:', location)
     }
 
     channelHandlers[channel].callbacks.set(subId, handler)
-    logger.debug(`added subscription "${subId}" to channel "${channel}" (${channelHandlers[channel].callbacks.size} total)`)
+    logger.debug('subscribe - total subscribers:', channelHandlers[channel].callbacks.size)
     
     return subId
   }
@@ -91,7 +91,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
    * Removes local callback and cleans up handler service if no more subscribers
    */
   async function unsubscribe(channel, subId) {
-    logger.debug(`unsubscribing "${subId}" from channel "${channel}"`)
+    logger.debug('unsubscribe - channel:', channel, 'id:', subId)
 
     if (!channelHandlers[channel]) {
       throw new HttpError(404, `No subscriptions found for channel "${channel}"`)
@@ -102,7 +102,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
       throw new HttpError(404, `Subscription "${subId}" not found for channel "${channel}"`)
     }
 
-    logger.debug(`removed subscription "${subId}" from channel "${channel}" (${channelHandlers[channel].callbacks.size} remaining)`)
+    logger.debug('unsubscribe - remaining:', channelHandlers[channel].callbacks.size)
 
     if (channelHandlers[channel].callbacks.size === 0) {
       const { server, location } = channelHandlers[channel]
@@ -114,7 +114,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
       await server.terminate()
 
       delete channelHandlers[channel]
-      logger.debug(`terminated handler service for channel "${channel}"`)
+      logger.debug('unsubscribe - terminated handler for channel:', channel)
     }
 
     return true
@@ -134,7 +134,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
   }
 
   async function terminate() {
-    logger.debug('cleaning up all subscriptions')
+    logger.debug('terminate - cleaning up subscriptions')
     const channels = Object.keys(channelHandlers)
     
     for (const channel of channels) {
@@ -147,7 +147,7 @@ export default async function createPubSubService({ useAuthService = null } = {}
 
         await server.terminate()
       } catch (err) {
-        logger.error(`error cleaning up channel ${channel}:`, err.message)
+        logger.debugErr(`Error cleaning up channel ${channel}:`, err)
       }
       
       delete channelHandlers[channel]

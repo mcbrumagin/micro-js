@@ -63,7 +63,6 @@ async function request(address, {
   try {
     let response = await fetch(address, options)
     
-    // logger.debug('httpRequest - stream:', stream)
     if (stream) return response // this allows caller to pipe the response stream
     else return await processResponse(response)
   } catch (error) {
@@ -71,11 +70,7 @@ async function request(address, {
     if (error.name === 'AbortError') {
       throw new HttpError(408, 'Request timeout')
     }
-    // Log fetch errors for debugging
-    // TODO debugError
-    logger.error(`Fetch failed at "${address}" - Error: ${error.message}`)
-    // console.trace()
-    // logger.debug(`Options: ${JSON.stringify(options)}`)
+    logger.debugErr(`Fetch failed at "${address}" - Error: ${error.message}`)
     throw error
   } finally {
     clearTimeout(timeoutId)
@@ -88,6 +83,7 @@ async function processResponse(response) {
 
   if (status >= 400 && status < 600) {
     const errorText = await response.text()
+    logger.debug('processResponse - error status:', status)
     throw new HttpError(status, errorText)
   }
 
@@ -105,8 +101,7 @@ async function processResponse(response) {
     try {
       result = result ? JSON.parse(result) : ''
     } catch (err) {
-      logger.warn(`Failed to parse JSON response ${err.message}`)
-      // Return as text if JSON parsing fails
+      logger.debugErr('Failed to parse JSON response:', err)
     }
   }
   

@@ -237,8 +237,7 @@ export default async function createStaticFileService({
           // TODO should actually complete read file?
           if (result !== false && result != null) return result
         } catch (err) {
-          // TODO logger.debugError so dev-user can mute easily
-          logger.error(`Error in static file resolver at "${url}": ${err.stack}`)
+          logger.debugErr(`Error in static file resolver at "${url}":`, err)
           throw err
         }
       }

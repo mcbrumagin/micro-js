@@ -29,7 +29,6 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
 
   if (serviceNameOrFn instanceof http.Server) {
     server = serviceNameOrFn
-    logger.debug('createRoute - server.name:', server.name)
     serviceName = server.name
   } else if (typeof serviceNameOrFn === 'function') {
     const functionName = serviceNameOrFn.name
@@ -38,19 +37,16 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
       headers: buildLookupHeaders(functionName)
     }))
 
-    logger.debug('createRoute - existingLocation:', existingLocation)
-    logger.debug('createRoute - functionName:', functionName)
     if (existingLocation) {
       serviceName = functionName
-      logger.debug(`route "${path}" using existing service "${serviceName}" at "${existingLocation}"`)
+      logger.debug('createRoute - using existing service:', serviceName)
     } else {
       server = await createService(serviceNameOrFn)
       serviceName = server.name
-      logger.debug(`route "${path}" created new service "${serviceName}"`)
+      logger.debug('createRoute - created new service:', serviceName)
     }
   } else {
     serviceName = serviceNameOrFn
-    logger.debug(`route "${path}" using service name "${serviceName}"`)
   }
 
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
@@ -59,7 +55,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     headers: buildRouteRegisterHeaders(serviceName, path, dataType, 'route', registryToken)
   })
 
-  logger.debug(`route "${path}" registered at ${registryHost}`)
+  logger.info(`Route "${path}" → service "${serviceName}"`)
   return server
 }
 

@@ -9,10 +9,6 @@ const ogConsole = {
   error: console.error.bind(console)
 }
 
-// TODO handle other js built-ins such as Error more gracefully
-// handle up to a certain object depth with recursion (default 3?)
-// other objects?
-// create custom stringify fn
 
 function formatValue(value) {
   if (typeof value === 'number' || typeof value === 'boolean') return value
@@ -24,7 +20,7 @@ function escapeTemplateChar(string) {
   return string.replace(/`/g, '\\`')
 }
 
-// Recursively stringify objects with depth limiting
+// recursively stringify objects with depth limiting
 function stringify(obj, depth = 0, maxDepth = 2) {
   if (depth > maxDepth) {
     return colors.yellow + '[Object depth exceeded - use higher maxDepth to see more]' + colors.reset
@@ -73,10 +69,8 @@ function getColorForLogLevel(level) {
   let { red, yellow, green, blue, magenta } = colors
   if (level === 'error') return red
   else if (level === 'warn') return yellow
+  else if (level === 'debugErr') return red
   else if (level === 'info') return blue
-  // else if (level === 'log') return green
-  // else if (level === 'debug') return magenta
-  // else return white
 }
 
 function getLogLineNumber(excludeFullPathInLogLines = false) {
@@ -100,7 +94,7 @@ function getLogLineNumber(excludeFullPathInLogLines = false) {
       logLineInfo = fullPathLogLine
     }
   } else {
-    // Direct path format: "at file:///path/to/file.js:line:col"
+    // direct path format: "at file:///path/to/file.js:line:col"
     logLineInfo = fullPathLogLine
       .replace('file://', '')
       .replace(process.cwd() + '/', '')
@@ -115,17 +109,14 @@ function getLogLineNumber(excludeFullPathInLogLines = false) {
   return logLineInfo
 }
 
-// Global console override state
 let consoleOverridden = false
 
-// Helper function to override console.log globally for all Logger instances
 export function overrideConsoleGlobally(config = {}) {
   if (consoleOverridden) {
     ogConsole.warn('Console is already overridden globally')
     return
   }
   
-  // Store original console methods
   const originalMethods = {
     debug: console.debug,
     log: console.log,
@@ -134,25 +125,20 @@ export function overrideConsoleGlobally(config = {}) {
     error: console.error
   }
   
-  // Create a temporary logger for console override
   const globalLogger = new Logger(config)
   
-  // Override console methods
   console.debug = globalLogger.debug.bind(globalLogger)
   console.log = globalLogger.log.bind(globalLogger)
   console.info = globalLogger.info.bind(globalLogger)
   console.warn = globalLogger.warn.bind(globalLogger)
   console.error = globalLogger.error.bind(globalLogger)
-  // TODO distributed trace
   
   consoleOverridden = true
   
-  // Store original methods for potential restoration
+  // store original methods for potential restoration
   console._originalMethods = originalMethods
   
   ogConsole.warn('Console methods have been globally overridden to use Logger. Use console._originalMethods to access originals.')
-
-  // TODO return a function to toggle override off/on
 }
 
 function writeColor(color = colors.white, logContent, endColor = colors.reset) {
@@ -178,6 +164,7 @@ export default class Logger {
     logLevel = process.env.LOG_LEVEL || 'debug',
     logLevels = [
       'debug',
+      'debugErr',
       'log',
       'info',
       'warn',
@@ -195,13 +182,13 @@ export default class Logger {
       logGroup: '',
       useLogFile: false, // TODO
       logFilePath: './logs',
-      logFileRetainLineLimit: 0, // no retention limit
+      logFileRetainLineLimit: 0,
       includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true',
       excludeFullPathInLogLines: process.env.LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES === 'true',
       includeLogLevelInOutput: false,
-      // formatJson: true,
+      outputJson: false, // TODO for cloudwatch and other log aggregators
       warnLevel: false,
-      maxDepth: 2 // Maximum depth for object stringification
+      maxDepth: 2
     }, options)
 
     this.logLevels = logLevels
@@ -249,7 +236,7 @@ export default class Logger {
 
   createLogFn(level) {
     let {
-      // formatJson,
+      // outputJson,
       includeLogLineNumbers,
       excludeFullPathInLogLines,
       logGroup
@@ -260,31 +247,40 @@ export default class Logger {
     let isMuted = false
     if (this[level]) throw new Error(`Already created log fn for level ${level}`)
     else this[level] = function log(...args) {
-      if (activeLogLevels.indexOf(level) >= 0 && !isMuted) {
-        let color = getColorForLogLevel(level) || '' // use default terminal color
-        args.unshift(color) // start with color code string
-        
-        if (includeLogLineNumbers) args.unshift(
-          writeColor('white', 
-          getLogLineNumber(excludeFullPathInLogLines),
-          colors.reset
-        ))
-
-        if (logGroup) args.unshift(writeColor('white', logGroup, colors.reset))
-
-        let logContent = ''
-        for (let arg of args) {
-          if (arg instanceof Error) logContent += arg.stack
-          else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
-          else logContent += arg
-
-          if (arg !== color) logContent += ' | ' // TODO?
-        }
-        logContent = logContent.slice(0, logContent.length - 3) + colors.reset
-        if (ogConsole[level]) ogConsole[level](logContent)
-        else ogConsole.log(...args) // should only ever happen for console.log override
-        return logContent // mostly for testing, but who knows
+      if (isMuted) return
+      
+      const hasError = args.some(arg => arg instanceof Error || (arg && arg.stack))
+      const effectiveLevel = (level === 'debug' && hasError) ? 'debugErr' : level
+      
+      if (activeLogLevels.indexOf(effectiveLevel) < 0) {
+        return
       }
+      
+      let color = getColorForLogLevel(effectiveLevel) || ''
+      args.unshift(color)
+      
+      if (includeLogLineNumbers) args.unshift(
+        writeColor('white', 
+        getLogLineNumber(excludeFullPathInLogLines),
+        colors.reset
+      ))
+
+      if (logGroup) args.unshift(writeColor('white', logGroup, colors.reset))
+
+      let logContent = ''
+      for (let arg of args) {
+        if (arg instanceof Error) logContent += arg.stack
+        else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
+        else logContent += arg
+
+        if (arg !== color) logContent += ' | '
+      }
+      logContent = logContent.slice(0, logContent.length - 3) + colors.reset
+      
+      const consoleMethod = (effectiveLevel === 'debugErr') ? 'debug' : level
+      if (ogConsole[consoleMethod]) ogConsole[consoleMethod](logContent)
+      else ogConsole.log(logContent)
+      return logContent
     }
 
     if (this[level]) {

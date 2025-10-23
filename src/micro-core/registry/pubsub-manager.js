@@ -75,7 +75,7 @@ export function subscribe(state, { type, location }) {
   }
   
   state.subscriptions.get(type).add(location)
-  logger.debug(`subscribed "${location}" to type "${type}"`)
+  logger.debug('subscribe - location:', location, 'type:', type)
 }
 
 /**
@@ -98,7 +98,7 @@ export function unsubscribe(state, { type, location }) {
     state.subscriptions.delete(type)
   }
   
-  logger.debug(`unsubscribed "${location}" from type "${type}"`)
+  logger.debug('unsubscribe - location:', location, 'type:', type)
 }
 
 /**

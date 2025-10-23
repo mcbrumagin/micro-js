@@ -25,16 +25,12 @@ export function validateRegistryToken(request) {
   const providedToken = request.headers?.[HEADERS.REGISTRY_TOKEN]
   
   if (!providedToken) {
-    logger.warn('Registry token validation failed: missing token', {
-      remoteAddress: request.socket?.remoteAddress
-    })
+    logger.debug('validateRegistryToken - missing token from:', request.socket?.remoteAddress)
     throw new HttpError(403, 'Registry token required')
   }
   
   if (providedToken !== expectedToken) {
-    logger.warn('Registry token validation failed: invalid token', {
-      remoteAddress: request.socket?.remoteAddress
-    })
+    logger.debug('validateRegistryToken - invalid token from:', request.socket?.remoteAddress)
     throw new HttpError(403, 'Invalid registry token')
   }
   
@@ -61,9 +57,8 @@ export function validateRegistryEnvironment() {
   
   if (environment && !environment.includes('dev') && !hasToken) {
     logger.warn(
-      `WARNING: Registry starting in ${environment.toUpperCase()} environment without MICRO_REGISTRY_TOKEN. ` +
-      'This is not recommended for non-development environments. ' +
-      'Consider setting MICRO_REGISTRY_TOKEN for better security.'
+      `Registry starting in ${environment.toUpperCase()} without MICRO_REGISTRY_TOKEN - ` +
+      'consider setting this for better security'
     )
   }
 }

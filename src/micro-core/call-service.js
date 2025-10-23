@@ -2,6 +2,9 @@ import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
 import envConfig from './env-config.js'
 import { buildCallHeaders } from '../utils/micro-headers.js'
+import Logger from '../utils/logger.js'
+
+const logger = new Logger()
 
 // TODO implement for returned errors? do we need this?
 // function throwErrorFromResult(result) {
@@ -16,6 +19,8 @@ export default async function callService (name, payload, {
   authToken = null
 } = {}) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+  
+  logger.debug('callService - name:', name)
   
   let result = await httpRequest(registryHost, {
     body: payload,

@@ -103,7 +103,6 @@ export async function routeCommand(state, payload, request, response, options = 
   
   // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
   const isHeaderCommand = isHeaderBasedCommand(headers)
-  logger.debug('commandRouter - isHeaderCommand:', isHeaderCommand)
   if (isHeaderCommand) {
     return routeCommandByHeaders(state, payload, request, response, options)
   }
@@ -115,12 +114,9 @@ export async function routeCommand(state, payload, request, response, options = 
     const controllerMatch = !routeMatch && findControllerRoute(state, request.url)
     
     if (routeMatch || controllerMatch) {
-      logger.debug(`route matched for ${request.url}`)
       return resolvePossibleRoute(state, request, response, payload)
     }
   }
-
-  logger.debug('no route or command matched', { headers, url: request.url })
   
   // No route or command matched - return API documentation
   return getRegistryApiDocumentation()
@@ -134,7 +130,7 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   const headers = request.headers || {}
   const { command, serviceName, serviceLocation, serviceHome, pubsubChannel } = parseCommandHeaders(headers)
   
-  logger.debug(`header-based command: ${command}`)
+  logger.debug('command:', command)
 
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
@@ -175,15 +171,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       // Detect if we should use streaming proxy (for multipart uploads, large files, etc.)
       const contentType = request.headers['content-type'] || ''
       const useStreaming = contentType.includes('multipart/')
-
-      // TODO create helper function to handle streaming and buffered proxy calls here
-
-      logger.debug('useStreaming:', useStreaming)
-      logger.debug('contentType:', contentType)
       
       if (useStreaming) {
-        // Use streaming proxy - pipes request directly without buffering (for file uploads)
-        logger.debug(`Using streaming proxy for multipart content: ${serviceName}`)
+        logger.debug('SERVICE_CALL - useStreaming:', true, 'service:', serviceName)
         return streamProxyServiceCall(state, { 
           name: serviceName, 
           request, 

@@ -118,7 +118,7 @@ export default async function createService(name, serviceFn, options = {}) {
     options = options && Object.keys(options).length === 0 ? serviceFn : options
     serviceFn = name
     name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
-    if (name.includes('Anon$')) logger.warn(`generated name for anonymous function ${name}`)
+    if (name.includes('Anon$')) logger.debug('createService - generated name:', name)
   }
 
   validateServiceName(name)
@@ -155,13 +155,11 @@ export default async function createService(name, serviceFn, options = {}) {
     }
   }
 
-  // gets initial cache from registration
   const registryData = await registerServiceWithRegistry(name, location, registryHost, config.useAuthService)
   updateCache(cache, registryData)
 
-  logger.info(`service "${name}" registered with registry at "${registryHost}" using location "${location}"`)
-
-  // add service metadata
+  logger.info(`Service "${name}" running at ${location}`)
+  logger.debug('createService - registryHost:', registryHost)
   server.service = name
   server.location = location
   

@@ -5,6 +5,9 @@
 
 import HttpError from '../../http-primitives/http-error.js'
 import { setToArray } from './registry-state.js'
+import Logger from '../../utils/logger.js'
+
+const logger = new Logger()
 
 // Track round-robin state per service
 const roundRobinState = new Map()
@@ -16,9 +19,11 @@ export function getServiceAddresses(state, serviceName) {
   const service = state.services.get(serviceName)
   
   if (!service || service.size === 0) {
+    logger.debug('getServiceAddresses - not found:', serviceName)
     throw new HttpError(404, `No service by name "${serviceName}"`)
   }
   
+  logger.debug('getServiceAddresses - instances:', service.size)
   return setToArray(service)
 }
 
@@ -48,6 +53,7 @@ function selectRoundRobin(serviceName, addresses) {
   }
   
   roundRobinState.set(serviceName, index)
+  logger.debug('selectRoundRobin - index:', index, 'of', addresses.length)
   return addresses[index]
 }
 

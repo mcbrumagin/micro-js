@@ -49,7 +49,7 @@ async function verifyAuthToken(state, serviceName, authToken) {
   
   try {
     const authLocation = selectServiceLocation(state, authServiceName, 'round-robin')
-    logger.debug(`verifying token with auth service at ${authLocation}`)
+    logger.debug('verifyAuthToken - authService:', authServiceName)
     
     const verifyResult = await httpRequest(authLocation, {
       method: 'POST',
@@ -68,7 +68,7 @@ async function verifyAuthToken(state, serviceName, authToken) {
       throw new HttpError(401, message)
     }
     
-    logger.debug(`token verified for user: ${verifyResult.user}`)
+    logger.debug('verifyAuthToken - user:', verifyResult.user)
     return { verified: true, user: verifyResult.user }
     
   } catch (error) {
@@ -82,8 +82,7 @@ async function verifyAuthToken(state, serviceName, authToken) {
       throw error
     }
     
-    // Unknown error
-    logger.error('Auth verification error:', error)
+    logger.debugErr('Auth verification error:', error)
     throw new HttpError(500, 'Authentication verification failed')
   }
 }
@@ -94,7 +93,7 @@ async function verifyAuthToken(state, serviceName, authToken) {
 export function allocateServicePort(state, { service, domain, home }, defaultStartPort = 10000) {
   // Accept both 'home' and 'domain' for backwards compatibility
   let serviceHome = home || domain
-  logger.debug(`allocating port for service "${service}" at domain "${serviceHome}"`)
+  logger.debug('allocateServicePort - service:', service)
   
   // if serviceHome has a port already, use it
   let port = serviceHome.split(':')[2]
@@ -113,7 +112,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
   }
   
   const location = `${serviceHome}:${port}`
-  logger.debug(`allocated "${location}" for service "${service}"`)
+  logger.debug('allocateServicePort - location:', location)
   
   return location
 }
@@ -122,7 +121,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * Register a service instance
  */
 export async function registerService(state, { service, location, useAuthService }) {
-  logger.debug(`registering service "${service}" for location "${location}"`)
+  logger.info(`Service "${service}" registered at ${location}`)
   
   // Add to services map
   if (!state.services.has(service)) {
@@ -136,7 +135,7 @@ export async function registerService(state, { service, location, useAuthService
   // Store auth service mapping if specified
   if (useAuthService) {
     state.serviceAuth.set(service, useAuthService)
-    logger.info(`service "${service}" using auth "${useAuthService}"`)
+    logger.debug('registerService - authService:', useAuthService)
   }
   
   // Notify other services about the new registration using cache update headers
@@ -156,7 +155,7 @@ export async function registerService(state, { service, location, useAuthService
  * Unregister a service instance
  */
 export function unregisterService(state, { service, location }) {
-  logger.debug(`unregistering service "${service}" for location "${location}"`)
+  logger.info(`Service "${service}" unregistered from ${location}`)
   
   // Remove from reverse lookup
   state.addresses.delete(location)
@@ -185,7 +184,7 @@ export function unregisterService(state, { service, location }) {
  * Returns a single location or all services
  */
 export function findServiceLocation(state, serviceName, strategy = 'random') {
-  logger.debug(`looking up service "${serviceName}"`)
+  logger.debug('findServiceLocation - service:', serviceName)
   
   // Special case: return all services
   if (serviceName === '*') {
@@ -242,9 +241,9 @@ const handleStreamingResponse = async (serviceResponse, response) => {
   const contentType = serviceResponse.headers.get('content-type')
   const contentLength = serviceResponse.headers.get('content-length')
   const lastModified = serviceResponse.headers.get('last-modified')
-  logger.debug(`streaming response from service: ${contentType}, ${contentLength} bytes, last-modified: ${lastModified}`)
+  logger.debug('handleStreamingResponse - bytes:', contentLength)
   
-  // Copy response headers // TODO copy other headers?
+  // copy response headers // TODO copy other headers?
   response.writeHead(serviceResponse.status, {
     'content-type': contentType,
     ...(contentLength && { 'content-length': contentLength }),
@@ -264,7 +263,7 @@ const handleStreamingResponse = async (serviceResponse, response) => {
     }
     response.end()
   } catch (err) {
-    logger.error(`Streaming error: ${err.message}`)
+    logger.debugErr('Streaming error:', err)
     if (!response.writableEnded) {
       response.end()
     }
@@ -290,7 +289,7 @@ export async function streamProxyServiceCall(state, { name, request, response })
   const location = selectServiceLocation(state, name, 'round-robin')
   const url = new URL(location)
 
-  logger.debug(`streaming proxy request to "${location}"`)
+  logger.debug('streamProxyServiceCall - location:', location)
 
   return new Promise((resolve, reject) => {
     const options = {
@@ -312,12 +311,12 @@ export async function streamProxyServiceCall(state, { name, request, response })
       proxyRes.pipe(response)
       
       proxyRes.on('end', () => {
-        logger.debug('Streaming proxy response complete')
-        resolve(false) // false = response handled
+        logger.debug('streamProxyServiceCall - complete')
+        resolve(false)
       })
       
       proxyRes.on('error', (err) => {
-        logger.error('Proxy response error:', err)
+        logger.debugErr('Proxy response error:', err)
         if (!response.writableEnded) {
           response.end()
         }
@@ -326,7 +325,7 @@ export async function streamProxyServiceCall(state, { name, request, response })
     })
 
     proxyReq.on('error', (err) => {
-      logger.error('Proxy request error:', err)
+      logger.debugErr('Proxy request error:', err)
       if (!response.headersSent) {
         response.writeHead(502)
         response.end('Bad Gateway')
@@ -335,13 +334,13 @@ export async function streamProxyServiceCall(state, { name, request, response })
     })
 
     request.on('error', (err) => {
-      logger.error('Request stream error:', err)
+      logger.debugErr('Request stream error:', err)
       proxyReq.destroy()
       reject(err)
     })
 
     request.on('end', () => {
-      logger.debug('Request stream ended')
+      logger.debug('streamProxyServiceCall - request stream ended')
     })
 
     // Pipe request body directly to service (no buffering)
@@ -366,7 +365,6 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   let location = selectServiceLocation(state, name, 'round-robin')
 
   let options = setProxyRequestOptions(request, response)
-  logger.debug(`proxying request to "${location}"${options?.headers ? ` with headers: ${JSON.stringify(options.headers)}` : ''}`)
   
   location = `${location}${request.url}`
   logger.debug('proxyServiceCall - location:', location)
@@ -377,7 +375,6 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   if (options?.stream && serviceResponse instanceof Response) {
     const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')
     if (isStreamable && serviceResponse.body) {
-      logger.debug('proxyServiceCall - streaming response')
       return await handleStreamingResponse(serviceResponse, response)
     }
   }

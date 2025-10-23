@@ -55,12 +55,7 @@ export default async function createRegistryServer(port) {
       
       return result
     } catch (err) {
-      // logger.error(err.stack) // TODO debugError
-      // response.writeHead(err.status || 500)
-
-      // response.statusCode = err.status || 500
-      // response.setHeader('content-type', 'text/plain')
-      // response.end(err.stack)
+      logger.debugErr('Registry command failed:', err)
       err.status = err.status || 500
       throw err
     }
@@ -71,7 +66,7 @@ export default async function createRegistryServer(port) {
   // Override terminate to clean up state
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    logger.debug('registry terminating')
+    logger.info('Registry shutting down')
     resetState(state)
     await httpServerTerminate()
   }

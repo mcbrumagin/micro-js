@@ -24,7 +24,7 @@ function normalizeResult(result, url) {
   }
   
   let dataType = detectContentType(result, url)
-  logger.debug(`detected content type: ${dataType}`)
+  logger.debug(`normalizeResult - detected content type: ${dataType}`)
   return {
     payload: result,
     dataType
@@ -39,7 +39,8 @@ function sendBufferedResponse(response, result) {
     try {
       result.payload = result.payload ? Buffer.from(result.payload) : ''
     } catch (err) {
-      logger.warn(err.stack)
+      logger.debugErr('sendBufferedResponse - buffer conversion error:', err)
+      // TODO throw? remove? code-smell
     }
   }
   response.end(result && result.payload || result)
@@ -55,14 +56,10 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
 
   const contentType = request.headers['content-type'] || ''
   const useStreaming = contentType.includes('multipart/')
-
-  logger.debug('useStreaming:', useStreaming)
-  logger.debug('contentType:', contentType)
   
   let result
   if (useStreaming) {
-    // Use streaming proxy - pipes request directly without buffering (for file uploads)
-    logger.debug(`Using streaming proxy for multipart content: ${service}`)
+    logger.debug('directRoute - streaming proxy for:', service)
     result = await streamProxyServiceCall(state, { 
       name: service, 
       request, 
@@ -77,9 +74,6 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
       response 
     })
   }
-
-  logger.debug(`direct route result: ${!!result}`)
-
   // TODO done() instead of next()? preventDefault()?
   if (result instanceof Next || result === false /* TODO remove */) {
     return result
@@ -106,9 +100,6 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
   const contentType = request.headers['content-type'] || ''
   const useStreaming = contentType.includes('multipart/')
 
-  logger.debug('useStreaming:', useStreaming)
-  logger.debug('contentType:', contentType)
-
   let result
   if (useStreaming) {
     result = await streamProxyServiceCall(state, { 
@@ -124,9 +115,6 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
       response 
     })
   }
-
-  logger.debug(`controller route result: ${!!result} ... url: ${url}`)
-
   // TODO done() instead of next()? preventDefault()?
   if (result instanceof Next || result === false /* TODO remove */) {
     return result
@@ -141,7 +129,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
     })
     sendBufferedResponse(response, normalizedResult)
   }
-  else logger.warn('response already ended', { url, useStreaming, request: request.method }) // TODO code-smell?
+  
   return false // signal to skip default response
 }
 
@@ -163,30 +151,23 @@ function handleTrailingSlashRedirect(url, response) {
  */
 export async function resolvePossibleRoute(state, request, response, payload) {
   const { url } = request
-  logger.debug('resolving url:', url)
+  logger.debug('resolvePossibleRoute - url:', url)
   
   let requestBody = null
   if (payload && typeof payload === 'object') {
     requestBody = payload.payload || payload
   }
   
-  // Check for direct route match
   const routeInfo = state.routes.get(url)
-  // logger.debug('resolvePossibleRoute - routeInfo:', routeInfo)
-  // logger.debug('resolvePossibleRoute - url:', url)
-  // logger.debug('resolvePossibleRoute - state.routes:', Object.fromEntries(state.routes))
   if (routeInfo) {
-    // TODO ensure url is passed through proxy call to service
     return handleDirectRoute(state, routeInfo, url, requestBody, request, response)
   }
   
-  // Check for controller route match
   const controllerInfo = findControllerRoute(state, url)
   if (controllerInfo) {
-    logger.debug(`controller route match: ${JSON.stringify({controllerInfo})}`)
-    // TODO ensure url is passed through proxy call to service
+    logger.debug('controller match:', controllerInfo.pattern)
     return handleControllerRoute(state, controllerInfo, url, requestBody, request, response)
-  } // else logger.debug('no route match', { url, routeInfo, controllerInfo })
+  }
   
   // Handle trailing slash redirect
   const redirectResult = handleTrailingSlashRedirect(url, response)
