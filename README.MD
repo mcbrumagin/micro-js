@@ -2,8 +2,8 @@
 
 A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, pub/sub messaging, HTTP routing, and load balancing.
 
-[![Tests](https://img.shields.io/badge/tests-67%2F67%20passing-brightgreen)]()
-[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-203%2F203%20passing-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Features
@@ -14,7 +14,7 @@ A lightweight, zero-dependency microservices framework for Node.js with built-in
 🔄 **Load Balancing** - Round-robin and random distribution strategies  
 🛣️ **HTTP Routing** - Direct and wildcard route support  
 💾 **Built-in Services** - Cache, auth, static files, and file upload services  
-🧪 **Fully Tested** - Comprehensive tests with 85%+ coverage
+🧪 **Fully Tested** - Comprehensive tests with 85%+ coverage  
 📦 **Modular Architecture** - Clean, maintainable codebase  
 
 ## Installation
@@ -252,22 +252,6 @@ export MICRO_REGISTRY_URL=http://localhost:8080
 export MICRO_SERVICE_URL=http://myservice:10000
 ```
 
-## Testing
-
-Run the comprehensive test suite:
-
-```sh
-export MICRO_REGISTRY_URL=http://localhost:9999
-npm test
-```
-
-**Test Coverage:**
-- Unit tests for registry modules
-- Integration tests for services
-- Route handling tests
-- Pub/sub messaging tests
-- Load balancing tests
-- Error handling tests
 
 
 ## API Reference

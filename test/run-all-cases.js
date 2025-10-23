@@ -98,7 +98,7 @@ import cacheServiceTests from './cases/services/cache-tests.js'
 import pubsubTests from './cases/services/pubsub-tests.js'
 import staticFileServiceTests from './cases/services/static-file-tests.js'
 import fileUploadTests from './cases/services/file-upload-tests.js'
-import authTests from './cases/auth-tests.js'
+import authTests from './cases/services/auth-tests.js'
 
 // TODO solo support for test suites
 // TODO cli support for test runs by name or suite
