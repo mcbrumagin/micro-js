@@ -9,6 +9,7 @@ import httpRequest from '../http-primitives/http-request.js'
 import Logger from '../utils/logger.js'
 import envConfig from './env-config.js'
 import retry from '../utils/retry-helper.js'
+import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../utils/micro-headers.js'
 
 import { createServiceState, updateCache, removeFromCache } from './service/service-state.js'
 import { buildContext, buildEnhancedContext, bindServiceFunction } from './service/service-context.js'
@@ -33,7 +34,8 @@ const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('MICRO_RETRY_LIMIT', 3),
   retryInitialDelay: envConfig.get('MICRO_RETRY_DELAY', 20),
   muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false),
-  sharedCache: null // Optional pre-created cache for batch operations
+  sharedCache: null, // Optional pre-created cache for batch operations
+  streamPayload: false // If true, don't buffer request body - pass raw stream to handler
 }
 
 /**
@@ -43,11 +45,9 @@ const DEFAULT_CONFIG = {
 async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
   return await retry(
     async () => {
+      // Use header-based command
       const location = await httpRequest(registryHost, {
-        setup: {
-          service: name,
-          home: serviceHome // Renamed from 'domain' for clarity
-        }
+        headers: buildSetupHeaders(name, serviceHome)
       })
       return location
     },
@@ -63,12 +63,10 @@ async function setupServiceWithRegistry(name, serviceHome, registryHost, config)
  * Register service with registry
  * @private
  */
-async function registerServiceWithRegistry(name, location, registryHost) {
+async function registerServiceWithRegistry(name, location, registryHost, useAuthService) {
+  // Use header-based command
   return await httpRequest(registryHost, {
-    register: {
-      service: name,
-      location
-    }
+    headers: buildRegisterHeaders(name, location, useAuthService)
   })
 }
 
@@ -77,11 +75,9 @@ async function registerServiceWithRegistry(name, location, registryHost) {
  * @private
  */
 async function unregisterServiceFromRegistry(name, location, registryHost) {
+  // Use header-based command
   return await httpRequest(registryHost, {
-    unregister: {
-      service: name,
-      location
-    }
+    headers: buildUnregisterHeaders(name, location)
   })
 }
 
@@ -120,16 +116,6 @@ export default async function createService(name, serviceFn, options = {}) {
      may require that anon services are only accessible locally, and skip server creation
      this would also require anon routes to be local to wherever the register is executed from
   */
- 
-  // old implementation: prohibits anonymous functions, only named functions are allowed
-  // if (
-  //   !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
-  //   !(typeof name === 'function' && typeof name.name === 'string' && name.name)
-  // ) {
-  //   throw new Error(
-  //     'Please provide a named function, or a service name and its function separately'
-  //   )
-  // }
 
   // handle named function case (serviceFn, options)
   if (typeof name === 'function') {
@@ -137,7 +123,7 @@ export default async function createService(name, serviceFn, options = {}) {
     options = options && Object.keys(options).length === 0 ? serviceFn : options
     serviceFn = name
     name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
-    if (name.includes('Anon$')) console.warn(`createService generated name for anonymous function ${name}`)
+    if (name.includes('Anon$')) logger.warn(`generated name for anonymous function ${name}`)
   }
 
   validateServiceName(name)
@@ -146,6 +132,9 @@ export default async function createService(name, serviceFn, options = {}) {
   const serviceHome = determineServiceHome(registryHost)
 
   const config = { ...DEFAULT_CONFIG, ...options }
+  // accept auth service name or function
+  config.useAuthService = config.useAuthService?.name || config.useAuthService
+  
   // get allocated runtime port, if not hardcoded
   const location = await setupServiceWithRegistry(name, serviceHome, registryHost, config)
   const port = extractPort(location)
@@ -162,7 +151,7 @@ export default async function createService(name, serviceFn, options = {}) {
 
   let server
   try {
-    server = await httpServer(port, handler)
+    server = await httpServer(port, handler, { streamPayload: config.streamPayload })
     server.name = name
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) { // port already in use
@@ -175,10 +164,10 @@ export default async function createService(name, serviceFn, options = {}) {
   }
 
   // gets initial cache from registration
-  const registryData = await registerServiceWithRegistry(name, location, registryHost)
+  const registryData = await registerServiceWithRegistry(name, location, registryHost, config.useAuthService)
   updateCache(cache, registryData)
 
-  logger.debug(`service "${name}" registered at ${registryHost}`)
+  logger.info(`service "${name}" registered with registry at "${registryHost}" using location "${location}"`)
 
   // add service metadata
   server.service = name

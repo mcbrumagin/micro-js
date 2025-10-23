@@ -1,6 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../../core/index.js'
 import { callService, Logger } from '../../../src/index.js'
 import createStaticFileService from '../../../src/micro-services/static-file-service.js'
+import { HEADERS, COMMANDS } from '../../../src/utils/micro-headers.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -26,6 +27,7 @@ async function createTempTestFiles() {
   
   // Create assets directory
   const assetsDir = path.join(publicDir, 'assets')
+  console.info('assetsDir:', assetsDir)
   fs.mkdirSync(assetsDir)
   fs.writeFileSync(path.join(assetsDir, 'logo.png'), 'fake-png-data')
   fs.writeFileSync(path.join(assetsDir, 'icon.svg'), '<svg></svg>')
@@ -52,10 +54,9 @@ async function testBasicStaticFileServiceWorkingDir() {
       }),
       async () => {
         let result = await callService('static-file-service', { url: '/' })
-        await assert(result, 
-          r => r.includes('"name": "micro-js",'),
-          r => r.includes('{'),
-          r => r.includes('}')
+        await assert(result || 'no result',
+          r => r !== 'no result',
+          r => r.name === 'micro-js'
         )
         return result
       }
@@ -132,7 +133,7 @@ async function testStaticFileWithWildcardMapping() {
         urlRoot: '/',
         fileMap: {
           '/': 'index.html',
-          '/public/*': 'public/*'
+          '/public/*': 'public'
         },
         externalRootDir: true
       }),
@@ -244,7 +245,7 @@ async function testStaticFileUrlSanitization() {
   }
 }
 
-async function testStaticFileWithNoUrl() {
+async function testStaticFileWithDefaultRequestUrl() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
@@ -256,10 +257,44 @@ async function testStaticFileWithNoUrl() {
         externalRootDir: true
       }),
       async () => {
-        await assertErr(
-          () => callService('static-file-service', { url: '' }),
-          err => err.status === 400,
-          err => err.message.includes('url is required')
+        let result = await callService('static-file-service')
+        await assert(
+          result,
+          r => r.includes('Index Page'),
+          r => r.includes('<html>'),
+        )
+        return result
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testStaticFileResponseHeaders() {
+  const tempDir = await createTempTestFiles()
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: 'index.html',
+        externalRootDir: true
+      }),
+      async () => {
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/index.html`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service'
+          }
+        })
+        
+        await assert(response,
+          r => r.status === 200,
+          r => r.headers.get('content-type') === 'text/html',
+          r => !!r.headers.get('content-length'),
+          r => !!r.headers.get('last-modified')
         )
       }
     )
@@ -267,6 +302,36 @@ async function testStaticFileWithNoUrl() {
     cleanupTempFiles(tempDir)
   }
 }
+
+async function testStaticFileDirectoryTreePopulation() {
+  const tempDir = await createTempTestFiles()
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/': 'index.html',
+          '/public/*': 'public'
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        let result = await callService('static-file-service', { url: '/public/assets/logo.png' })
+        await assert(result, r => r.includes('fake-png-data'))
+        return result
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+// testStaticFileDirectoryTreePopulation.solo = true
+
+// TODO write a new file and test that it can be found (and added to quicklookup?)
+// async function testStaticFileWithEagerLookup() {}
 
 export default {
   testBasicStaticFileServiceWorkingDir,
@@ -277,5 +342,7 @@ export default {
   testStaticFileWithCustomResolver,
   testStaticFileInvalidRootDir,
   testStaticFileUrlSanitization,
-  testStaticFileWithNoUrl
+  testStaticFileWithDefaultRequestUrl,
+  testStaticFileResponseHeaders,
+  testStaticFileDirectoryTreePopulation
 }

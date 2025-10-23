@@ -1,6 +1,8 @@
 /**
  * Command Router
  * Routes incoming registry commands to appropriate handlers
+ * 
+ * Supports both header-based and legacy payload-based routing
  */
 
 import { publish, subscribe, unsubscribe } from './pubsub-manager.js'
@@ -9,32 +11,18 @@ import {
   registerService, 
   unregisterService, 
   findServiceLocation, 
-  proxyServiceCall 
+  proxyServiceCall,
+  streamProxyServiceCall
 } from './service-registry.js'
-import { registerRoute } from './route-registry.js'
+import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
+import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../../utils/micro-headers.js'
+import getRegistryApiDocumentation from './documentation.js'
+import HttpError from '../../http-primitives/http-error.js'
 
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger()
-
-/**
- * Get registry API documentation
- * Parses the main handler function to show available commands
- */
-function getRegistryApiDocumentation(handlerFn) {
-  let message = handlerFn.toString()
-  try {
-    message = handlerFn.toString()
-      .match(/payload\.(.+?)\) /ig)
-      ?.join('\n')
-      .replace(/payload\./ig, '')
-      .replace(/\) /ig, '') || message
-  } catch (err) {
-    // Return full function string if parsing fails
-  }
-  return message
-}
 
 /**
  * Health check command
@@ -52,81 +40,198 @@ function handleSetup(state, payload, defaultStartPort) {
 
 /**
  * Register command - register service or route
+ * Supports both header-based and legacy payload-based
  */
-async function handleRegister(state, payload) {
-  const { type = 'service' } = payload.register
+async function handleRegister(state, payload, headers = {}) {
+  const { command, serviceName, serviceLocation, useAuthService, routePath, routeDataType, routeType } = parseCommandHeaders(headers)
   
-  if (type === 'service') {
-    return registerService(state, payload.register)
-  } else if (type === 'route') {
-    return registerRoute(state, payload.register)
-  } else {
-    const HttpError = (await import('../../http-primitives/http-error.js')).default
-    throw new HttpError(400, 'Invalid registration type')
+  // Header-based registration
+  if (command === COMMANDS.SERVICE_REGISTER) {
+    if (!serviceName) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-name header')
+    }
+    if (!serviceLocation) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
+    }
+    // TODO validate useAuthService
+    return registerService(state, { 
+      service: serviceName,
+      location: serviceLocation,
+      useAuthService: useAuthService
+    })
+  } else if (command === COMMANDS.ROUTE_REGISTER) {
+    if (!serviceName) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'ROUTE_REGISTER requires micro-service-name header')
+    }
+    if (!routePath) {
+      const HttpError = (await import('../../http-primitives/http-error.js')).default
+      throw new HttpError(400, 'ROUTE_REGISTER requires micro-route-path header')
+    }
+    return registerRoute(state, { 
+      service: serviceName, 
+      path: routePath, 
+      dataType: routeDataType,
+      type: routeType
+    })
   }
 }
 
 /**
  * Route incoming commands to their handlers
+ * PRIORITY 1: Command headers (micro-command)
+ * PRIORITY 2: HTTP routes (URL-based)
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
-  // TODO envConfig
   const { defaultStartPort = 10000, handlerFn } = options
-
-  // Command dispatch
-  if (payload.health) {
-    return handleHealthCheck()
+  const headers = request.headers || {}
+  
+  // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
+  const isHeaderCommand = isHeaderBasedCommand(headers)
+  logger.debug('commandRouter - isHeaderCommand:', isHeaderCommand)
+  if (isHeaderCommand) {
+    return routeCommandByHeaders(state, payload, request, response, options)
   }
   
-  if (payload.publish) {
-    return publish(state, payload.publish)
-  }
-  
-  if (payload.subscribe) {
-    return subscribe(state, payload.subscribe)
-  }
-  
-  if (payload.unsubscribe) {
-    return unsubscribe(state, payload.unsubscribe)
-  }
-  
-  if (payload.setup) {
-    return handleSetup(state, payload, defaultStartPort)
-  }
-  
-  if (payload.register) {
-    return handleRegister(state, payload)
-  }
-  
-  if (payload.unregister) {
-    return unregisterService(state, payload.unregister)
-  }
-  
-  if (payload.lookup) {
-    return findServiceLocation(state, payload.lookup)
-  }
-  
-  if (payload.call) {
-    // Pass request/response to enable streaming for service calls
-    return proxyServiceCall(state, { 
-      ...payload.call, 
-      request, 
-      response 
-    })
-  }
-  
-  // HTTP route resolution
-  if (request.url) {
-    // ignore health to keep noise down
-    if (request.url !== '/health') {
-      logger.debug(`resolving url "${request.url}" w/ payload ${JSON.stringify(payload)}`)
-      logger.debug(`request headers: ${JSON.stringify(request?.headers)}`)
-      logger.debug(`response?: ${!!response}`)
+  // PRIORITY 2: Check for HTTP routes (most specific - based on URL path)
+  // Routes should work without any special headers
+  if (request.url) { //&& request.url !== '/health' /* TODO VERIFY */) {
+    const routeMatch = state.routes.get(request.url)
+    const controllerMatch = !routeMatch && findControllerRoute(state, request.url)
+    
+    if (routeMatch || controllerMatch) {
+      logger.debug(`route matched for ${request.url}`)
+      return resolvePossibleRoute(state, request, response, payload)
     }
-    return resolvePossibleRoute(state, request, response, payload)
   }
+
+  logger.debug('no route or command matched', { headers, url: request.url })
   
-  // Default: return API documentation
-  return getRegistryApiDocumentation(handlerFn || routeCommand)
+  // No route or command matched - return API documentation
+  return getRegistryApiDocumentation()
 }
 
+/**
+ * Header-based command routing (NEW)
+ */
+async function routeCommandByHeaders(state, payload, request, response, options) {
+  const { defaultStartPort = 10000 } = options
+  const headers = request.headers || {}
+  const { command, serviceName, serviceLocation, serviceHome, pubsubChannel } = parseCommandHeaders(headers)
+  
+  logger.debug(`header-based command: ${command}`)
+  
+  switch (command) {
+    case COMMANDS.HEALTH:
+      return handleHealthCheck()
+    
+    case COMMANDS.SERVICE_SETUP:
+      if (!serviceName) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-name header')
+      }
+      if (!serviceHome) {
+        const HttpError = (await import('../../http-primitives/http-error.js')).default
+        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-home header')
+      }
+      return allocateServicePort(state, { 
+        service: serviceName, 
+        home: serviceHome 
+      }, defaultStartPort)
+    
+    case COMMANDS.SERVICE_REGISTER:
+    case COMMANDS.ROUTE_REGISTER:
+      return handleRegister(state, payload, headers)
+    
+    case COMMANDS.SERVICE_UNREGISTER:
+      return unregisterService(state, { 
+        service: serviceName, 
+        location: serviceLocation 
+      })
+    
+    case COMMANDS.SERVICE_LOOKUP:
+      return findServiceLocation(state, serviceName)
+    
+    case COMMANDS.SERVICE_CALL:
+      // Detect if we should use streaming proxy (for multipart uploads, large files, etc.)
+      const contentType = request.headers['content-type'] || ''
+      const useStreaming = contentType.includes('multipart/')
+
+      // TODO create helper function to handle streaming and buffered proxy calls here
+
+      logger.debug('useStreaming:', useStreaming)
+      logger.debug('contentType:', contentType)
+      
+      if (useStreaming) {
+        // Use streaming proxy - pipes request directly without buffering (for file uploads)
+        logger.debug(`Using streaming proxy for multipart content: ${serviceName}`)
+        return streamProxyServiceCall(state, { 
+          name: serviceName, 
+          request, 
+          response 
+        })
+      } else {
+        // Use buffered proxy - backward compatible for JSON/text payloads
+        return proxyServiceCall(state, { 
+          name: serviceName, 
+          payload, 
+          request, 
+          response 
+        })
+      }
+    
+    case COMMANDS.PUBSUB_PUBLISH:
+      if (!pubsubChannel) {
+        throw new HttpError(400, 'PUBSUB_PUBLISH requires micro-pubsub-channel header')
+      }
+      return publish(state, { 
+        type: pubsubChannel, 
+        message: payload 
+      })
+    
+    case COMMANDS.PUBSUB_SUBSCRIBE:
+      if (!pubsubChannel) {
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-pubsub-channel header')
+      }
+      if (!serviceLocation) {
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-service-location header')
+      }
+      return subscribe(state, { 
+        type: pubsubChannel, 
+        location: serviceLocation 
+      })
+    
+    case COMMANDS.PUBSUB_UNSUBSCRIBE:
+      if (!pubsubChannel) {
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-pubsub-channel header')
+      }
+      if (!serviceLocation) {
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-service-location header')
+      }
+      return unsubscribe(state, { 
+        type: pubsubChannel, 
+        location: serviceLocation 
+      })
+    
+    case COMMANDS.AUTH_LOGIN:
+    case COMMANDS.AUTH_REFRESH:
+      // Default to 'auth-service' if no specific auth service is configured
+      const authServiceName = 'auth-service'
+      if (!state.services.has(authServiceName)) {
+        throw new HttpError(503, `Auth service "${authServiceName}" not found`)
+      }
+      
+      // Proxy the auth request to the auth service
+      return proxyServiceCall(state, { 
+        name: authServiceName, 
+        payload, 
+        request, 
+        response 
+      })
+    
+    default:
+      throw new HttpError(400, `Unknown command: ${command}`)
+  }
+}

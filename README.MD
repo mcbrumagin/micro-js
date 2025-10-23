@@ -13,8 +13,8 @@ A lightweight, zero-dependency microservices framework for Node.js with built-in
 📡 **Pub/Sub Messaging** - Built-in publish-subscribe pattern  
 🔄 **Load Balancing** - Round-robin and random distribution strategies  
 🛣️ **HTTP Routing** - Direct and wildcard route support  
-💾 **Cache Service** - In-memory caching with TTL and eviction  
-🧪 **Fully Tested** - 67 comprehensive tests with 100% pass rate  
+💾 **Built-in Services** - Cache, auth, static files, and file upload services  
+🧪 **Fully Tested** - Comprehensive tests with 85%+ coverage
 📦 **Modular Architecture** - Clean, maintainable codebase  
 
 ## Installation
@@ -34,28 +34,17 @@ export MICRO_REGISTRY_URL=http://localhost:9999
 ```javascript
 import { registryServer, createService, callService } from 'micro-js'
 
-async function main() {
-  // Start the registry
-  await registryServer()
+// Start the registry
+await registryServer()
 
-  // Create services
-  await createService(function helloService(payload) {
-    return { message: 'Hello, ' + payload.name }
-  })
+// Create a service
+await createService(function helloService(payload) {
+  return { message: 'Hello, ' + payload.name }
+})
 
-  await createService(function greetingService(payload) {
-    // Call other services using this.call
-    const result = await this.call('helloService', { name: 'World' })
-    result.message += ' from micro-js!'
-    return result
-  })
-
-  // Call a service
-  const result = await callService('greetingService', {})
-  console.log(result.message) // "Hello, World from micro-js!"
-}
-
-main()
+// Call the service
+const result = await callService('helloService', { name: 'World' })
+console.log(result.message) // "Hello, World"
 ```
 
 ## Core Concepts
@@ -132,90 +121,82 @@ await createRoute('/api/users/*', function usersController(payload) {
 // Now visit: http://localhost:9999/api/users
 ```
 
-### Pub/Sub Messaging
 
-Built-in publish-subscribe for event-driven architectures:
-
-```javascript
-import { createPubSubService } from 'micro-js'
-
-const pubsub = await createPubSubService()
-
-// Subscribe to a channel
-await pubsub.subscribe('orders', async (message) => {
-  console.log('New order:', message)
-  // Process the order
-})
-
-// Publish to a channel
-await pubsub.publish('orders', {
-  orderId: '12345',
-  amount: 99.99
-})
-
-// Multiple subscribers on same channel
-await pubsub.subscribe('orders', async (message) => {
-  console.log('Analytics received:', message)
-})
-
-// Unsubscribe when done
-const subId = await pubsub.subscribe('temp', handler)
-await pubsub.unsubscribe('temp', subId)
-
-// Clean shutdown
-await pubsub.terminate()
-```
-
-**Pub/Sub Features:**
-- Multiple subscribers per channel
-- Automatic service cleanup
-- Error isolation (one handler error doesn't affect others)
-- Subscription tracking and management
+## Built-in Services
 
 ### Cache Service
 
 In-memory caching with automatic eviction:
 
 ```javascript
-import { cacheService } from 'micro-js'
+import { createCacheService } from 'micro-js/src/micro-services/cache-service.js'
 
-const cache = await cacheService({
+const cache = await createCacheService({
   expireTime: 60000,      // Default TTL: 60 seconds
   evictionInterval: 30000  // Check every 30 seconds
 })
 
 // Use via callService
-await callService('cache', {
-  set: { userId123: { name: 'Alice', email: 'alice@example.com' } }
-})
-
-await callService('cache', {
-  get: 'userId123'  // Returns the user object
-})
-
-// Set with custom expiration
-await callService('cache', {
-  setex: { sessionToken: 'abc123' },
-  ex: { sessionToken: 300000 }  // Expires in 5 minutes
-})
-
-// Get all cached items
-await callService('cache', { get: '*' })
-
-// Delete items
+await callService('cache', { set: { userId123: { name: 'Alice' } } })
+await callService('cache', { get: 'userId123' })
 await callService('cache', { del: { userId123: true } })
-
-// Clear entire cache
 await callService('cache', { clear: true })
+```
 
-// Update settings
-await callService('cache', {
-  settings: { evictionInterval: 60000 }
+### Pub/Sub Service
+
+Event-driven messaging with multiple subscribers:
+
+```javascript
+import { createPubSubService } from 'micro-js/src/micro-services/pubsub-service.js'
+
+const pubsub = await createPubSubService()
+
+// Subscribe to events
+await pubsub.subscribe('orders', async (message) => {
+  console.log('New order:', message)
 })
 
-// Clean shutdown (clears intervals)
-await cache.terminate()
+// Publish events
+await pubsub.publish('orders', { orderId: '12345', amount: 99.99 })
 ```
+
+### Static File Service
+
+Serve static files with flexible routing:
+
+```javascript
+import { createStaticFileService } from 'micro-js/src/micro-services/static-file-service.js'
+
+const staticServer = await createStaticFileService({
+  rootDir: './public',
+  urlRoot: '/assets',
+  fileMap: {
+    '/': 'index.html',
+    '/styles/*': 'css',
+    '/assets/*': 'public/assets'
+  }
+})
+```
+
+### File Upload Service
+
+Handle multipart file uploads with validation:
+
+```javascript
+import { createFileUploadService } from 'micro-js/src/micro-services/file-upload-service/file-upload-service.js'
+
+const uploadService = await createFileUploadService({
+  uploadDir: './uploads',
+  fileFieldName: 'file',
+  textFields: ['title', 'description'],
+  validateFile: (filename, mimetype) => {
+    return mimetype.startsWith('image/')
+  }
+})
+```
+
+**Note:** File services require external dependencies (`busboy` for uploads), while the core framework remains dependency-free.
 
 ## Load Balancing
 
@@ -231,50 +212,14 @@ await createService(function workerService(payload) {
   return { instance: 'B', result: payload.value * 2 }
 })
 
-await createService(function workerService(payload) {
-  return { instance: 'C', result: payload.value * 2 }
-})
-
 // Calls are automatically distributed using round-robin
-for (let i = 0; i < 6; i++) {
-  const result = await callService('workerService', { value: i })
-  console.log(`Call ${i}: handled by instance ${result.instance}`)
-}
-// Output: A, B, C, A, B, C (round-robin distribution)
+const result1 = await callService('workerService', { value: 1 }) // → instance A
+const result2 = await callService('workerService', { value: 2 }) // → instance B
 ```
 
-**Load Balancing Strategies:**
-- **Round-robin**: Default for `callService()` - distributes evenly
-- **Random**: Used for `lookup()` - picks random instance
+**Strategies:** Round-robin for `callService()`, random for service lookup.
 
-## Advanced Usage
-
-### Service Communication
-
-Services can call each other using `this.call()`:
-
-```javascript
-await createService(function dataService(payload) {
-  return { data: [1, 2, 3, 4, 5] }
-})
-
-await createService(function processorService(payload) {
-  const data = await this.call('dataService', {})
-  return {
-    total: data.data.reduce((a, b) => a + b, 0)
-  }
-})
-
-await createService(function apiService(payload) {
-  const processed = await this.call('processorService', {})
-  const cached = await this.call('cache', { 
-    setex: { lastResult: processed.total }
-  })
-  return processed
-})
-```
-
-### Error Handling
+## Error Handling
 
 Services can throw HTTP errors with status codes:
 
@@ -285,11 +230,6 @@ await createService(function validateService(payload) {
   if (!payload.userId) {
     throw new HttpError(400, 'Missing required field: userId')
   }
-  
-  if (payload.userId !== 'admin') {
-    throw new HttpError(403, 'Forbidden: insufficient permissions')
-  }
-  
   return { status: 'authorized' }
 })
 
@@ -302,128 +242,14 @@ try {
 }
 ```
 
-### Service Lookup
-
-Query the registry for service locations:
-
-```javascript
-import { httpRequest } from 'micro-js'
-
-// Get a random instance location
-const location = await httpRequest(process.env.MICRO_REGISTRY_URL, {
-  lookup: 'myService'
-})
-console.log(location) // "http://localhost:10001"
-
-// Get all services
-const allServices = await httpRequest(process.env.MICRO_REGISTRY_URL, {
-  lookup: 'all'
-})
-console.log(allServices)
-// {
-//   myService: ['http://localhost:10001', 'http://localhost:10002'],
-//   otherService: ['http://localhost:10003']
-// }
-```
-
-### Health Checks
-
-```javascript
-import { httpRequest } from 'micro-js'
-
-const health = await httpRequest(process.env.MICRO_REGISTRY_URL, {
-  health: true
-})
-console.log(health)
-// { status: 'ready', timestamp: 1234567890 }
-```
-
-### Dynamic Routes
-
-Routes can be registered dynamically at runtime:
-
-```javascript
-import { httpRequest } from 'micro-js'
-
-// Register a direct route
-await httpRequest(process.env.MICRO_REGISTRY_URL, {
-  register: {
-    type: 'route',
-    service: 'myService',
-    path: '/api/endpoint',
-    dataType: 'application/json'
-  }
-})
-
-// Register a controller route (with wildcard)
-await httpRequest(process.env.MICRO_REGISTRY_URL, {
-  register: {
-    type: 'route',
-    service: 'controllerService',
-    path: '/api/users/*',
-    dataType: 'dynamic'  // Auto-detects content type
-  }
-})
-```
-
-## Architecture
-
-### Registry Server Architecture
-
-The registry is built with a modular architecture for maintainability and testability:
-
-```
-📁 src/micro-core/registry/
-├── registry-state.js       - State management with Maps
-├── content-type-detector.js - MIME type detection
-├── load-balancer.js        - Service selection strategies
-├── pubsub-manager.js       - Pub/sub lifecycle
-├── service-registry.js     - Service CRUD operations
-├── route-registry.js       - HTTP route management
-├── http-route-handler.js   - Request routing
-└── command-router.js       - Command dispatching
-```
-
-**Benefits:**
-- Each module has single responsibility
-- Easy to test and maintain
-- Clear separation of concerns
-- No global state pollution
-
-### Communication Flow
-
-```
-Client Request
-    ↓
-Registry Server (routes by command or URL)
-    ↓
-[Service Discovery via Load Balancer]
-    ↓
-Target Service Instance
-    ↓
-[Service calls other services if needed]
-    ↓
-Response back to client
-```
-
-### Service Discovery Process
-
-1. Service calls `createService()` with a function
-2. Registry allocates a port (sequentially per domain)
-3. HTTP server starts on allocated port
-4. Service registers with registry (name + location)
-5. Registry subscribes service to updates
-6. Service is now discoverable by other services
-7. Requests are load-balanced across instances
-
 ## Environment Variables
 
 ```sh
 # Required - Registry server URL
-export MICRO_REGISTRY_URL=http://localhost:9999
+export MICRO_REGISTRY_URL=http://localhost:8080
 
 # Optional - Service-specific URL (for containerized deployments)
-export MICRO_SERVICE_URL=http://myservice:8080
+export MICRO_SERVICE_URL=http://myservice:10000
 ```
 
 ## Testing
@@ -436,7 +262,6 @@ npm test
 ```
 
 **Test Coverage:**
-- 67 tests covering all functionality
 - Unit tests for registry modules
 - Integration tests for services
 - Route handling tests
@@ -444,104 +269,70 @@ npm test
 - Load balancing tests
 - Error handling tests
 
-## Examples
-
-Check out the [`examples/`](./examples/) directory for more:
-
-- **[all-in-one](./examples/all-in-one/)** - Single-file microservices setup
-- **[multi-service](./examples/multi-service/)** - Kubernetes multi-container deployment
-- **[pubsub-cli-example.js](./examples/pubsub-cli-example.js)** - Pub/sub demonstration
-
-## Deployment
-
-### Docker/Kubernetes
-
-Each service can run in its own container:
-
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-ENV MICRO_REGISTRY_URL=http://registry:9999
-CMD ["node", "service.js"]
-```
-
-See [`examples/multi-service/`](./examples/multi-service/) for Kubernetes deployment examples.
-
-### Process Management
-
-For production deployments, use a process manager:
-
-```javascript
-// Graceful shutdown
-process.once('SIGINT', async () => {
-  await cache.terminate()
-  await pubsub.terminate()
-  await registry.terminate()
-  process.exit(0)
-})
-```
 
 ## API Reference
 
 ### Core Functions
 
 #### `registryServer(port?: number): Promise<Server>`
-Start the registry server.
+Start the registry server. Port defaults to value from `MICRO_REGISTRY_URL`.
 
-#### `createService(name: string, fn: Function): Promise<Server>`
-Create and register a service.
+#### `createService(name: string | Function, serviceFn?: Function, options?: Object): Promise<Server>`
+Create and register a service. Accepts named functions or separate name/function parameters.
 
 #### `callService(name: string, payload: any): Promise<any>`
-Call a service by name.
+Call a service by name with automatic load balancing.
 
-#### `createRoute(path: string, service: string | Function): Promise<void>`
-Register an HTTP route.
+#### `createRoute(path: string, service: string | Function, dataType?: string): Promise<Server>`
+Register an HTTP route. Supports wildcards (`/api/users/*`).
 
-### Pub/Sub Functions
+#### `publishMessage(channel: string, message: any): Promise<any>`
+Publish a message to a pub/sub channel.
 
-#### `createPubSubService(): Promise<PubSub>`
-Create a pub/sub client.
+#### `HttpError(status: number, message: string)`
+Create HTTP errors with status codes for service responses.
 
-#### `pubsub.publish(channel: string, message: any): Promise<Result>`
-Publish a message to a channel.
+### Service Helper Functions
 
-#### `pubsub.subscribe(channel: string, handler: Function): Promise<string>`
-Subscribe to a channel. Returns subscription ID.
+#### `createCacheService(options?: CacheOptions): Promise<Server>`
+Create an in-memory cache service with TTL and eviction.
 
-#### `pubsub.unsubscribe(channel: string, subId: string): Promise<boolean>`
-Unsubscribe from a channel.
+**Options:**
+- `expireTime?: number` - Default TTL in ms (default: 600000)
+- `evictionInterval?: number` - Eviction check interval in ms (default: 30000)
 
-#### `pubsub.listSubscriptions(): Object`
-List all active subscriptions.
-
-#### `pubsub.terminate(): Promise<void>`
-Clean up all subscriptions and handlers.
-
-### Cache Functions
-
-#### `cacheService(options?: CacheOptions): Promise<Server>`
-Create a cache service instance.
-
-**CacheOptions:**
-```typescript
-{
-  expireTime?: number      // Default TTL in ms (default: 600000)
-  evictionInterval?: number // Eviction check interval in ms (default: 30000)
-}
-```
-
-**Cache Commands:**
+**Cache Commands (via callService):**
 - `{ get: key }` - Get a value
-- `{ get: '*' }` - Get all values
-- `{ set: { key: value } }` - Set a value
-- `{ setex: { key: value } }` - Set with default expiration
-- `{ ex: { key: ttl } }` - Set custom expiration time
+- `{ set: { key: value } }` - Set a value  
 - `{ del: { key: true } }` - Delete a value
 - `{ clear: true }` - Clear all values
-- `{ settings: { evictionInterval: ms } }` - Update settings
+
+#### `createPubSubService(): Promise<PubSub>`
+Create a pub/sub service for event-driven messaging.
+
+**Methods:**
+- `publish(channel, message)` - Publish to channel
+- `subscribe(channel, handler)` - Subscribe with callback
+- `unsubscribe(channel, subId)` - Remove subscription
+- `terminate()` - Clean shutdown
+
+#### `createStaticFileService(options?: StaticOptions): Promise<Server>`
+Serve static files with flexible routing and security.
+
+**Options:**
+- `rootDir?: string` - Base directory (default: cwd)
+- `urlRoot?: string` - URL prefix (default: '/')
+- `fileMap?: Object` - URL to file mappings
+- `simpleSecurity?: boolean` - Basic path traversal protection
+
+#### `createFileUploadService(options?: UploadOptions): Promise<Server>`
+Handle multipart file uploads with validation. **Requires `busboy` dependency.**
+
+**Options:**
+- `uploadDir?: string` - Upload directory (default: './uploads')
+- `fileFieldName?: string` - Form field name (default: 'file')
+- `textFields?: string[]` - Additional form fields to capture
+- `validateFile?: Function` - File validation callback
 
 ## Roadmap
 

@@ -5,6 +5,8 @@
 
 import { Buffer } from 'node:buffer'
 import { suggestTypeFromUrl } from '../../http-primitives/http-helpers.js'
+import Logger from '../../utils/logger.js'
+const logger = new Logger()
 
 /**
  * Check if a string is valid JSON
@@ -39,6 +41,7 @@ export function detectContentType(payload, url = '') {
   
   if (typeof payload === 'string') {
     if (isJsonString(payload)) {
+      logger.debug('detectContentType: payload is a JSON string - returning application/json')
       return 'application/json'
     }
     
@@ -55,7 +58,13 @@ export function detectContentType(payload, url = '') {
   if (typeof payload === 'object') {
     const bufferType = detectFromBuffer(payload)
     if (bufferType) return bufferType
+    
+    // Plain JavaScript objects/arrays should be JSON
+    if (payload !== null) {
+      logger.debug('detectContentType: payload is an object - returning application/json')
+      return 'application/json'
+    }
   }
   
-  return dataType || 'text/html'
+  return dataType || 'text/plain'
 }

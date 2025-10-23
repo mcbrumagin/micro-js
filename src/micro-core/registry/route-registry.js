@@ -13,7 +13,7 @@ const logger = new Logger()
  */
 export function registerDirectRoute(state, { service, path, dataType = 'dynamic' }) {
   state.routes.set(path, { service, dataType })
-  logger.debug(`Route "${path}" registered for service "${service}"`)
+  logger.debug(`route "${path}" registered for service "${service}"`)
 }
 
 /**
@@ -22,7 +22,7 @@ export function registerDirectRoute(state, { service, path, dataType = 'dynamic'
 export function registerControllerRoute(state, { service, path, dataType = 'dynamic' }) {
   const basePath = path.replace('*', '')
   state.controllerRoutes.set(basePath, { service, dataType })
-  logger.debug(`Route controller "${path}" registered for service "${service}"`)
+  logger.debug(`route controller "${path}" registered for service "${service}"`)
 }
 
 /**
@@ -40,7 +40,9 @@ export function registerRoute(state, { service, path, dataType = 'dynamic' }) {
  * Find a controller route that matches the URL prefix
  */
 export function findControllerRoute(state, url) {
+  // logger.debug('findControllerRoute', { url, controllerRoutes: Object.fromEntries(state.controllerRoutes) })
   for (const [basePath, routeInfo] of state.controllerRoutes) {
+    // logger.debug('findControllerRoute', { basePath, routeInfo })
     const regex = new RegExp(`^${basePath}`, 'i')
     if (regex.test(url)) {
       return routeInfo

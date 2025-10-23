@@ -6,23 +6,22 @@
 import { updateCacheEntry } from './service-state.js'
 import { updateContext } from './service-context.js'
 import { Next } from '../../http-primitives/next.js'
+import { COMMANDS, parseCommandHeaders } from '../../utils/micro-headers.js'
 
 /**
- * Check if payload is a cache update from registry
- * Registry sends { service, location } to broadcast new service registrations
+ * Check if request is a cache update from registry
+ * Uses micro headers to identify internal cache update calls
  * 
- * TODO: Add authentication token or header validation for production security
- * For now, we assume this simple structure indicates a registry update
+ * @param {Object} request - HTTP request object with headers
+ * @returns {boolean} True if this is a cache update request
  */
-export function isCacheUpdatePayload(payload) {
-  return (
-    payload &&
-    typeof payload === 'object' &&
-    typeof payload.service === 'string' &&
-    typeof payload.location === 'string' &&
-    // Only these two fields should be present for cache updates
-    Object.keys(payload).length === 2
-  )
+export function isCacheUpdateRequest(request) {
+  if (!request || !request.headers) {
+    return false
+  }
+  
+  const { command } = parseCommandHeaders(request.headers)
+  return command === COMMANDS.CACHE_UPDATE
 }
 
 /**
@@ -42,12 +41,12 @@ export function isCacheUpdatePayload(payload) {
  */
 export function createCacheAwareHandler(serviceFn, cache, context) {
   return async function cacheAwareHandler(payload, request, response) {
-    // Check if this is a cache update from registry
-    if (isCacheUpdatePayload(payload)) {
-      const { service, location } = payload
+    // Check if this is a cache update from registry using micro headers
+    if (isCacheUpdateRequest(request)) {
+      const { serviceName, serviceLocation } = parseCommandHeaders(request.headers)
       
       // Update local cache
-      updateCacheEntry(cache, { service, location })
+      updateCacheEntry(cache, { service: serviceName, location: serviceLocation })
       
       // Update context to reflect new services
       updateContext(context, cache)
@@ -55,8 +54,8 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
       // Return success response
       return {
         status: 'cache_updated',
-        service,
-        location
+        service: serviceName,
+        location: serviceLocation
       }
     }
     
@@ -85,22 +84,22 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
  */
 export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
   return async function secureCacheAwareHandler(payload, request, response) {
-    // Validate token if provided
-    if (isCacheUpdatePayload(payload)) {
+    // Check if this is a cache update from registry using micro headers
+    if (isCacheUpdateRequest(request)) {
       // TODO: Validate request headers contain matching token
       // const authHeader = request?.headers?.['x-registry-token']
       // if (registryToken && authHeader !== registryToken) {
       //   throw new Error('Unauthorized cache update attempt')
       // }
       
-      const { service, location } = payload
-      updateCacheEntry(cache, { service, location })
+      const { serviceName, serviceLocation } = parseCommandHeaders(request.headers)
+      updateCacheEntry(cache, { service: serviceName, location: serviceLocation })
       updateContext(context, cache)
       
       return {
         status: 'cache_updated',
-        service,
-        location
+        service: serviceName,
+        location: serviceLocation
       }
     }
     

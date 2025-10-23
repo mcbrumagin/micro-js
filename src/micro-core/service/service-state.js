@@ -78,7 +78,7 @@ export function removeFromCache(cache, { service, location }) {
  * Clear all cache data
  */
 export function clearCache(cache) {
-  logger.debug(`clearCache`)
+  // logger.debug(`clearCache`)
   cache.services = {}
   cache.addresses = {}
 }

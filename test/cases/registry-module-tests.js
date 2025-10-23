@@ -275,7 +275,7 @@ async function testFindServiceLocation() {
   state.services.set('svc1', new Set(['loc1']))
   state.services.set('svc2', new Set(['loc2']))
   
-  const result = findServiceLocation(state, 'all')
+  const result = findServiceLocation(state, '*')
   
   await assert(result,
     r => typeof r === 'object',

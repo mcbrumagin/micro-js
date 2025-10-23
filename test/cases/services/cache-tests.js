@@ -1,6 +1,8 @@
 import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../core/index.js'
-import createCacheService from '../../../src/micro-services/cache-service.js'
-import { callService, Logger } from '../../../src/index.js'
+import createCacheService, { createInMemoryCache } from '../../../src/micro-services/cache-service.js'
+import { callService, createService, Logger } from '../../../src/index.js'
+import { isCacheUpdateRequest } from '../../../src/micro-core/service/cache-handler.js'
+import { buildCacheUpdateHeaders, parseCommandHeaders } from '../../../src/utils/micro-headers.js'
 
 const logger = new Logger({
   // logGroup: 'cacheServiceTests',
@@ -15,7 +17,7 @@ async function testBasicSetAndGet() {
   await terminateAfter(
     await startRegistry(),
     await createCacheService(),
-    async () => {
+    async ([registry, cache]) => {
       // Set a value
       const setResult = await callService('cache', { set: { key1: 'value1' } })
       await assert(setResult, r => r === true)
@@ -377,6 +379,115 @@ async function testConcurrentOperations() {
   )
 }
 
+/**
+ * Test cache update mechanism with micro headers
+ * This tests that services can receive cache updates from the registry
+ * without conflicting with their normal service function
+ */
+async function testCacheUpdateWithHeaders() {
+  let cacheUpdatesReceived = []
+  
+  // Create a test service that tracks cache updates
+  const testService = async function(payload, request, response) {
+    // This service should only handle non-cache-update requests
+    return { message: 'normal service call', payload }
+  }
+  
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test-service', testService, { port: 11001 }),
+    async () => {
+      // Wait a moment for service registration
+      await sleep(100)
+      
+      // Test 1: Verify normal service calls work
+      const normalResult = await callService('test-service', { test: 'data' })
+      await assert(normalResult,
+        r => r.message === 'normal service call',
+        r => r.payload.test === 'data'
+      )
+      
+      // Test 2: Test cache update header detection
+      const cacheHeaders = buildCacheUpdateHeaders('new-service', 'http://localhost:11002')
+      const mockRequest = { headers: cacheHeaders }
+      
+      const isCacheUpdate = isCacheUpdateRequest(mockRequest)
+      await assert(isCacheUpdate, result => result === true)
+      
+      // Test 3: Test non-cache-update header detection
+      const normalHeaders = { 'content-type': 'application/json' }
+      const normalRequest = { headers: normalHeaders }
+      
+      const isNotCacheUpdate = isCacheUpdateRequest(normalRequest)
+      await assert(isNotCacheUpdate, result => result === false)
+      
+      logger.info('Cache update header mechanism working correctly')
+    }
+  )
+}
+
+/**
+ * Test that service registration triggers cache updates to other services
+ * This test verifies that when a new service registers, existing services
+ * receive cache update notifications via micro headers
+ */
+async function testServiceRegistrationCacheUpdate() {
+  let service1, service2, newService
+  
+  await terminateAfter(
+    await startRegistry(),
+    service1 = await createService('tracking-service-1', async () => ({ message: 'service1' }), { port: 11001 }),
+    service2 = await createService('tracking-service-2', async () => ({ message: 'service2' }), { port: 11002 }),
+    async () => {
+      // Wait for initial registrations
+      await sleep(200)
+      
+      // Get initial cache state for both services
+      const initialCache1 = Object.keys(service1.cache.services || {})
+      const initialCache2 = Object.keys(service2.cache.services || {})
+      
+      logger.info(`Initial cache service1: ${JSON.stringify(initialCache1)}`)
+      logger.info(`Initial cache service2: ${JSON.stringify(initialCache2)}`)
+      
+      // Register a new service - this should trigger cache updates to existing services
+      newService = await createService('new-service', async () => ({ message: 'new service' }), { port: 11003 })
+      
+      // Wait for cache updates to propagate
+      await sleep(300)
+      
+      // Check that both services now have the new service in their cache
+      const updatedCache1 = Object.keys(service1.cache.services || {})
+      const updatedCache2 = Object.keys(service2.cache.services || {})
+      
+      logger.info(`Updated cache service1: ${JSON.stringify(updatedCache1)}`)
+      logger.info(`Updated cache service2: ${JSON.stringify(updatedCache2)}`)
+      
+      // Verify that both services received the cache update
+      await assert(updatedCache1,
+        cache => cache.includes('new-service'),
+        cache => cache.length > initialCache1.length
+      )
+      
+      await assert(updatedCache2,
+        cache => cache.includes('new-service'),
+        cache => cache.length > initialCache2.length
+      )
+      
+      logger.info('Service registration cache updates working correctly')
+    }
+  )
+}
+
+function testCacheMemoryOnly() {
+  let cache = createInMemoryCache({ isMemoryOnly: true })
+  cache.set('test', 'value1')
+  let value = cache.get('test')
+  
+  return assert(value,
+    v => v === 'value1'
+  )
+}
+
 export default {
   testBasicSetAndGet,
   testSetMultipleKeys,
@@ -389,5 +500,8 @@ export default {
   testCacheComplexObjects,
   testEvictionInterval,
   testSetMultipleExpirations,
-  testConcurrentOperations
+  testConcurrentOperations,
+  testCacheUpdateWithHeaders,
+  testServiceRegistrationCacheUpdate,
+  testCacheMemoryOnly
 }

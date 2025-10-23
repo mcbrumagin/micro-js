@@ -1,3 +1,7 @@
+import { Logger } from '../../src/index.js'
+
+const logger = new Logger()
+
 export class AssertError extends Error {
 
   constructor(val, assertType, assertFnMessage) {
@@ -90,11 +94,14 @@ export async function assertErr(errOrFn, ...assertFns) {
         .then(val => err = val)
     } catch (e) {
       err = e
+    } finally {
+      if (err.terminate) await err.terminate()
     }
   } else err = errOrFn
 
   if (!(err instanceof Error)) {
-    let message = `Assert expected an error but received \nval: ${err}`
+    let prettyPrintVal = logger.prettyPrint(err)
+    let message = `Assert expected an error but received \nval: ${prettyPrintVal}`
     if (typeof errOrFn === 'function') message += `\n fn: ${errOrFn}`
     throw new AssertError(err, 'assertErr', message)
   }

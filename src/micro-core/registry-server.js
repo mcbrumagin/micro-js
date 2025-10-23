@@ -39,6 +39,7 @@ export default async function createRegistryServer(port) {
   const defaultStartPort = registryPort && (Number(registryPort) + 1) || 10000
   
   // Create HTTP server with main request handler
+  // Enable streamPayload for multipart uploads to pass through
   const server = await httpServer(port, async function registryServer(payload, request, response) {
     try {
       const result = await routeCommand(state, payload, request, response, {
@@ -53,16 +54,23 @@ export default async function createRegistryServer(port) {
       
       return result
     } catch (err) {
-      logger.error(err.stack)
-      response.writeHead(err.status || 500)
-      response.end(err.stack)
+      // logger.error(err.stack) // TODO debugError
+      // response.writeHead(err.status || 500)
+
+      // response.statusCode = err.status || 500
+      // response.setHeader('content-type', 'text/plain')
+      // response.end(err.stack)
+      err.status = err.status || 500
+      throw err
     }
+  }, {
+    streamPayload: false // Registry buffers by default, but streaming proxy will handle multipart
   })
   
   // Override terminate to clean up state
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    logger.debug('Registry terminating')
+    logger.debug('registry terminating')
     resetState(state)
     await httpServerTerminate()
   }
