@@ -6,7 +6,7 @@ import fs from 'fs'
 import { next } from '../http-primitives/next.js'
 import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
-const logger = new Logger('static-file-service')
+const logger = new Logger({ logGroup: 'micro-services' })
 
 /* --- example filemap ---
 {
@@ -171,6 +171,14 @@ function getLastModified(filePath) {
     || stats.birthtime.toISOString() // creation time
 }
 
+const prettyPrintQuickLookup = (quickLookup) => {
+  let prettyString = '\n'
+  for (let url in quickLookup) {
+    prettyString += `  ${url} → ${path.relative(process.cwd(), quickLookup[url])}\n`
+  }
+  return prettyString
+}
+
 // TODO dev mode default returns quickLookup path urls
 const $404 = () => new HttpError(404, 'Not found')
 
@@ -198,7 +206,8 @@ export default async function createStaticFileService({
   }
 
   const quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
-  logger.debug('static-file-service - quickLookup:', quickLookup)
+  logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}`)
+  // logger.debug('static-file-service - quickLookup:', quickLookup)
   
   async function getFile(payload, request, response) {
     const url = payload?.url || request?.url

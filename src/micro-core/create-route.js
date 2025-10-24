@@ -7,7 +7,7 @@ import envConfig from './env-config.js'
 import { buildRouteRegisterHeaders, buildLookupHeaders } from '../utils/micro-headers.js'
 import http from 'node:http'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 const falseOnFailure = async fn => {
   try {

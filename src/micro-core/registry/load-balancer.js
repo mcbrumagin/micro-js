@@ -7,7 +7,7 @@ import HttpError from '../../http-primitives/http-error.js'
 import { setToArray } from './registry-state.js'
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 // Track round-robin state per service
 const roundRobinState = new Map()

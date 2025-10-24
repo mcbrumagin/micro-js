@@ -5,7 +5,7 @@
 
 import Logger from './logger.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-utils' })
 
 /**
  * Default retry configuration

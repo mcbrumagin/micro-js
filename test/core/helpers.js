@@ -1,10 +1,6 @@
 import { registryServer, Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'helpers', // TODO override per function
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 

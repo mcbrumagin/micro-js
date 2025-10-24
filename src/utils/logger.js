@@ -78,7 +78,7 @@ function getLogLineNumber(excludeFullPathInLogLines = false) {
 
   Error.captureStackTrace(obj, getLogLineNumber)
   
-  let fullPathLogLine = obj.stack.split('\n').slice(2, 3)[0]
+  let fullPathLogLine = obj.stack.split('\n').slice(3, 4)[0] // ignores internal logging stack frames
   let logLineInfo
   
   if (fullPathLogLine.indexOf('(') > -1) {
@@ -185,6 +185,7 @@ export default class Logger {
       logFileRetainLineLimit: 0,
       includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true',
       excludeFullPathInLogLines: process.env.LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES === 'true',
+      muteLogGroupOutput: process.env.MUTE_LOG_GROUP_OUTPUT === 'true',
       includeLogLevelInOutput: false,
       outputJson: false, // TODO for cloudwatch and other log aggregators
       warnLevel: false,
@@ -234,53 +235,70 @@ export default class Logger {
     return logContent.replace(/[ \t]{2,}/ig, ' ')
   }
 
-  createLogFn(level) {
+  outputJsonFormatLog(level, ...args) {
+    let { logGroup } = this.options
+
+    let output = {}
+    output.src = path.relative(process.cwd(), getLogLineNumber(false))
+    output.level = level
+    output.rank = this.activeLogLevels.indexOf(level)
+    output.group = logGroup
+    output.message = args
+    output.error = args.find(arg => arg instanceof Error)
+    return JSON.stringify(output, null, this.options.maxDepth + 1) // +1 since the output is an object itself
+  }
+
+  outputPlainFormatLog(level, ...args) {
     let {
-      // outputJson,
       includeLogLineNumbers,
       excludeFullPathInLogLines,
       logGroup
-     } = this.options
+    } = this.options
 
-     let { activeLogLevels, writeColor } = this
+    const hasError = args.some(arg => arg instanceof Error || (arg && arg.stack))
+    const effectiveLevel = (level === 'debug' && hasError) ? 'debugErr' : level
+    
+    if (this.activeLogLevels.indexOf(effectiveLevel) < 0) {
+      return
+    }
+    
+    let color = getColorForLogLevel(effectiveLevel) || ''
+    args.unshift(color)
+    
+    if (includeLogLineNumbers) args.unshift(
+      this.writeColor('white', 
+      getLogLineNumber(excludeFullPathInLogLines),
+      colors.reset
+    ))
+
+    if (!this.options.muteLogGroupOutput && logGroup)
+      args.unshift(this.writeColor('white', logGroup, colors.reset))
+
+    let logContent = ''
+    for (let arg of args) {
+      if (arg instanceof Error) logContent += arg.stack
+      else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
+      else logContent += arg
+
+      if (arg !== color && !logContent.endsWith('\n')) logContent += ' | '
+    }
+    logContent = logContent.slice(0, logContent.length - 3) + colors.reset
+    
+    const consoleMethod = (effectiveLevel === 'debugErr') ? 'debug' : level
+    if (ogConsole[consoleMethod]) ogConsole[consoleMethod](logContent)
+    else ogConsole.log(logContent)
+    return logContent
+  }
+
+  createLogFn(level) {
+    let { outputJson } = this.options
 
     let isMuted = false
     if (this[level]) throw new Error(`Already created log fn for level ${level}`)
     else this[level] = function log(...args) {
       if (isMuted) return
-      
-      const hasError = args.some(arg => arg instanceof Error || (arg && arg.stack))
-      const effectiveLevel = (level === 'debug' && hasError) ? 'debugErr' : level
-      
-      if (activeLogLevels.indexOf(effectiveLevel) < 0) {
-        return
-      }
-      
-      let color = getColorForLogLevel(effectiveLevel) || ''
-      args.unshift(color)
-      
-      if (includeLogLineNumbers) args.unshift(
-        writeColor('white', 
-        getLogLineNumber(excludeFullPathInLogLines),
-        colors.reset
-      ))
 
-      if (logGroup) args.unshift(writeColor('white', logGroup, colors.reset))
-
-      let logContent = ''
-      for (let arg of args) {
-        if (arg instanceof Error) logContent += arg.stack
-        else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
-        else logContent += arg
-
-        if (arg !== color) logContent += ' | '
-      }
-      logContent = logContent.slice(0, logContent.length - 3) + colors.reset
-      
-      const consoleMethod = (effectiveLevel === 'debugErr') ? 'debug' : level
-      if (ogConsole[consoleMethod]) ogConsole[consoleMethod](logContent)
-      else ogConsole.log(logContent)
-      return logContent
+      return outputJson ? this.outputJsonFormatLog(level, ...args) : this.outputPlainFormatLog(level, ...args)
     }
 
     if (this[level]) {

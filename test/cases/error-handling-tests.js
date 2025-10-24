@@ -1,11 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createService, createRoute, callService, HttpError, Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'errorHandlingTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 // ============================================================================
 // Service Validation Error Tests

@@ -4,11 +4,7 @@ import { Buffer } from 'node:buffer'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const logger = new Logger({
-  // logGroup: 'streamingTests',
-  includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 /**
  * Test that JSON payloads still work (backward compatibility)

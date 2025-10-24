@@ -3,11 +3,7 @@ import { createService, createRoute, callService, Logger } from '../../src/index
 import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
 import httpRequest from '../../src/http-primitives/http-request.js'
 
-const logger = new Logger({
-  // logGroup: 'headerCommandTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 const getRegistryToken = () => process.env.MICRO_REGISTRY_TOKEN
 

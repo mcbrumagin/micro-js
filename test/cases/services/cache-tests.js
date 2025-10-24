@@ -4,11 +4,7 @@ import { callService, createService, Logger } from '../../../src/index.js'
 import { isCacheUpdateRequest } from '../../../src/micro-core/service/cache-handler.js'
 import { buildCacheUpdateHeaders, parseCommandHeaders } from '../../../src/utils/micro-headers.js'
 
-const logger = new Logger({
-  // logGroup: 'cacheServiceTests',
-  includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 /**
  * Test basic set and get operations

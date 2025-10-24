@@ -2,11 +2,7 @@ import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../c
 import createPubSubService from '../../../src/micro-services/pubsub-service.js'
 import { Logger, publishMessage } from '../../../src/index.js'
 
-const logger = new Logger({
-  logGroup: 'pubSubTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 /**
  * Test basic publish without any subscribers

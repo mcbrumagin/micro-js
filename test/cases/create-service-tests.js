@@ -4,11 +4,7 @@ import { createService, createServices, callService, Logger, HttpError, next } f
 import httpRequest from '../../src/http-primitives/http-request.js'
 import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
 
-const logger = new Logger({
-  // logGroup: 'serviceTests',
-  includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 async function testCreateService() {
   await terminateAfter(

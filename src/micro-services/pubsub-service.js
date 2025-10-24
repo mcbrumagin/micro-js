@@ -8,11 +8,9 @@ import Logger from '../utils/logger.js'
 import envConfig from '../micro-core/env-config.js'
 import { buildPublishHeaders, buildSubscribeHeaders, buildUnsubscribeHeaders } from '../utils/micro-headers.js'
 
+const logger = new Logger({ logGroup: 'micro-services' })
+
 export default async function createPubSubService({ useAuthService = null } = {}) {
-  const logger = new Logger({
-    logGroup: 'pubsub',
-    includeLogLineNumbers: true
-  })
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
   

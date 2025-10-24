@@ -1,11 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createService, callService, createRoutes, Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'loadBalancerTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 // ============================================================================
 // Round-Robin Load Balancing Tests

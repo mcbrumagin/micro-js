@@ -6,7 +6,7 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-const logger = new Logger('file-upload-service')
+const logger = new Logger({ logGroup: 'micro-services' })
 
 /**
  * Handles streaming multipart file upload

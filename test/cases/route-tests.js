@@ -2,11 +2,7 @@ import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.
 import { createRoute, createRoutes, createService, HttpError, Logger } from '../../src/index.js'
 import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
 
-const logger = new Logger({
-  // logGroup: 'routesTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 async function testBasicRoute() {
   await terminateAfter(

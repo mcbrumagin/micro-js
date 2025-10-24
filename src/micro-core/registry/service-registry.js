@@ -11,7 +11,7 @@ import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocati
 import { selectServiceLocation } from './load-balancer.js'
 import { HEADERS } from '../../utils/micro-headers.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 
 // TODO util/helper?
@@ -121,7 +121,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * Register a service instance
  */
 export async function registerService(state, { service, location, useAuthService }) {
-  logger.info(`Service "${service}" registered at ${location}`)
+  logger.debug(`registerService - service "${service}" registering for ${location}`)
   
   // Add to services map
   if (!state.services.has(service)) {

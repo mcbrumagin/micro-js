@@ -9,9 +9,7 @@ import os from 'os'
 import http from 'http'
 import { HEADERS, COMMANDS } from '../../../src/utils/micro-headers.js'
 
-const logger = new Logger({
-  includeLogLineNumbers: true,
-})
+const logger = new Logger()
 
 async function createTempUploadDir() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'file-upload-test-'))

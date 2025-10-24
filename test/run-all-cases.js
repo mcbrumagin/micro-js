@@ -24,7 +24,6 @@ overrideConsoleGlobally({
 })
 
 const logger = new Logger({
-  // logGroup: 'test',
   includeLogLineNumbers: true,
   warnLevel: true
 })

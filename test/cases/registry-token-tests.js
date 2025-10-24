@@ -5,10 +5,7 @@ import httpRequest from '../../src/http-primitives/http-request.js'
 import envConfig from '../../src/micro-core/env-config.js'
 import Logger from '../../src/utils/logger.js'
 
-const logger = new Logger({
-  // logGroup: 'registryTokenTests',
-  // includeLogLineNumbers: true
-})
+const logger = new Logger()
 
 // Helper to set environment temporarily
 function setEnv(key, value) {

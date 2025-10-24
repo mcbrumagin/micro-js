@@ -1,7 +1,7 @@
 import createService from '../micro-core/create-service.js'
 import Logger from '../utils/logger.js'
 
-let logger = new Logger({logGroup: 'cache'})
+let logger = new Logger({ logGroup: 'micro-services' })
 
 function initializeCacheService(expireTime, evictionInterval) {
   let cache = {}

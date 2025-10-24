@@ -11,7 +11,7 @@ import { createRegistryState, resetState } from './registry/registry-state.js'
 import { routeCommand } from './registry/command-router.js'
 import { validateRegistryEnvironment } from './registry/registry-auth.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 /**
  * Create and start the registry server

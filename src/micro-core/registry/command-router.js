@@ -23,7 +23,7 @@ import { validateRegistryToken } from './registry-auth.js'
 
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 /**
  * Commands that require registry token validation

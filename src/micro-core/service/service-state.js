@@ -1,6 +1,6 @@
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger({logGroup: 'service-state'})
+const logger = new Logger({logGroup: 'micro-core'})
 
 /**
  * Service State Management

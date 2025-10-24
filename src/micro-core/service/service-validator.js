@@ -7,7 +7,7 @@ import os from 'node:os'
 import envConfig from '../env-config.js'
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 /**
  * Validate and extract registry host from environment

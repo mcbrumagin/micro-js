@@ -25,7 +25,7 @@ import { createServiceBatch } from './service/service-batch.js'
 
 import crypto from 'crypto'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 /**
  * Configuration for service setup

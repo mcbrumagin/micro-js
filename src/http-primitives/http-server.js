@@ -5,7 +5,7 @@ import Logger from '../utils/logger.js'
 import fs from 'node:fs'
 import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'http-primitives' })
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 

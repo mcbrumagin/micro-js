@@ -10,7 +10,7 @@ import { proxyServiceCall, streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
 import { Next } from '../../http-primitives/next.js'
 
-const logger = new Logger()
+const logger = new Logger({ logGroup: 'micro-core' })
 
 /**
  * Wrap result in standard format if needed

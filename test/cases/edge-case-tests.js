@@ -1,11 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createService, createRoute, callService, Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'edgeCaseTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 // ============================================================================
 // Empty and Falsy Payload Tests

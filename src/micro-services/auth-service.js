@@ -7,7 +7,7 @@ import envConfig from '../micro-core/env-config.js'
 import Logger from '../utils/logger.js'
 
 
-const logger = new Logger('auth-service')
+const logger = new Logger({ logGroup: 'micro-services' })
 
 // eventually will be backed by a database
 

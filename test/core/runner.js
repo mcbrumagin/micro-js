@@ -10,11 +10,7 @@
 
 import { Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'runTests',
-  includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 function formatErrorDetails(failedCases) {
   return failedCases.map(({name, err}) => {

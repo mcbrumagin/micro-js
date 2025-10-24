@@ -6,11 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-const logger = new Logger({
-  // logGroup: 'staticFileServiceTests',
-  includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 async function createTempTestFiles() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'static-file-test-'))

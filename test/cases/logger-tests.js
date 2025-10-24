@@ -1,11 +1,7 @@
 import { assert, assertErr } from '../core/assert.js'
 import { Logger } from '../../src/index.js'
 
-const logger = new Logger({
-  // logGroup: 'loggerTests',
-  // includeLogLineNumbers: true,
-  // warnLevel: true
-})
+const logger = new Logger()
 
 async function testLoggerStringify() {
   let escape = 'escape test'
