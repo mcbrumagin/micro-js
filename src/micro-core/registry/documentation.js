@@ -1,7 +1,7 @@
 import HttpError from '../../http-primitives/http-error.js'
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-core' })
+const logger = new Logger({ logGroup: 'micro-registry' })
 
 /**
  * Get registry API documentation

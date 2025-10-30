@@ -55,11 +55,11 @@ function populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlRoute, tar
 
   for (let file of files) {
     const urlPath = urlPrefix === '' ? `/${file}` : `${urlPrefix}/${file}`
-    quickLookup[urlPath] = path.join(rootDir, targetDir, file)
-
     if (fs.statSync(path.join(rootDir, targetDir, file)).isDirectory()) {
       // TODO VERIFY
       populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlPath, `${targetDir}/${file}`)
+    } else {
+      quickLookup[urlPath] = path.join(rootDir, targetDir, file)
     }
   }
 }

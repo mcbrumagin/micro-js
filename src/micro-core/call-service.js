@@ -4,7 +4,7 @@ import envConfig from './env-config.js'
 import { buildCallHeaders } from '../utils/micro-headers.js'
 import Logger from '../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-core' })
+const logger = new Logger({ logGroup: 'micro-api' })
 
 // TODO implement for returned errors? do we need this?
 // function throwErrorFromResult(result) {

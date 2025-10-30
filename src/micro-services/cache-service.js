@@ -55,7 +55,8 @@ function initializeCacheService(expireTime, evictionInterval) {
     else if (payload.ex) for (let key in payload.ex) expireCache[key] = getExpire(payload.ex[key])
     else if (payload.setex) for (let key in payload.setex) {
       cache[key] = payload.setex[key]
-      expireCache[key] = getExpire()
+      // expireCache[key] = getExpire()
+      expireCache[key] = getExpire(payload.expire)
     }
     else if (payload.rex) for (let key in payload.rex) delete expireCache[key]
     else if (payload.del) for (let key in payload.del) delete cache[key] && delete expireCache[key]
@@ -78,7 +79,8 @@ function bindCacheHelpers(cacheSystem, cacheService) {
 
   cacheSystem.set = (key, value) => cacheService({ set: { [key]: value } })
   cacheSystem.get = (key) => cacheService({ get: key })
-  cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value, expire } })
+  cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value }, expire })
+  cacheSystem.ex = (key, expire) => cacheService({ ex: { [key]: expire } })
   cacheSystem.getex = (key) => cacheService({ getex: key })
   cacheSystem.del = (key) => cacheService({ del: { [key]: true } })
   cacheSystem.clear = () => cacheService({ clear: true })

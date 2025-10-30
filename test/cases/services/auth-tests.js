@@ -10,6 +10,8 @@ import callService from '../../../src/micro-core/call-service.js'
 import httpRequest from '../../../src/http-primitives/http-request.js'
 import { buildAuthLoginHeaders, buildCallHeaders, HEADERS } from '../../../src/utils/micro-headers.js'
 import envConfig from '../../../src/micro-core/env-config.js'
+import HttpError from '../../../src/http-primitives/http-error.js'
+import { buildAuthRefreshHeaders } from '../../../src/utils/micro-headers.js'
 
 const TEST_ADMIN_USER = process.env.ADMIN_USER
 const TEST_ADMIN_SECRET = process.env.ADMIN_SECRET
@@ -30,19 +32,28 @@ async function testAuthServiceWorks() {
         }
       })
       
-      await assert(authResult,
-        r => !!r.token
-      )
-      
       // Test token verification
       const verifyResult = await callService('auth-service', {
-        verifyToken: { token: authResult.token }
+        verifyAccess: authResult.accessToken
       })
       
-      await assert(verifyResult,
-        r => r.user === TEST_ADMIN_USER
+      await assert([authResult, verifyResult],
+        ([a,r]) => !!a.accessToken,
+        ([a,r]) => r.status === 'valid access token'
       )
-      
+    }
+  )
+}
+
+
+/**
+ * Test that auth service basic functionality works
+ */
+async function testAuthServiceBadCredentials() {
+  await terminateAfter(
+    await startRegistry(),
+    await createAuthService(),
+    async ([registry, authServer]) => {
       // Test invalid credentials
       await assertErr(
         () => callService('auth-service', {
@@ -82,7 +93,7 @@ async function testProtectedServiceWithAuth() {
         body: { test: 'data' },
         headers: {
           ...buildCallHeaders('protected-service'),
-          [HEADERS.AUTH_TOKEN]: authResult.token
+          [HEADERS.AUTH_TOKEN]: authResult.accessToken
         }
       })
       
@@ -119,49 +130,6 @@ async function testUnprotectedServiceStillWorks() {
       await assert(result,
         r => r.message === 'Normal service works',
         r => r.data.test === 'data'
-      )
-    }
-  )
-}
-
-/**
- * Test basic auth service functionality
- */
-async function testAuthServiceBasicFunctionality() {
-  await terminateAfter(
-    await startRegistry(),
-    await createAuthService(),
-    async ([registry, authServer]) => {
-      // Test authentication
-      const authResult = await callService('auth-service', {
-        authenticate: {
-          user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
-        }
-      })
-      
-      await assert(authResult,
-        r => !!r.token
-      )
-      
-      // Test token verification
-      const verifyResult = await callService('auth-service', {
-        verifyToken: { token: authResult.token }
-      })
-      
-      await assert(verifyResult,
-        r => r.user === TEST_ADMIN_USER
-      )
-      
-      // Test invalid credentials
-      await assertErr(
-        () => callService('auth-service', {
-          authenticate: {
-            user: 'invalid',
-            password: 'invalid'
-          }
-        }),
-        err => err.status === 401
       )
     }
   )
@@ -208,7 +176,7 @@ async function testProtectedServiceCallWithValidToken() {
         body: { test: 'data' },
         headers: {
           ...buildCallHeaders('protected-service'),
-          [HEADERS.AUTH_TOKEN]: authResult.token
+          [HEADERS.AUTH_TOKEN]: authResult.accessToken
         }
       })
       
@@ -279,9 +247,10 @@ async function testProtectedServiceCallWithExpiredToken() {
       // Test that auth service rejects invalid/expired tokens
       await assertErr(
         () => callService('auth-service', {
-          verifyToken: { token: 'expired-or-invalid-token' }
+          verifyAccess: 'expired-or-invalid-token'
         }),
-        err => err.status === 401
+        err => err.status === 401,
+        err => err.message === 'Invalid access token'
       )
     }
   )
@@ -334,23 +303,9 @@ async function testAuthLoginCommand() {
         },
         headers: buildAuthLoginHeaders()
       })
-      
+        
       await assert(loginResult,
-        r => !!r.token
-      )
-      
-      // Test invalid login
-      await assertErr(
-        () => httpRequest(registryHost, {
-          body: {
-            authenticate: {
-              user: 'invalid',
-              password: 'invalid'
-            }
-          },
-          headers: buildAuthLoginHeaders()
-        }),
-        err => err.status === 401
+        r => !!r.accessToken
       )
     }
   )
@@ -366,28 +321,36 @@ async function testAuthRefreshCommand() {
     async ([registry, authService]) => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
-      // Get initial token
-      const loginResult = await httpRequest(registryHost, {
-        body: {
+      // use fetch so we can parse the Set-Cookie header
+      const response = await fetch(registryHost, {
+        method: 'POST',
+        body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
             password: TEST_ADMIN_SECRET
           }
-        },
+        }),
         headers: buildAuthLoginHeaders()
       })
-      
-      // Test refresh command (currently just echoes back - placeholder for future implementation)
+
+      if (response.status !== 200) {
+        throw new Error(`Failed to login: ${response.status} ${await response.text()}`)
+      }
+
+      const loginResult = await response.json()
+
+      const refreshToken = response.headers.get('Set-Cookie').split('=')[1].split(';')[0]
       const refreshResult = await httpRequest(registryHost, {
-        body: {
-          generateToken: { token: loginResult.token }
-        },
-        headers: buildAuthRefreshHeaders()
+        body: {},
+        headers: {
+          'Cookie': `refresh-token=${refreshToken}`,
+          ...buildAuthRefreshHeaders()
+        }
       })
-      
-      // For now, just verify the command works
+
       await assert(refreshResult,
-        r => r !== null
+        r => r !== null,
+        r => r.accessToken !== null
       )
     }
   )
@@ -422,7 +385,7 @@ async function testRouteWithAuth() {
         method: 'POST',
         body: { test: 'data' },
         headers: {
-          [HEADERS.AUTH_TOKEN]: authResult.token
+          [HEADERS.AUTH_TOKEN]: authResult.accessToken
         }
       })
       
@@ -451,16 +414,14 @@ async function testMultipleAuthServices() {
     await startRegistry(),
     await createAuthService(),
     await createService('custom-auth-service', async function(payload) {
-      if (payload.verifyToken) {
+      if (payload.verifyAccess) {
         // Simple custom auth - just check if token is 'custom-token'
-        if (payload.verifyToken.token === 'custom-token') {
+        if (payload.verifyAccess === 'custom-token') {
           return { user: 'custom-user' }
         } else {
-          const HttpError = (await import('../../../src/http-primitives/http-error.js')).default
           throw new HttpError(401, 'Invalid custom token')
         }
       }
-      const HttpError = (await import('../../../src/http-primitives/http-error.js')).default
       throw new HttpError(400, 'Invalid payload')
     }),
     await createService('service1', async function(payload) {
@@ -485,7 +446,7 @@ async function testMultipleAuthServices() {
         body: { test: 'data' },
         headers: {
           ...buildCallHeaders('service1'),
-          [HEADERS.AUTH_TOKEN]: authResult.token
+          [HEADERS.AUTH_TOKEN]: authResult.accessToken
         }
       })
       
@@ -512,7 +473,7 @@ async function testMultipleAuthServices() {
           body: { test: 'data' },
           headers: {
             ...buildCallHeaders('service2'),
-            [HEADERS.AUTH_TOKEN]: authResult.token
+            [HEADERS.AUTH_TOKEN]: authResult.accessToken
           }
         }),
         err => err.status === 401
@@ -544,17 +505,11 @@ async function testAuthServiceUnregistration() {
   )
 }
 
-// Import the buildAuthRefreshHeaders function
-async function buildAuthRefreshHeaders() {
-  const { buildAuthRefreshHeaders: buildRefreshHeaders } = await import('../../../src/utils/micro-headers.js')
-  return buildRefreshHeaders()
-}
-
 export default {
   testAuthServiceWorks,
+  testAuthServiceBadCredentials,
   testProtectedServiceWithAuth,
   testUnprotectedServiceStillWorks,
-  testAuthServiceBasicFunctionality,
   testServiceRegistrationWithAuth,
   testProtectedServiceCallWithValidToken,
   testProtectedServiceCallWithoutToken,

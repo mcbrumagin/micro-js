@@ -10,8 +10,9 @@ import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
 import { HEADERS } from '../../utils/micro-headers.js'
+import net from 'node:net'
 
-const logger = new Logger({ logGroup: 'micro-core' })
+const logger = new Logger({ logGroup: 'micro-registry' })
 
 
 // TODO util/helper?
@@ -53,7 +54,7 @@ async function verifyAuthToken(state, serviceName, authToken) {
     
     const verifyResult = await httpRequest(authLocation, {
       method: 'POST',
-      body: { verifyToken: { token: authToken } },
+      body: { verifyAccess: authToken },
       headers: { 'content-type': 'application/json' }
     })
     
@@ -63,7 +64,8 @@ async function verifyAuthToken(state, serviceName, authToken) {
     }
     
     // Token verification failed
-    if (verifyResult.error || !verifyResult.user) {
+    // verifyResult.status
+    if (verifyResult.error) {// TODO // || !verifyResult.user) {
       const message = verifyResult.message || 'Invalid or expired token'
       throw new HttpError(401, message)
     }
@@ -135,7 +137,7 @@ export async function registerService(state, { service, location, useAuthService
   // Store auth service mapping if specified
   if (useAuthService) {
     state.serviceAuth.set(service, useAuthService)
-    logger.debug('registerService - authService:', useAuthService)
+    logger.info(`Configured "${service}" to use auth: "${useAuthService}"`)
   }
   
   // Notify other services about the new registration using cache update headers
@@ -195,7 +197,6 @@ export function findServiceLocation(state, serviceName, strategy = 'random') {
   return selectServiceLocation(state, serviceName, strategy)
 }
 
-
 const validateServiceCall = (state, name) => {
   if (!name) {
     throw new HttpError(400, 'Proxy call requires service "name" property')
@@ -203,6 +204,69 @@ const validateServiceCall = (state, name) => {
   if (!state.services.has(name)) {
     throw new HttpError(404, `No service by name "${name}"`)
   }
+}
+
+const parseForwardedHeader = (forwarded) => {
+  let result = {}
+  if (forwarded) {
+    const parts = forwarded.split(';')
+    for (const part of parts) {
+      const [key, value] = part.split('=')
+      if (value.startsWith('[') && value.endsWith(']')) {
+        value = value.slice(1, -1)
+      }
+      result[key] = value
+    }
+  }
+  return result
+}
+
+const writeForwardedHeaders = (request, headers) => {
+  // prefer forwarded header over x-forwarded headers
+  let forwardedDetails = parseForwardedHeader(request.headers['forwarded'])
+  
+  let senderAddress = forwardedDetails?.for || request.headers['x-forwarded-for']
+
+  let isAlreadyForwarded = !!forwardedDetails?.for
+
+  if (!senderAddress) {
+    let { remoteAddress, remotePort } = request.socket
+    senderAddress = remoteAddress
+    if (!net.isIPv4(senderAddress)) senderAddress = `[${senderAddress}]`
+    senderAddress += remotePort ? `:${remotePort}` : ''
+  }
+
+  // begin building modern forwarded header
+  let forwarded = `for="${senderAddress}"`
+
+  let serverAddress = request.socket.address()
+  let { address, family, port} = serverAddress
+
+  if (family === 'IPv6') address = `[${address}]:${port}`
+  else address = `${address}:${port}`
+
+  // TODO verify this is correctly formatted in each case... this would be a good spot for unit tests
+  let by = forwarded.by || request.headers['x-forwarded-by']
+  if (by) by += `,${address}` // append additional proxy if there is one already
+  else by = address
+
+  forwarded += `;by="${by}"`
+  headers['X-Forwarded-By'] = by // including x-forwarded headers for backwards compatibility
+
+  let host = forwardedDetails.host || request.headers.host
+  if (host) { // the original host requested by the client
+    forwarded += `;host=${host}`
+    headers['X-Forwarded-Host'] = host
+  }
+
+  let proto = forwardedDetails.proto || request.headers['x-forwarded-proto']
+  if (proto) { // the original protocol requested by the client
+    forwarded += `;proto=${proto}`
+    headers['X-Forwarded-Proto'] = proto
+  }
+
+  logger.debug('writing forwarded header - forwarded:', forwarded)
+  headers['Forwarded'] = forwarded
 }
 
 const setProxyRequestOptions = (request, response) => {
@@ -215,7 +279,9 @@ const setProxyRequestOptions = (request, response) => {
     const filteredHeaders = {}
     const skipHeaders = ['host', 'connection', 'content-length']
     
+    // logger.info('request header "forwarded":', request.headers['forwarded'])
     for (const [key, value] of Object.entries(request.headers || {})) {
+      // logger.info('request header:', key, value)
       const keyLower = key.toLowerCase()
       
       // Skip problematic headers
@@ -229,6 +295,7 @@ const setProxyRequestOptions = (request, response) => {
     }
     
     options.headers = filteredHeaders
+    writeForwardedHeaders(request, options.headers)
     options.headers['x-micro-override-method'] = request.method
 
     // enable streaming mode if we have a response object to pipe to
@@ -372,6 +439,17 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   options.body = payload
   const serviceResponse = await httpRequest(location, options)
   
+  let printHeaders = []
+  for (let [key, value] of serviceResponse.headers.entries()) {
+    printHeaders.push(`"${key}": "${value}"`)
+  }
+  logger.debug(`serviceResponse headers ${printHeaders.join(', ')}`)
+
+  // Forward any Set-Cookie headers to the client
+  if (serviceResponse.headers.get('Set-Cookie')) {
+    response.setHeader('Set-Cookie', serviceResponse.headers.get('Set-Cookie'))
+  }
+
   if (options?.stream && serviceResponse instanceof Response) {
     const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')
     if (isStreamable && serviceResponse.body) {

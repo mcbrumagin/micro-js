@@ -18,7 +18,7 @@ export const HEADERS = {
   USE_AUTH_SERVICE: 'micro-use-auth-service',
   SERVICE_HOME: 'micro-service-home',
   
-  // Authentication
+  // Authentication // TODO Authorization: Bearer <token>
   AUTH_TOKEN: 'micro-auth-token',           // User auth token for service calls
   REGISTRY_TOKEN: 'micro-registry-token',   // Internal registry/service token
   

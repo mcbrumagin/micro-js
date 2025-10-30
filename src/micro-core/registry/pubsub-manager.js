@@ -9,7 +9,7 @@ import { buildPublishHeaders, buildCacheUpdateHeaders } from '../../utils/micro-
 
 import Logger from '../../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-core' })
+const logger = new Logger({ logGroup: 'micro-registry' })
 
 /**
  * Publish a message to all subscribers of a type
