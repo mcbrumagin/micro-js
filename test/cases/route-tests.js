@@ -1,6 +1,14 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
-import { createRoute, createRoutes, createService, HttpError, Logger } from '../../src/index.js'
-import { HEADERS, COMMANDS } from '../../src/micro-core/shared/micro-headers.js'
+
+import {
+  createRoute,
+  createRoutes,
+  createService,
+  HttpError,
+  Logger,
+  HEADERS,
+  COMMANDS
+} from '../../src/index.js'
 
 const logger = new Logger()
 

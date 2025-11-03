@@ -1,13 +1,20 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../../core/index.js'
-import { callService, Logger } from '../../../src/index.js'
-import createFileUploadService, { validators } from '../../../src/micro-services/file-upload-service/file-upload-service.js'
+
+import {
+  createFileUploadService,
+  callService,
+  Logger,
+  HEADERS,
+  COMMANDS
+} from '../../../src/index.js'
+
+import { validators } from '../../../src/micro-services/file-upload-service/file-upload-service.js'
 import FormData from 'form-data'
 import fs from 'fs'
 import { promises as fsPromises } from 'fs'
 import path from 'path'
 import os from 'os'
 import http from 'http'
-import { HEADERS, COMMANDS } from '../../../src/micro-core/shared/micro-headers.js'
 
 const logger = new Logger()
 

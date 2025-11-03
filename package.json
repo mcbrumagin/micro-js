@@ -17,7 +17,7 @@
     "./create-service": "./src/micro-core/create-service.js",
     "./create-route": "./src/micro-core/create-route.js",
     "./call-service": "./src/micro-core/call-service.js",
-    "./registry-server": "./src/micro-core/registry-server.js",
+    "./registry-server": "./src/micro-core/registry/registry-server.js",
     "./env-config": "./src/micro-core/env-config.js",
     "./http-error": "./src/http-primitives/http-error.js",
     "./logger": "./src/utils/logger.js",

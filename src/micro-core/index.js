@@ -7,7 +7,7 @@
 export * from './api/index.js'
 
 // Registry Server
-export { default as registryServer } from './registry-server.js'
+export { default as registryServer } from './registry/registry-server.js'
 
 // HTTP Primitives
 export * from './http-primitives/index.js'

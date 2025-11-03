@@ -1,9 +1,14 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
-import { registryServer, createService } from '../../src/index.js'
-import { HEADERS, COMMANDS } from '../../src/micro-core/shared/micro-headers.js'
-import httpRequest from '../../src/micro-core/http-primitives/http-request.js'
-import envConfig from '../../src/micro-core/shared/env-config.js'
-import Logger from '../../src/utils/logger.js'
+
+import {
+  registryServer,
+  createService,
+  httpRequest,
+  envConfig,
+  Logger,
+  HEADERS,
+  COMMANDS
+} from '../../src/index.js'
 
 const logger = new Logger()
 

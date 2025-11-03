@@ -4,6 +4,7 @@
  */
 
 import { assert, assertErr } from '../core/index.js'
+
 import {
   calculateMD5Checksum,
   calculateSHA1Checksum,
@@ -11,7 +12,7 @@ import {
   calculateSHA512Checksum,
   ed25519,
   createSaltedHash
-} from '../../src/micro-core/shared/crypto.js'
+} from '../../src/index.js'
 
 /**
  * Test MD5 checksum generation
