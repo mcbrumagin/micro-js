@@ -124,6 +124,7 @@ export default async function createServer(port, serverFn, options = {}) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
           if (!response.writableEnded) {
+            response.setHeader('content-type', 'text/plain')
             response.writeHead(err.status || 500)
             response.end(err.stack)
           } else {
@@ -132,6 +133,7 @@ export default async function createServer(port, serverFn, options = {}) {
           }
         } else {
           if (!response.writableEnded) {
+            response.setHeader('content-type', 'text/plain')
             response.writeHead(500)
             response.end(err.stack)
           } else {
