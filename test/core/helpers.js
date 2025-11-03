@@ -32,8 +32,12 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
     if (registryIndex > -1) {
       let registryServer = servers[registryIndex]
       servers = servers.slice(0, registryIndex).concat(servers.slice(registryIndex + 1))
-      for (let server of servers) await server?.terminate()
+      for (let server of servers) {
+        await server?.terminate()
+        logger.info(`terminated server ${server?.name} at port ${server?.port}`)
+      }
       await registryServer?.terminate()
+      logger.info(`terminated registry server at port ${registryServer?.port}`)
     } else for (let server of servers) await server?.terminate()
   }
 }

@@ -140,14 +140,13 @@ async function testUnprotectedServiceStillWorks() {
  * Test service registration with auth
  */
 async function testServiceRegistrationWithAuth() {
-
   await terminateAfter(
     await startRegistry(),
     await createAuthService(),
-    async ([registry, authService]) => {
-      const protectedServer = await createService('protected-service', async function(payload) {
-        return { message: 'Protected data', user: payload.user }
-      }, { useAuthService: 'auth-service' })
+    await createService('protected-service', async function(payload) {
+      return { message: 'Protected data', user: payload.user }
+    }, { useAuthService: 'auth-service' }),
+    async ([registry, authService, protectedServer]) => {
       await assert(protectedServer.name, r => r === 'protected-service')
     }
   )

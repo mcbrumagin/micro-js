@@ -145,7 +145,8 @@ export default async function createServer(port, serverFn, options = {}) {
     })
 
     server.on('error', err => {
-      logger.error(`server "${serverFn.name}" failed to start`)
+      logger.warn(`server "${serverFn.name}" failed to start at port ${port}`)
+      logger.warn(err.stack)
       reject(err)
     })
 
@@ -162,6 +163,8 @@ export default async function createServer(port, serverFn, options = {}) {
     })
     
     server.listen(port, () => {
+      server.port = port
+      server.name = serverFn.name
       logger.debug(`server "${serverFn.name}" listening on ${port}`)
       resolve(server)
     })

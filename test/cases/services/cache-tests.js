@@ -448,26 +448,30 @@ async function testServiceRegistrationCacheUpdate() {
       // Register a new service - this should trigger cache updates to existing services
       newService = await createService('new-service', async () => ({ message: 'new service' }), { port: 11003 })
       
-      // Wait for cache updates to propagate
-      await sleep(300)
-      
-      // Check that both services now have the new service in their cache
-      const updatedCache1 = Object.keys(service1.cache.services || {})
-      const updatedCache2 = Object.keys(service2.cache.services || {})
-      
-      logger.info(`Updated cache service1: ${JSON.stringify(updatedCache1)}`)
-      logger.info(`Updated cache service2: ${JSON.stringify(updatedCache2)}`)
-      
-      // Verify that both services received the cache update
-      await assert(updatedCache1,
-        cache => cache.includes('new-service'),
-        cache => cache.length > initialCache1.length
-      )
-      
-      await assert(updatedCache2,
-        cache => cache.includes('new-service'),
-        cache => cache.length > initialCache2.length
-      )
+      try {
+        // Wait for cache updates to propagate
+        await sleep(100)
+        
+        // Check that both services now have the new service in their cache
+        const updatedCache1 = Object.keys(service1.cache.services || {})
+        const updatedCache2 = Object.keys(service2.cache.services || {})
+        
+        logger.info(`Updated cache service1: ${JSON.stringify(updatedCache1)}`)
+        logger.info(`Updated cache service2: ${JSON.stringify(updatedCache2)}`)
+        
+        // Verify that both services received the cache update
+        await assert(updatedCache1,
+          cache => cache.includes('new-service'),
+          cache => cache.length > initialCache1.length
+        )
+        
+        await assert(updatedCache2,
+          cache => cache.includes('new-service'),
+          cache => cache.length > initialCache2.length
+        )
+      } finally {
+        await newService.terminate()
+      }
       
       logger.info('Service registration cache updates working correctly')
     }
