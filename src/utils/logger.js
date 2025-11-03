@@ -1,4 +1,4 @@
-import envConfig from '../micro-core/env-config.js'
+import envConfig from '../micro-core/shared/env-config.js'
 
 // create our own copy of log fns so we can override console safely
 const ogConsole = {

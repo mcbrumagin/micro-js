@@ -1,4 +1,4 @@
-import createService from '../micro-core/create-service.js'
+import createService from '../micro-core/api/create-service.js'
 import Logger from '../utils/logger.js'
 
 let logger = new Logger({ logGroup: 'micro-services' })

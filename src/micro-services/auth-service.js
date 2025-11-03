@@ -1,8 +1,8 @@
-import createService from '../micro-core/create-service.js'
+import createService from '../micro-core/api/create-service.js'
 import { createInMemoryCache } from './cache-service.js'
 import { calculateSHA256Checksum, ed25519 } from '../utils/crypto.js'
 import HttpError from '../http-primitives/http-error.js'
-import envConfig from '../micro-core/env-config.js'
+import envConfig from '../micro-core/shared/env-config.js'
 
 import Logger from '../utils/logger.js'
 import { next } from '../http-primitives/next.js'

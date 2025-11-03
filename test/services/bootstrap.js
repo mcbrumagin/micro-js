@@ -90,8 +90,9 @@ async function main() {
   await callService('custom-file-cache-service', { url: '/' })
 
   let authResult = await callService('auth-service', { authenticate: { user: 'admin', password: 'password' } })
-  let token = authResult.token
-  let verifyResult = await callService('auth-service', { verifyToken: { token } })
+  let token = authResult.accessToken
+  console.info(`authResult:`, authResult)
+  let verifyResult = await callService('auth-service', { verifyAccess: token })
   console.info(`verifyResult: ${JSON.stringify(verifyResult)}`)
 
   // let uploadResult = await callService('file-upload-service', Readable.from(testRawMultipartFile), {
@@ -119,4 +120,4 @@ async function main() {
   })
 }
 
-main().catch(err => console.error(err))
+main().catch(err => console.error(err.stack))

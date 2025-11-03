@@ -1,10 +1,10 @@
 
-import httpRequest from '../http-primitives/http-request.js'
+import httpRequest from '../../http-primitives/http-request.js'
 import createService from './create-service.js'
-import HttpError from '../http-primitives/http-error.js'
-import Logger from '../utils/logger.js'
-import envConfig from './env-config.js'
-import { buildRouteRegisterHeaders, buildLookupHeaders } from '../utils/micro-headers.js'
+import HttpError from '../../http-primitives/http-error.js'
+import Logger from '../../utils/logger.js'
+import envConfig from '../shared/env-config.js'
+import { buildRouteRegisterHeaders, buildLookupHeaders } from '../../utils/micro-headers.js'
 import http from 'node:http'
 
 const logger = new Logger({ logGroup: 'micro-api' })

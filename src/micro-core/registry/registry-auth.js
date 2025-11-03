@@ -3,7 +3,7 @@
  * Validates registry tokens for internal service-to-registry communication
  */
 
-import envConfig from '../env-config.js'
+import envConfig from '../shared/env-config.js'
 import HttpError from '../../http-primitives/http-error.js'
 import { HEADERS } from '../../utils/micro-headers.js'
 import Logger from '../../utils/logger.js'

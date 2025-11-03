@@ -4,12 +4,12 @@
  */
 
 import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../../core/index.js'
-import createService from '../../../src/micro-core/create-service.js'
+import createService from '../../../src/micro-core/api/create-service.js'
 import createAuthService from '../../../src/micro-services/auth-service.js'
-import callService from '../../../src/micro-core/call-service.js'
+import callService from '../../../src/micro-core/api/call-service.js'
 import httpRequest from '../../../src/http-primitives/http-request.js'
 import { buildAuthLoginHeaders, buildAuthRefreshHeaders, buildCallHeaders, HEADERS } from '../../../src/utils/micro-headers.js'
-import envConfig from '../../../src/micro-core/env-config.js'
+import envConfig from '../../../src/micro-core/shared/env-config.js'
 import HttpError from '../../../src/http-primitives/http-error.js'
 
 const TEST_ADMIN_USER = process.env.ADMIN_USER

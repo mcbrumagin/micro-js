@@ -4,12 +4,13 @@
  */
 
 import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../../core/index.js'
-import createService from '../../../src/micro-core/create-service.js'
+import createService from '../../../src/micro-core/api/create-service.js'
+import createRoute from '../../../src/micro-core/api/create-route.js'
 import createAuthService from '../../../src/micro-services/auth-service.js'
-import callService from '../../../src/micro-core/call-service.js'
+import callService from '../../../src/micro-core/api/call-service.js'
 import httpRequest from '../../../src/http-primitives/http-request.js'
 import { buildAuthLoginHeaders, buildCallHeaders, HEADERS } from '../../../src/utils/micro-headers.js'
-import envConfig from '../../../src/micro-core/env-config.js'
+import envConfig from '../../../src/micro-core/shared/env-config.js'
 import HttpError from '../../../src/http-primitives/http-error.js'
 import { buildAuthRefreshHeaders } from '../../../src/utils/micro-headers.js'
 
@@ -368,7 +369,6 @@ async function testRouteWithAuth() {
     }, { useAuthService: 'auth-service' }),
     async ([registry, authService, routeService]) => {
       // Register a route
-      const createRoute = (await import('../../../src/micro-core/create-route.js')).default
       await createRoute('/api/protected', 'route-service')
       
       // Get auth token

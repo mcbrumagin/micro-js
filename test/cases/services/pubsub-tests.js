@@ -66,8 +66,6 @@ async function testBasicSubscribeAndPublish() {
         r => r.results[0].results && r.results[0].results.length === 1,
         r => r.results[0].results[0] === 'ack'
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -130,8 +128,6 @@ async function testMultipleSubscribers() {
         r => r.results[0].results.includes('sub2-ack'),
         r => r.results[0].results.includes('sub3-ack')
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -182,8 +178,6 @@ async function testUnsubscribe() {
         msgs => msgs[0].count === 1,
         msgs => msgs[1].count === 2
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -202,8 +196,6 @@ async function testUnsubscribeInvalidChannel() {
         err => err.status === 404,
         err => err.message.includes('No subscriptions found')
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -225,8 +217,6 @@ async function testUnsubscribeInvalidSubId() {
         err => err.status === 404,
         err => err.message.includes('not found')
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -245,8 +235,6 @@ async function testSubscribeInvalidHandler() {
         err => err.status === 400,
         err => err.message.includes('must be a function')
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -283,8 +271,6 @@ async function testListSubscriptions() {
         l => typeof l['channel1'].location === 'string',
         l => typeof l['channel2'].location === 'string'
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -295,9 +281,8 @@ async function testListSubscriptions() {
 async function testCleanup() {
   await terminateAfter(
     await startRegistry(),
-    await createPubSubService(),
-    async ([registry, pubsub]) => {
-
+    async ([registry]) => {
+      const pubsub = await createPubSubService()
       await pubsub.subscribe('chan1', async () => {})
       await pubsub.subscribe('chan1', async () => {})
       await pubsub.subscribe('chan2', async () => {})
@@ -352,8 +337,6 @@ async function testMultipleChannels() {
         msgs => msgs.length === 1,
         msgs => msgs[0].channel === 2
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -384,8 +367,6 @@ async function testHandlerError() {
         r => r.results[0].errors && r.results[0].errors.length === 1,
         r => r.results[0].results && r.results[0].results.length === 0
       )
-
-      await pubsub.terminate()
     }
   )
 }
@@ -424,8 +405,6 @@ async function testPublishMessageFunction() {
         r => r.results[0].results && r.results[0].results.length === 1,
         r => r.results[0].results[0] === 'received'
       )
-
-      await pubsub.terminate()
     }
   )
 }

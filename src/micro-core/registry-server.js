@@ -6,7 +6,7 @@
 
 import httpServer from '../http-primitives/http-server.js'
 import Logger from '../utils/logger.js'
-import envConfig from './env-config.js'
+import envConfig from './shared/env-config.js'
 import { createRegistryState, resetState } from './registry/registry-state.js'
 import { routeCommand } from './registry/command-router.js'
 import { validateRegistryEnvironment } from './registry/registry-auth.js'

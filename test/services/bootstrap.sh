@@ -1,5 +1,6 @@
 export MICRO_REGISTRY_URL=http://localhost:11000
 
+export ENVIRONMENT=dev
 export ADMIN_USER=admin
 export ADMIN_SECRET=password
 

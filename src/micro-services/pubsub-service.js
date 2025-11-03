@@ -1,162 +1,117 @@
-// PubSub service for publish-subscribe messaging pattern
-// Uses the registry's built-in pub/sub infrastructure
+/**
+ * PubSub Service (Refactored)
+ * Uses the new context.subscribe() and context.publish() methods
+ * 
+ * This demonstrates how to use the built-in pubsub functionality.
+ * Services can use subscribe/publish directly in their context without this wrapper.
+ */
 
-import createService from '../micro-core/create-service.js'
-import httpRequest from '../http-primitives/http-request.js'
+import createService from '../micro-core/api/create-service.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
-import envConfig from '../micro-core/env-config.js'
-import { buildPublishHeaders, buildSubscribeHeaders, buildUnsubscribeHeaders } from '../utils/micro-headers.js'
 
 const logger = new Logger({ logGroup: 'micro-services' })
 
+/**
+ * Create a PubSub service using context methods
+ * Provides a programmatic API for pubsub operations
+ */
 export default async function createPubSubService({ useAuthService = null } = {}) {
-  const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  // Track subscriptions: channel -> Set<subId>
+  const subscriptions = new Map()
   
-  // Track ONE handler service per channel
-  // Map: channel -> { server, location, callbacks: Map<subId, handler> }
-  const channelHandlers = {}
-  let subscriptionCounter = 0
-
+  const server = await createService('pubSubService', async function pubSubService(payload) {
+    // This service function is for HTTP-based calls (if needed)
+    // The actual pubsub API is exposed through the return object
+    const { action, channel, message } = payload || {}
+    
+    if (!action) {
+      throw new HttpError(400, 'Missing required field: action')
+    }
+    
+    switch (action) {
+      case 'publish':
+        if (!channel) throw new HttpError(400, 'Missing required field: channel')
+        return await this.publish(channel, message)
+      
+      default:
+        throw new HttpError(400, `Unknown action: ${action}. Use the direct API methods instead.`)
+    }
+  }, { useAuthService })
+  
   /**
    * Publish a message to a channel
-   * Uses registry's built-in publish functionality
    */
   async function publish(channel, message) {
     logger.debug('publish - channel:', channel)
-    
-    const result = await httpRequest(registryHost, {
-      body: message,
-      headers: buildPublishHeaders(channel, registryToken)
-    })
-    
-    return result
+    return await server.context.publish(channel, message)
   }
-
+  
   /**
    * Subscribe to a channel with a callback handler
-   * Creates a persistent handler service per channel (if needed)
-   * Stores callback locally and returns subscription ID
    */
   async function subscribe(channel, handler) {
     if (typeof handler !== 'function') {
       throw new HttpError(400, 'Subscribe handler must be a function')
     }
-
-    const subId = `sub_${channel}_${++subscriptionCounter}_${Date.now()}`
-    logger.debug('subscribe - channel:', channel, 'id:', subId)
-
-    if (!channelHandlers[channel]) {
-      const serviceName = `pubsub_handler_${channel}_${Date.now()}`
-      const callbacks = new Map()
-      
-      const server = await createService(serviceName, async function(message) {
-        const results = []
-        const errors = []
-        
-        for (const [subId, handler] of callbacks) {
-          try {
-            const result = await handler(message)
-            results.push(result)
-          } catch (err) {
-            logger.debugErr(`Subscription error in ${subId} for channel "${channel}":`, err)
-            errors.push(err)
-          }
-        }
-        
-        return { results, errors }
-      }, { useAuthService })
-
-      const location = server.location
-
-      await httpRequest(registryHost, {
-        headers: buildSubscribeHeaders(channel, location, registryToken)
-      })
-
-      channelHandlers[channel] = { server, location, callbacks }
-      logger.debug('subscribe - created handler service at:', location)
+    
+    logger.debug('subscribe - channel:', channel)
+    const subId = await server.context.subscribe(channel, handler)
+    
+    // Track subscription for list functionality
+    if (!subscriptions.has(channel)) {
+      subscriptions.set(channel, new Set())
     }
-
-    channelHandlers[channel].callbacks.set(subId, handler)
-    logger.debug('subscribe - total subscribers:', channelHandlers[channel].callbacks.size)
+    subscriptions.get(channel).add(subId)
     
     return subId
   }
-
+  
   /**
    * Unsubscribe from a channel using subscription ID
-   * Removes local callback and cleans up handler service if no more subscribers
    */
   async function unsubscribe(channel, subId) {
     logger.debug('unsubscribe - channel:', channel, 'id:', subId)
-
-    if (!channelHandlers[channel]) {
-      throw new HttpError(404, `No subscriptions found for channel "${channel}"`)
-    }
-
-    const deleted = channelHandlers[channel].callbacks.delete(subId)
-    if (!deleted) {
-      throw new HttpError(404, `Subscription "${subId}" not found for channel "${channel}"`)
-    }
-
-    logger.debug('unsubscribe - remaining:', channelHandlers[channel].callbacks.size)
-
-    if (channelHandlers[channel].callbacks.size === 0) {
-      const { server, location } = channelHandlers[channel]
-
-      await httpRequest(registryHost, {
-        headers: buildUnsubscribeHeaders(channel, location, registryToken)
-      })
-
-      await server.terminate()
-
-      delete channelHandlers[channel]
-      logger.debug('unsubscribe - terminated handler for channel:', channel)
-    }
-
-    return true
-  }
-
-  // TODO rename to list for listSubscriptions
-  function listSubscriptions() {
-    const result = {}
-    for (const channel in channelHandlers) {
-      const { location, callbacks } = channelHandlers[channel]
-      result[channel] = {
-        location,
-        subscriptions: Array.from(callbacks.keys())
+    
+    const result = await server.context.unsubscribe(channel, subId)
+    
+    // Update tracking
+    if (subscriptions.has(channel)) {
+      subscriptions.get(channel).delete(subId)
+      if (subscriptions.get(channel).size === 0) {
+        subscriptions.delete(channel)
       }
     }
+    
     return result
   }
-
-  async function terminate() {
-    logger.debug('terminate - cleaning up subscriptions')
-    const channels = Object.keys(channelHandlers)
-    
-    for (const channel of channels) {
-      const { server, location } = channelHandlers[channel]
-      
-      try {
-        await httpRequest(registryHost, {
-          headers: buildUnsubscribeHeaders(channel, location, registryToken)
-        })
-
-        await server.terminate()
-      } catch (err) {
-        logger.debugErr(`Error cleaning up channel ${channel}:`, err)
-      }
-      
-      delete channelHandlers[channel]
+  
+  /**
+   * List all active subscriptions
+   */
+  function listSubscriptions() {
+    if (server.context._subscriptionManager) {
+      return server.context._subscriptionManager.listSubscriptions()
     }
+    return {}
   }
-
-  return { 
-    publish, 
-    subscribe, 
+  
+  // Override terminate to ensure proper cleanup
+  const originalTerminate = server.terminate
+  server.terminate = async () => {
+    logger.debug('pubSubService - terminating, cleaning up subscriptions')
+    subscriptions.clear()
+    // Note: originalTerminate() will call context._subscriptionManager.cleanup()
+    // which handles unsubscribing and terminating subscription handlers
+    await originalTerminate()
+  }
+  
+  // Return server with pubsub API methods
+  return Object.assign(server, {
+    publish,
+    subscribe,
     unsubscribe,
-    listSubscriptions,
-    terminate
-  }
+    listSubscriptions
+  })
 }
+

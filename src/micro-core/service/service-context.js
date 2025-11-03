@@ -3,18 +3,39 @@
  * Builds execution context for service functions with access to other services
  */
 
-import { callServiceWithCache } from '../call-service.js'
+import { callServiceWithCache } from '../api/call-service.js'
+import { createSubscriptionManager } from './subscription-manager.js'
 
 /**
  * Build base context for service function
  * Context includes:
  * - call: function to call other services
- * - (future) service name bindings for better autocomplete
+ * - subscribe: subscribe to pubsub channels
+ * - publish: publish messages to channels
+ * - unsubscribe: unsubscribe from channels
+ * 
+ * @param {Object} cache - Service cache
+ * @param {string} serviceName - Name of the service (for subscription tracking)
+ * @param {string} serviceLocation - HTTP location of the service
+ * @returns {Object} Context object
  */
-export function buildContext(cache) {
+export function buildContext(cache, serviceName = 'anonymous', serviceLocation = null) {
+  // Create subscription manager for this service
+  const subscriptionManager = serviceLocation 
+    ? createSubscriptionManager(serviceName, serviceLocation)
+    : null
+  
   return {
-    // Bind cache to call function
-    call: callServiceWithCache.bind(null, cache)
+    // Service-to-service RPC
+    call: callServiceWithCache.bind(null, cache),
+    
+    // PubSub methods (only if location provided)
+    subscribe: subscriptionManager?.subscribe,
+    publish: subscriptionManager?.publish,
+    unsubscribe: subscriptionManager?.unsubscribe,
+    
+    // Internal - for cleanup and message routing
+    _subscriptionManager: subscriptionManager
   }
 }
 
@@ -23,17 +44,21 @@ export function buildContext(cache) {
  * Creates named functions for each known service for better IDE autocomplete
  * 
  * @param {Object} cache - Service cache with services map
+ * @param {string} serviceName - Name of the service (for subscription tracking)
+ * @param {string} serviceLocation - HTTP location of the service
  * @returns {Object} Context with call() and individual service stubs
  * 
  * @example
  * // With cache.services = { userService: [...], authService: [...] }
  * // Returns context with:
  * // - call(serviceName, payload)
+ * // - subscribe(channel, handler)
+ * // - publish(channel, message)
  * // - userService(payload) - stub that calls userService
  * // - authService(payload) - stub that calls authService
  */
-export function buildEnhancedContext(cache) {
-  const context = buildContext(cache) // include call function
+export function buildEnhancedContext(cache, serviceName = 'anonymous', serviceLocation = null) {
+  const context = buildContext(cache, serviceName, serviceLocation) // include call, subscribe, publish
   
   // add service-specific stubs for better autocomplete
   if (cache.services) {
@@ -66,10 +91,13 @@ export function updateContext(context, cache) {
   // Update the call function binding
   context.call = callServiceWithCache.bind(null, cache)
   
+  // Keep track of protected keys (built-in methods)
+  const protectedKeys = new Set(['call', 'subscribe', 'publish', 'unsubscribe', '_subscriptionManager'])
+  
   // Remove old service stubs that no longer exist
   const currentServices = new Set(Object.keys(cache.services || {}))
   for (const key of Object.keys(context)) {
-    if (key !== 'call' && !currentServices.has(key)) {
+    if (!protectedKeys.has(key) && !currentServices.has(key)) {
       delete context[key]
     }
   }

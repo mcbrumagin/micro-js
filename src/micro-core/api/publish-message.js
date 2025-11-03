@@ -1,6 +1,6 @@
-import httpRequest from '../http-primitives/http-request.js'
-import { buildPublishHeaders } from '../utils/micro-headers.js'
-import envConfig from './env-config.js'
+import httpRequest from '../../http-primitives/http-request.js'
+import { buildPublishHeaders } from '../../utils/micro-headers.js'
+import envConfig from '../shared/env-config.js'
 
 /**
  * Publish a message to a pubsub channel via the registry

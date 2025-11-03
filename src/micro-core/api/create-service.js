@@ -4,24 +4,24 @@
  * Refactored into modular components for better maintainability
  */
 
-import httpServer from '../http-primitives/http-server.js'
-import httpRequest from '../http-primitives/http-request.js'
-import Logger from '../utils/logger.js'
-import envConfig from './env-config.js'
-import retry from '../utils/retry-helper.js'
-import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../utils/micro-headers.js'
+import httpServer from '../../http-primitives/http-server.js'
+import httpRequest from '../../http-primitives/http-request.js'
+import Logger from '../../utils/logger.js'
+import envConfig from '../shared/env-config.js'
+import retry from '../../utils/retry-helper.js'
+import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../../utils/micro-headers.js'
 
-import { createServiceState, updateCache, removeFromCache } from './service/service-state.js'
-import { buildContext, buildEnhancedContext, bindServiceFunction } from './service/service-context.js'
-import { createCacheAwareHandler } from './service/cache-handler.js'
+import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
+import { buildContext, buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'
+import { createCacheAwareHandler } from '../service/cache-handler.js'
 import {
   getRegistryHost,
   determineServiceHome,
   extractPort,
   validateServiceLocation,
   validateServiceName
-} from './service/service-validator.js'
-import { createServiceBatch } from './service/service-batch.js'
+} from '../service/service-validator.js'
+import { createServiceBatch } from '../service/service-batch.js'
 
 import crypto from 'crypto'
 
@@ -136,7 +136,9 @@ export default async function createService(name, serviceFn, options = {}) {
 
   // TODO test sharedCache override... seems sketchy
   const cache = config.sharedCache || createServiceState()
-  const context = buildEnhancedContext(cache)
+  
+  // Build context with location for subscription support
+  const context = buildEnhancedContext(cache, name, location)
   const boundServiceFn = bindServiceFunction(serviceFn, context)
   const handler = createCacheAwareHandler(boundServiceFn, cache, context)
 
@@ -167,9 +169,14 @@ export default async function createService(name, serviceFn, options = {}) {
   server.cache = cache
   server.context = context
 
-  // override terminate to gracefully unregister
+  // override terminate to gracefully unregister and cleanup subscriptions
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
+    // Cleanup subscriptions first
+    if (context._subscriptionManager) {
+      await context._subscriptionManager.cleanup()
+    }
+    
     removeFromCache(cache, { service: name, location })
     await unregisterServiceFromRegistry(name, location, registryHost)
     await httpServerTerminate()

@@ -25,6 +25,22 @@ export function isCacheUpdateRequest(request) {
 }
 
 /**
+ * Check if request is a subscription message from registry
+ * Uses micro headers to identify pubsub subscription messages
+ * 
+ * @param {Object} request - HTTP request object with headers
+ * @returns {boolean} True if this is a subscription message
+ */
+export function isSubscriptionMessage(request) {
+  if (!request || !request.headers) {
+    return false
+  }
+  
+  const { command } = parseCommandHeaders(request.headers)
+  return command === COMMANDS.PUBSUB_PUBLISH
+}
+
+/**
  * Create a handler function that intercepts cache updates
  * Returns a new handler that:
  * 1. Checks if payload is a cache update
@@ -59,7 +75,26 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
       }
     }
     
-    // Not a cache update - delegate to actual service function with request/response
+    // Check if this is a subscription message from registry
+    if (isSubscriptionMessage(request)) {
+      const { pubsubChannel } = parseCommandHeaders(request.headers)
+      
+      if (context._subscriptionManager) {
+        // Check if subscription manager has handlers for this channel
+        const subscriptions = context._subscriptionManager.listSubscriptions()
+        if (subscriptions[pubsubChannel]) {
+          // Route to subscription manager handlers
+          return await context._subscriptionManager.handleSubscriptionMessage(pubsubChannel, payload)
+        }
+      }
+      
+      // No subscription manager or no handlers for this channel
+      // Pass through to normal service handler (for direct registry subscriptions)
+      // The service handler is called directly and should return its result
+      return await serviceFn(payload, request, response)
+    }
+    
+    // Not a cache update or subscription - delegate to actual service function with request/response
     const result = await serviceFn(payload, request, response)
     
     // If service returned Next instance, convert to false for http-server

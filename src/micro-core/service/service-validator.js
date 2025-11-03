@@ -4,7 +4,7 @@
  */
 
 import os from 'node:os'
-import envConfig from '../env-config.js'
+import envConfig from '../shared/env-config.js'
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'micro-service-core' })
