@@ -1,25 +1,16 @@
-import createService, { createServices } from './micro-core/api/create-service.js'
-import createRoute, { createRoutes } from './micro-core/api/create-route.js'
-import callService from './micro-core/api/call-service.js'
-import publishMessage from './micro-core/api/publish-message.js'
-import createSubscription from './micro-core/api/create-subscription.js'
-import registryServer from './micro-core/registry-server.js'
-import Logger, { overrideConsoleGlobally } from './utils/logger.js'
-import HttpError from './http-primitives/http-error.js'
-import { next, Next } from './http-primitives/next.js'
+/**
+ * Micro-JS
+ * Lightweight microservices framework for Node.js
+ */
 
-export {
-  registryServer,
-  callService,
-  publishMessage,
-  createSubscription,
-  createService,
-  createServices,
-  createRoute,
-  createRoutes,
-  HttpError,
-  Logger,
-  overrideConsoleGlobally,
-  next,
-  Next
-}
+// Core API
+export * from './micro-core/api/index.js'
+
+// Registry Server
+export { default as registryServer } from './micro-core/registry/registry-server.js'
+
+// HTTP Primitives
+export { HttpError, next, Next } from './micro-core/http-primitives/index.js'
+
+// Utilities
+export { default as Logger, overrideConsoleGlobally } from './utils/logger.js'

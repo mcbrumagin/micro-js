@@ -1,5 +1,4 @@
-import httpRequest from '../src/http-primitives/http-request.js'
-import httpServer from '../src/http-primitives/http-server.js'
+import { httpRequest, httpServer } from '../src/micro-core/http-primitives/index.js'
 
 import {
   Logger,
@@ -17,7 +16,7 @@ import {
   runTests
 } from './core/index.js'
 
-import { HEADERS, COMMANDS } from '../src/utils/micro-headers.js'
+import { HEADERS, COMMANDS } from '../src/micro-core/shared/micro-headers.js'
 
 overrideConsoleGlobally({
   includeLogLineNumbers: true

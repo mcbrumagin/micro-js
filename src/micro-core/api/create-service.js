@@ -4,12 +4,12 @@
  * Refactored into modular components for better maintainability
  */
 
-import httpServer from '../../http-primitives/http-server.js'
-import httpRequest from '../../http-primitives/http-request.js'
+import httpServer from '../http-primitives/http-server.js'
+import httpRequest from '../http-primitives/http-request.js'
 import Logger from '../../utils/logger.js'
 import envConfig from '../shared/env-config.js'
-import retry from '../../utils/retry-helper.js'
-import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../../utils/micro-headers.js'
+import retry from '../shared/retry-helper.js'
+import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../shared/micro-headers.js'
 
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildContext, buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'

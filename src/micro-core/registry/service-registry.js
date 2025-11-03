@@ -3,13 +3,13 @@
  * Manages service registration, lookup, and lifecycle
  */
 
-import httpRequest from '../../http-primitives/http-request.js'
-import HttpError from '../../http-primitives/http-error.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
 import Logger from '../../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
-import { HEADERS } from '../../utils/micro-headers.js'
+import { HEADERS } from '../shared/micro-headers.js'
 import net from 'node:net'
 
 const logger = new Logger({ logGroup: 'micro-registry' })

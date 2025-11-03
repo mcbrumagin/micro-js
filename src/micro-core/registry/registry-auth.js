@@ -4,8 +4,8 @@
  */
 
 import envConfig from '../shared/env-config.js'
-import HttpError from '../../http-primitives/http-error.js'
-import { HEADERS } from '../../utils/micro-headers.js'
+import HttpError from '../http-primitives/http-error.js'
+import { HEADERS } from '../shared/micro-headers.js'
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'micro-registry' })

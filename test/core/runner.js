@@ -10,7 +10,7 @@
 
 import { Logger } from '../../src/index.js'
 
-const logger = new Logger()
+const logger = new Logger({ includeLogLineNumbers: false })
 
 function formatErrorDetails(failedCases) {
   return failedCases.map(({name, err}) => {
@@ -72,7 +72,7 @@ export async function runTests(testFns) {
         let result = await fn()
         logger.info(logger.writeColor('green', `+ + + ${fn.name} SUCCEEDED ${
           result !== undefined ? `WITH RESULT: ${JSON.stringify(result)}` : ''
-        } + + +\n`))
+        } + + +`))
         testSuccess++
         successCases.push(fn.name)
       } catch (err) {
@@ -96,7 +96,7 @@ export async function runTests(testFns) {
     + logger.writeColor('red', `    FAIL: ${testFail}`))
   logger.info('')
 
-  if (testSuccess > 0) {
+  if (testSuccess > 0 && process.env.MUTE_SUCCESS_CASES !== 'true') {
     logger.info(logger.writeColor('green', '+ + +  SUCCESS CASES  + + +'))
     logger.info(logger.writeColor('green', '\n  ' + successCases.join('\n  ')))
     logger.info('')
@@ -106,7 +106,7 @@ export async function runTests(testFns) {
     logger.info(logger.writeColor('red', 'x x x  FAILURE CASES  x x x'))
     logger.info(logger.writeColor('red', '\n  ' + failedCases.map(f => f.name).join('\n  ')))
     logger.info(logger.writeColor('red', '\n' + formatErrorDetails(failedCases)))
-  }
+  } else logger.info(logger.writeColor('green', '| - - - - -  ALL TESTS PASSED! - - - - - |'))
 
   if (isSoloRun) console.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
   if (isMuteRun) console.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))

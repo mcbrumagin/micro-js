@@ -1,7 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../../core/index.js'
 import { callService, Logger } from '../../../src/index.js'
 import createStaticFileService from '../../../src/micro-services/static-file-service.js'
-import { HEADERS, COMMANDS } from '../../../src/utils/micro-headers.js'
+import { HEADERS, COMMANDS } from '../../../src/micro-core/shared/micro-headers.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -323,8 +323,6 @@ async function testStaticFileDirectoryTreePopulation() {
     cleanupTempFiles(tempDir)
   }
 }
-
-// testStaticFileDirectoryTreePopulation.solo = true
 
 // TODO write a new file and test that it can be found (and added to quicklookup?)
 // async function testStaticFileWithEagerLookup() {}

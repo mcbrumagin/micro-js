@@ -1,6 +1,6 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createRoute, createRoutes, createService, HttpError, Logger } from '../../src/index.js'
-import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
+import { HEADERS, COMMANDS } from '../../src/micro-core/shared/micro-headers.js'
 
 const logger = new Logger()
 
@@ -156,8 +156,6 @@ async function testRouteValidation() {
     }
   )
 }
-
-// testBasicRoute.solo = true
 
 export default {
   testBasicRoute,

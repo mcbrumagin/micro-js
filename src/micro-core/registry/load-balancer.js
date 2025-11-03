@@ -3,7 +3,7 @@
  * Handles service instance selection strategies
  */
 
-import HttpError from '../../http-primitives/http-error.js'
+import HttpError from '../http-primitives/http-error.js'
 import { setToArray } from './registry-state.js'
 import Logger from '../../utils/logger.js'
 

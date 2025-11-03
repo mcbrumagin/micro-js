@@ -2,7 +2,7 @@ import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../../c
 import createCacheService, { createInMemoryCache } from '../../../src/micro-services/cache-service.js'
 import { callService, createService, Logger } from '../../../src/index.js'
 import { isCacheUpdateRequest } from '../../../src/micro-core/service/cache-handler.js'
-import { buildCacheUpdateHeaders, parseCommandHeaders } from '../../../src/utils/micro-headers.js'
+import { buildCacheUpdateHeaders, parseCommandHeaders } from '../../../src/micro-core/shared/micro-headers.js'
 
 const logger = new Logger()
 

@@ -11,7 +11,7 @@ import {
   calculateSHA512Checksum,
   ed25519,
   createSaltedHash
-} from '../../src/utils/crypto.js'
+} from '../../src/micro-core/shared/crypto.js'
 
 /**
  * Test MD5 checksum generation

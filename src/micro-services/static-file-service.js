@@ -1,9 +1,9 @@
 import createService from '../micro-core/api/create-service.js'
 import Logger from '../utils/logger.js'
-import HttpError from '../http-primitives/http-error.js'
+import HttpError from '../micro-core/http-primitives/http-error.js'
 import path from 'path'
 import fs from 'fs'
-import { next } from '../http-primitives/next.js'
+import { next } from '../micro-core/http-primitives/next.js'
 import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
 const logger = new Logger({ logGroup: 'micro-services' })

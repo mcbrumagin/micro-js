@@ -1,8 +1,8 @@
 import { assert, assertErr, sleep, terminateAfter, startRegistry } from '../core/index.js'
 
 import { createService, createServices, callService, Logger, HttpError, next } from '../../src/index.js'
-import httpRequest from '../../src/http-primitives/http-request.js'
-import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
+import httpRequest from '../../src/micro-core/http-primitives/http-request.js'
+import { HEADERS, COMMANDS } from '../../src/micro-core/shared/micro-headers.js'
 
 const logger = new Logger()
 
@@ -32,8 +32,6 @@ async function testCreateService() {
     }
   )
 }
-
-// testCreateService.solo = true
 
 async function testCallService() {
   await terminateAfter(
@@ -497,7 +495,7 @@ async function testFileStreamService() {
       const { url } = payload || {}
       if (url && url.startsWith('/test-files/')) {
         const fileName = url.split('/').pop()
-        const testFilePath = path.join(process.cwd(), 'test/services/files', fileName)
+        const testFilePath = path.join(process.cwd(), 'test/data', fileName)
         
         if (fs.existsSync(testFilePath)) {
           // Use next() to signal we're handling the response directly
@@ -542,7 +540,7 @@ async function testLargeFileStreamService() {
       const { url } = payload || {}
       if (url && url.startsWith('/audio/')) {
         const fileName = url.split('/').pop()
-        const testFilePath = path.join(process.cwd(), 'test/services/files', fileName)
+        const testFilePath = path.join(process.cwd(), 'test/data', fileName)
         
         if (fs.existsSync(testFilePath)) {
           const stats = fs.statSync(testFilePath)

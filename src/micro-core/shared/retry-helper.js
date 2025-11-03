@@ -3,7 +3,7 @@
  * Generic retry utility for async operations with configurable strategies
  */
 
-import Logger from './logger.js'
+import Logger from '../../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'micro-utils' })
 

@@ -8,7 +8,7 @@ import Logger from '../../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
 import { proxyServiceCall, streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
-import { Next } from '../../http-primitives/next.js'
+import { Next } from '../http-primitives/next.js'
 
 const logger = new Logger({ logGroup: 'micro-registry' })
 

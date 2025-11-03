@@ -16,9 +16,9 @@ import {
 } from './service-registry.js'
 import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
-import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../../utils/micro-headers.js'
+import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/micro-headers.js'
 import getRegistryApiDocumentation from './documentation.js'
-import HttpError from '../../http-primitives/http-error.js'
+import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken } from './registry-auth.js'
 
 import Logger from '../../utils/logger.js'
@@ -62,11 +62,9 @@ async function handleRegister(state, payload, headers = {}) {
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
     if (!serviceName) {
-      const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-name header')
     }
     if (!serviceLocation) {
-      const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
     }
     return registerService(state, { 
@@ -76,11 +74,9 @@ async function handleRegister(state, payload, headers = {}) {
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
-      const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'ROUTE_REGISTER requires micro-service-name header')
     }
     if (!routePath) {
-      const HttpError = (await import('../../http-primitives/http-error.js')).default
       throw new HttpError(400, 'ROUTE_REGISTER requires micro-route-path header')
     }
     return registerRoute(state, { 
@@ -142,11 +138,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.SERVICE_SETUP:
       if (!serviceName) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'SERVICE_SETUP requires micro-service-name header')
       }
       if (!serviceHome) {
-        const HttpError = (await import('../../http-primitives/http-error.js')).default
         throw new HttpError(400, 'SERVICE_SETUP requires micro-service-home header')
       }
       return allocateServicePort(state, { 

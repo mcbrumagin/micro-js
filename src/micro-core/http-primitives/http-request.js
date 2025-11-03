@@ -1,6 +1,6 @@
 import HttpError from './http-error.js'
 import { Buffer } from 'node:buffer'
-import Logger from '../utils/logger.js'
+import Logger from '../../utils/logger.js'
 import fs from 'node:fs'
 
 const logger = new Logger({ logGroup: 'http-primitives' })

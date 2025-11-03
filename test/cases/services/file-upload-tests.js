@@ -7,7 +7,7 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 import os from 'os'
 import http from 'http'
-import { HEADERS, COMMANDS } from '../../../src/utils/micro-headers.js'
+import { HEADERS, COMMANDS } from '../../../src/micro-core/shared/micro-headers.js'
 
 const logger = new Logger()
 
@@ -540,7 +540,7 @@ async function testLargeFileUpload() {
         fileFieldName: 'file'
       }),
       async (registry, uploadService) => {
-        const testFilePath = path.join(process.cwd(), 'test', 'services', 'files', 'test-track.wav')
+        const testFilePath = path.join(process.cwd(), 'test/data/test-track.wav')
         const form = new FormData()
         form.append('file', fs.createReadStream(testFilePath), 'test-track.wav')
         const result = await createMultipartRequest(form)

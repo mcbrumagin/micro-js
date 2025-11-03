@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export MICRO_REGISTRY_URL=http://localhost:10000
 
 export ENVIRONMENT=dev
@@ -14,9 +16,14 @@ export LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true
 export ADMIN_USER=testadmin
 export ADMIN_SECRET=testsecret123
 
+# Optional: Set coverage directory
+export NODE_V8_COVERAGE=../coverage/tmp
+
+export MUTE_SUCCESS_CASES=true
+
 if npm list -g --depth=0 "c8" > /dev/null 2>&1; then
-  c8 npm run test
+  c8 node test/run-all-cases.js
 else
-  npm run test
+  node test/run-all-cases.js
   echo "c8 is not installed globally"
 fi

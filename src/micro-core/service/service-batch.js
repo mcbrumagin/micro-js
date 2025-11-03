@@ -3,7 +3,7 @@
  * Optimized creation of multiple services with shared cache
  */
 
-import httpRequest from '../../http-primitives/http-request.js'
+import httpRequest from '../http-primitives/http-request.js'
 import { createServiceState, updateCache } from './service-state.js'
 import { getRegistryHost } from './service-validator.js'
 

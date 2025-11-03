@@ -1,5 +1,5 @@
-import httpRequest from '../../http-primitives/http-request.js'
-import { buildPublishHeaders } from '../../utils/micro-headers.js'
+import httpRequest from '../http-primitives/http-request.js'
+import { buildPublishHeaders } from '../shared/micro-headers.js'
 import envConfig from '../shared/env-config.js'
 
 /**

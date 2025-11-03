@@ -1,7 +1,7 @@
 import { assert, assertErr, terminateAfter, startRegistry } from '../core/index.js'
 import { createService, createRoute, callService, Logger } from '../../src/index.js'
-import { HEADERS, COMMANDS } from '../../src/utils/micro-headers.js'
-import httpRequest from '../../src/http-primitives/http-request.js'
+import { HEADERS, COMMANDS } from '../../src/micro-core/shared/micro-headers.js'
+import httpRequest from '../../src/micro-core/http-primitives/http-request.js'
 
 const logger = new Logger()
 
@@ -84,8 +84,6 @@ async function testServiceLookupWithHeaders() {
     }
   )
 }
-
-// testServiceLookupWithHeaders.solo = true
 
 /**
  * Test service call command with headers (JSON payload)

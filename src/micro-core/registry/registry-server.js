@@ -4,12 +4,12 @@
  * Refactored into modular components for better maintainability
  */
 
-import httpServer from '../http-primitives/http-server.js'
-import Logger from '../utils/logger.js'
-import envConfig from './shared/env-config.js'
-import { createRegistryState, resetState } from './registry/registry-state.js'
-import { routeCommand } from './registry/command-router.js'
-import { validateRegistryEnvironment } from './registry/registry-auth.js'
+import { httpServer } from '../http-primitives/index.js'
+import Logger from '../../utils/logger.js'
+import envConfig from '../shared/env-config.js'
+import { createRegistryState, resetState } from './registry-state.js'
+import { routeCommand } from './command-router.js'
+import { validateRegistryEnvironment } from './registry-auth.js'
 
 const logger = new Logger({ logGroup: 'micro-registry' })
 

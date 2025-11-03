@@ -2,11 +2,11 @@
 // Uses the registry's built-in pub/sub infrastructure
 
 import createService from '../micro-core/api/create-service.js'
-import httpRequest from '../http-primitives/http-request.js'
-import HttpError from '../http-primitives/http-error.js'
+import httpRequest from '../micro-core/http-primitives/http-request.js'
+import HttpError from '../micro-core/http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 import envConfig from '../micro-core/shared/env-config.js'
-import { buildPublishHeaders, buildSubscribeHeaders, buildUnsubscribeHeaders } from '../utils/micro-headers.js'
+import { buildPublishHeaders, buildSubscribeHeaders, buildUnsubscribeHeaders } from '../micro-core/shared/micro-headers.js'
 
 const logger = new Logger({ logGroup: 'micro-services' })
 

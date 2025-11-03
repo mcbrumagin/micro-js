@@ -4,11 +4,11 @@
  * Uses the service's existing HTTP server with header-based routing (like cache updates)
  */
 
-import httpRequest from '../../http-primitives/http-request.js'
-import HttpError from '../../http-primitives/http-error.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
 import Logger from '../../utils/logger.js'
 import envConfig from '../shared/env-config.js'
-import { buildSubscribeHeaders, buildUnsubscribeHeaders, buildPublishHeaders } from '../../utils/micro-headers.js'
+import { buildSubscribeHeaders, buildUnsubscribeHeaders, buildPublishHeaders } from '../shared/micro-headers.js'
 
 const logger = new Logger({ logGroup: 'micro-subscription' })
 

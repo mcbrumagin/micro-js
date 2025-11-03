@@ -75,7 +75,7 @@ async function testBinaryFileStreaming() {
       return payload
     }),
     async () => {
-      const testFilePath = path.join(process.cwd(), 'test/services/files/test-track.wav')
+      const testFilePath = path.join(process.cwd(), 'test/data/test-track.wav')
       const fileData = fs.readFileSync(testFilePath)
       
       logger.debug(`Sending file of size: ${fileData.length} bytes`)

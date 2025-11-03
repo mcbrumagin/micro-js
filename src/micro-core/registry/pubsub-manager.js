@@ -3,9 +3,9 @@
  * Handles publish-subscribe messaging between services
  */
 
-import httpRequest from '../../http-primitives/http-request.js'
-import HttpError from '../../http-primitives/http-error.js'
-import { buildPublishHeaders, buildCacheUpdateHeaders } from '../../utils/micro-headers.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
+import { buildPublishHeaders, buildCacheUpdateHeaders } from '../shared/micro-headers.js'
 
 import Logger from '../../utils/logger.js'
 

@@ -4,7 +4,7 @@
  */
 
 import { Buffer } from 'node:buffer'
-import { suggestTypeFromUrl } from '../../http-primitives/http-helpers.js'
+import { suggestTypeFromUrl } from '../http-primitives/http-helpers.js'
 import Logger from '../../utils/logger.js'
 const logger = new Logger({ logGroup: 'micro-registry' })
 

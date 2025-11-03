@@ -1,7 +1,7 @@
-import httpRequest from '../../http-primitives/http-request.js'
-import HttpError from '../../http-primitives/http-error.js'
+import httpRequest from '../http-primitives/http-request.js'
+import HttpError from '../http-primitives/http-error.js'
 import envConfig from '../shared/env-config.js'
-import { buildCallHeaders } from '../../utils/micro-headers.js'
+import { buildCallHeaders } from '../shared/micro-headers.js'
 import Logger from '../../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'micro-api' })

@@ -1,17 +1,16 @@
-import { registryServer, createService, createRoutes, callService } from '../../src/index.js'
+import { registryServer, createService, createRoutes, callService, Logger, overrideConsoleGlobally } from '../../src/index.js'
 import createCacheService from '../../src/micro-services/cache-service.js'
-import createPubsubService from '../../src/micro-services/pubsub-service.js'
+import createPubsubService from '../../src/micro-services/pubsub-service-old.js'
 import createStaticFileService from '../../src/micro-services/static-file-service.js'
 import createFileUploadService from '../../src/micro-services/file-upload-service/file-upload-service.js'
 import createAuthService from '../../src/micro-services/auth-service.js'
-import { overrideConsoleGlobally } from '../../src/index.js'
-import { HEADERS } from '../../src/utils/micro-headers.js'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
+// const logger = new Logger({ logGroup: 'bootstrap' })
+
 overrideConsoleGlobally({
-  includeLogLineNumbers: true,
-  // in
+  includeLogLineNumbers: true
 })
 
 const testRawMultipartFile = `------geckoformboundary85c5b05d9412d0694e8082bfaef6fac3\r

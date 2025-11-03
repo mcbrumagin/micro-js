@@ -1,9 +1,9 @@
 import http from 'node:http'
 import readStream from './read-stream.js'
 import HttpError from './http-error.js'
-import Logger from '../utils/logger.js'
+import Logger from '../../utils/logger.js'
 import fs from 'node:fs'
-import { detectContentType } from '../micro-core/registry/content-type-detector.js'
+import { detectContentType } from '../registry/content-type-detector.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
 

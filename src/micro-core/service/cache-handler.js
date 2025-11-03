@@ -5,8 +5,8 @@
 
 import { updateCacheEntry } from './service-state.js'
 import { updateContext } from './service-context.js'
-import { Next } from '../../http-primitives/next.js'
-import { COMMANDS, parseCommandHeaders } from '../../utils/micro-headers.js'
+import { Next } from '../http-primitives/next.js'
+import { COMMANDS, parseCommandHeaders } from '../shared/micro-headers.js'
 
 /**
  * Check if request is a cache update from registry

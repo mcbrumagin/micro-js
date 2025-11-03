@@ -4,11 +4,11 @@
  * Creates a lightweight HTTP server to receive channel messages
  */
 
-import httpServer from '../../http-primitives/http-server.js'
-import httpRequest from '../../http-primitives/http-request.js'
+import httpServer from '../http-primitives/http-server.js'
+import httpRequest from '../http-primitives/http-request.js'
 import Logger from '../../utils/logger.js'
 import envConfig from '../shared/env-config.js'
-import { buildSubscribeHeaders, buildUnsubscribeHeaders } from '../../utils/micro-headers.js'
+import { buildSubscribeHeaders, buildUnsubscribeHeaders } from '../shared/micro-headers.js'
 import crypto from 'crypto'
 
 const logger = new Logger({ logGroup: 'micro-subscription' })
