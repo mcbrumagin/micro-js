@@ -1,6 +1,5 @@
-import { registryServer, createService, createRoutes, callService, Logger, overrideConsoleGlobally } from '../../src/index.js'
+import { registryServer, createService, createRoutes, callService, Logger, overrideConsoleGlobally, createSubscription, publishMessage } from '../../src/index.js'
 import createCacheService from '../../src/micro-services/cache-service.js'
-import createPubsubService from '../../src/micro-services/pubsub-service-old.js'
 import createStaticFileService from '../../src/micro-services/static-file-service.js'
 import createFileUploadService from '../../src/micro-services/file-upload-service/file-upload-service.js'
 import createAuthService from '../../src/micro-services/auth-service.js'
@@ -24,7 +23,6 @@ test-upload-1234\r
 async function main() {
   let registry = await registryServer()
   let cacheService = await createCacheService({ expireTime: 10000, evictionInterval: 1000 })
-  let pubsubService = await createPubsubService()
   let staticFileService = await createStaticFileService({ rootDir: 'files', fileMap: { '/': 'index.html' } })
   let authService = await createAuthService()
 
@@ -49,16 +47,16 @@ async function main() {
   console.info(`cache value: ${await cacheService.get('test')}`)
 
 
-  // pubsub service example
-  await pubsubService.subscribe('test', async (message) => {
+  // pubsub example using standalone subscription
+  const subscription1 = await createSubscription('test', async (message) => {
     console.info(`subscription received message: ${JSON.stringify(message)}`)
   })
-  await pubsubService.publish('test', { data: 'Hello subscribers!' })
   
-  await pubsubService.subscribe('test', async (message) => {
+  const subscription2 = await createSubscription('test', async (message) => {
     console.info(`subscription2 received message: ${JSON.stringify(message)}`)
   })
-  await pubsubService.publish('test', { data: 'Hello subscribers!' })
+  
+  await publishMessage('test', { data: 'Hello subscribers!' })
 
 
   // static file service example

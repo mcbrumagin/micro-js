@@ -1,0 +1,6 @@
+{
+  "name": "example-registry",
+  "dependencies": {
+    "micro-js": "file:./micro-js"
+  }
+}
