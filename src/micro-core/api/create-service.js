@@ -173,8 +173,8 @@ export default async function createService(name, serviceFn, options = {}) {
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
     // Cleanup subscriptions first
-    if (context._subscriptionManager) {
-      await context._subscriptionManager.cleanup()
+    if (context._pubSubManager) {
+      await context._pubSubManager.cleanup()
     }
     
     removeFromCache(cache, { service: name, location })

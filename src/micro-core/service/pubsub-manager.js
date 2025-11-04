@@ -1,7 +1,12 @@
 /**
- * Subscription Manager
- * Handles pubsub subscriptions within a service context
- * Uses the service's existing HTTP server with header-based routing (like cache updates)
+ * PubSub Manager
+ * Handles global publish-subscribe messaging for services
+ * 
+ * All events are globally scoped by default - they broadcast to ALL subscribers
+ * across the entire service cluster via the registry.
+ * 
+ * Uses the service's existing HTTP server with header-based routing (like cache updates).
+ * Messages are routed through cache-handler.js when PUBSUB_PUBLISH command is detected.
  */
 
 import httpRequest from '../http-primitives/http-request.js'
@@ -10,30 +15,42 @@ import Logger from '../../utils/logger.js'
 import envConfig from '../shared/env-config.js'
 import { buildSubscribeHeaders, buildUnsubscribeHeaders, buildPublishHeaders } from '../shared/micro-headers.js'
 
-const logger = new Logger({ logGroup: 'micro-subscription' })
+const logger = new Logger({ logGroup: 'micro-pubsub' })
 
 /**
- * Create subscription manager for a service
- * Manages channel subscriptions using the service's existing HTTP server
+ * Create PubSub manager for a service
+ * Manages global event subscriptions using the service's existing HTTP server
  * 
  * @param {string} serviceName - Name of the parent service
- * @param {string} serviceLocation - HTTP location of the parent service
+ * @param {string} serviceLocation - HTTP location of the parent service (e.g. 'http://localhost:3000')
  */
-export function createSubscriptionManager(serviceName, serviceLocation) {
+export function createPubSubManager(serviceName, serviceLocation) {
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
   
   // Track subscriptions: channel -> Map<subId, handler>
+  // Allows multiple handlers per channel within this service
   const channelHandlers = new Map()
   let subscriptionCounter = 0
 
   /**
-   * Subscribe to a channel with a callback handler
-   * Registers the service's location with the registry for this channel
+   * Subscribe to a global event channel
    * 
-   * @param {string} channel - Channel name to subscribe to
-   * @param {Function} handler - Async function to handle messages
+   * Messages published to this channel will be broadcast to ALL services
+   * that have subscribed, across the entire cluster.
+   * 
+   * @param {string} channel - Channel name (e.g. 'user-created', 'order-placed')
+   *                          Convention: Use 'micro:*' prefix for framework events
+   * @param {Function} handler - Async function to handle messages: (message, request, response) => result
    * @returns {Promise<string>} Subscription ID for unsubscribe
+   * 
+   * @example
+   * const subId = await subscribe('user-created', async (userData) => {
+   *   console.log('New user:', userData)
+   * })
+   * 
+   * TODO: Add scope parameter for future enhancements
+   * TODO: subscribe(channel, handler, { scope: 'global' | 'local' | 'instance' | 'location' })
    */
   async function subscribe(channel, handler) {
     if (typeof handler !== 'function') {
@@ -63,12 +80,16 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
   }
 
   /**
-   * Unsubscribe from a channel using subscription ID
-   * Unregisters from registry if no more subscribers
+   * Unsubscribe from a global event channel
+   * 
+   * If this was the last subscription for this channel in this service,
+   * the service location is unregistered from the registry.
    * 
    * @param {string} channel - Channel name
    * @param {string} subId - Subscription ID from subscribe()
    * @returns {Promise<boolean>}
+   * 
+   * TODO: Handle scoped unsubscribe when scope feature is added
    */
   async function unsubscribe(channel, subId) {
     logger.debug(`unsubscribe [${serviceName}] - channel: ${channel}, id: ${subId}`)
@@ -99,15 +120,26 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
   }
 
   /**
-   * Publish a message to a channel
+   * Publish a message to a global event channel
+   * 
+   * Message is broadcast to ALL services subscribed to this channel
+   * across the entire cluster via the registry.
    * 
    * @param {string} channel - Channel name
-   * @param {any} message - Message payload
-   * @returns {Promise<{results: Array, errors: Array}>}
+   * @param {any} message - Message payload (will be JSON serialized)
+   * @returns {Promise<{results: Array, errors: Array}>} Results from all subscribers
+   * 
+   * @example
+   * await publish('user-created', { userId: 123, email: 'user@example.com' })
+   * 
+   * TODO: Add scope parameter and routing logic
+   * TODO: publish(channel, message, { scope: 'global' | 'instance' | 'location', target: '...' })
    */
   async function publish(channel, message) {
     logger.debug(`publish [${serviceName}] - channel: ${channel}`)
     
+    // TODO: Add scope-based routing here when implementing scopes
+    // For now, all publishes go through registry (global scope)
     const result = await httpRequest(registryHost, {
       body: message,
       headers: buildPublishHeaders(channel, registryToken)
@@ -117,15 +149,20 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
   }
 
   /**
-   * Handle incoming subscription message
-   * Called by cache-handler when a subscription message is detected
+   * Handle incoming message from registry
+   * 
+   * Called by cache-handler.js when a PUBSUB_PUBLISH command is detected.
+   * Routes the message to all local handlers subscribed to this channel.
    * 
    * @param {string} channel - Channel name from headers
    * @param {any} message - Message payload
    * @returns {Promise<{results: Array, errors: Array}>}
+   * 
+   * TODO: Add scope-based filtering when scope feature is added
+   * TODO: For 'local' scope, handle message directly without registry roundtrip
    */
-  async function handleSubscriptionMessage(channel, message) {
-    logger.debug(`handleSubscriptionMessage [${serviceName}] - channel: ${channel}`)
+  async function handleIncomingMessage(channel, message) {
+    logger.debug(`handleIncomingMessage [${serviceName}] - channel: ${channel}`)
     
     if (!channelHandlers.has(channel)) {
       logger.debugErr(`No handlers for channel: ${channel}`)
@@ -136,14 +173,17 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
     const errors = []
     const callbacks = channelHandlers.get(channel)
     
-    // Call all callbacks for this channel
+    // Call all local handlers for this channel
     for (const [subId, handler] of callbacks) {
       try {
         const result = await handler(message)
         results.push(result)
       } catch (err) {
-        logger.debugErr(`Subscription error in ${subId} for channel "${channel}":`, err)
-        errors.push({ subId, error: err.message })
+        logger.debugErr(`Handler error in ${subId} for channel "${channel}":`, err)
+        
+        // TODO: Decide on error handling strategy
+        // Options: 1) Return errors to publisher, 2) Silent fail, 3) Dead letter queue
+        errors.push({ subId, error: err.message, status: 500 })
       }
     }
     
@@ -151,14 +191,17 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
   }
 
   /**
-   * List all active subscriptions
+   * List all active subscriptions for this service
    * 
    * @returns {Object} Map of channels to subscription details
+   * 
+   * TODO: Include scope information when scope feature is added
    */
   function listSubscriptions() {
     const result = {}
     for (const [channel, callbacks] of channelHandlers) {
       result[channel] = {
+        scope: 'global', // TODO: Add actual scope when implemented
         location: serviceLocation,
         subscriptions: Array.from(callbacks.keys())
       }
@@ -168,15 +211,17 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
 
   /**
    * Clean up all subscriptions
-   * Called when parent service terminates
+   * 
+   * Called when parent service terminates to ensure proper cleanup.
+   * Unregisters all channels from the registry and clears local handlers.
    */
   async function cleanup() {
-    logger.debug(`cleanup [${serviceName}] - cleaning up subscriptions`)
+    logger.debug(`cleanup [${serviceName}] - cleaning up all subscriptions`)
     const channels = Array.from(channelHandlers.keys())
     
     for (const channel of channels) {
       try {
-        // Unsubscribe from registry
+        // Unregister from registry (global scope)
         await httpRequest(registryHost, {
           headers: buildUnsubscribeHeaders(channel, serviceLocation, registryToken)
         })
@@ -186,13 +231,15 @@ export function createSubscriptionManager(serviceName, serviceLocation) {
       
       channelHandlers.delete(channel)
     }
+    
+    logger.info(`cleanup [${serviceName}] - cleaned up ${channels.length} channels`)
   }
 
   return {
     subscribe,
     unsubscribe,
     publish,
-    handleSubscriptionMessage,
+    handleIncomingMessage,
     listSubscriptions,
     cleanup
   }

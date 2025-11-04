@@ -100,6 +100,7 @@ import authTests from './cases/services/auth-tests.js'
 import advancedAuthTests from './cases/services/advanced-auth-tests.js'
 import registryTokenTests from './cases/registry-token-tests.js'
 import cryptoTests from './cases/crypto-tests.js'
+import subscriptionTests from './cases/subscription-tests.js'
 
 // TODO solo support for test suites
 // TODO cli support for test runs by name or suite
@@ -118,6 +119,7 @@ let testFns = mergeAllTestsSafely(
   loadBalancerTests,
   cacheServiceTests,
   pubsubTests,
+  subscriptionTests,
   staticFileServiceTests,
   fileUploadTests,
   authTests,

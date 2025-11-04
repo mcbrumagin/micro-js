@@ -296,7 +296,7 @@ const setProxyRequestOptions = (request, response) => {
     
     options.headers = filteredHeaders
     writeForwardedHeaders(request, options.headers)
-    options.headers['x-micro-override-method'] = request.method
+    // options.headers['x-micro-override-method'] = request.method
 
     // enable streaming mode if we have a response object to pipe to
     options.stream = !!response
@@ -420,7 +420,7 @@ export async function streamProxyServiceCall(state, { name, request, response })
  * Proxy a call to a service (with load balancing)
  * Supports transparent streaming when service returns non-JSON content
  */
-export async function proxyServiceCall(state, { name, payload = {}, request, response }) {
+export async function proxyServiceCall(state, { name, payload, request, response }) {
   
   validateServiceCall(state, name)
 
@@ -436,7 +436,10 @@ export async function proxyServiceCall(state, { name, payload = {}, request, res
   location = `${location}${request.url}`
   logger.debug('proxyServiceCall - location:', location)
   
-  options.body = payload
+  if (payload) {
+    logger.warn('proxyServiceCall - payload:', payload && payload.name || payload.className)
+    options.body = payload
+  }
   const serviceResponse = await httpRequest(location, options)
   
   let printHeaders = []

@@ -4,14 +4,14 @@
  */
 
 import { callServiceWithCache } from '../api/call-service.js'
-import { createSubscriptionManager } from './subscription-manager.js'
+import { createPubSubManager } from './pubsub-manager.js'
 
 /**
  * Build base context for service function
  * Context includes:
  * - call: function to call other services
- * - subscribe: subscribe to pubsub channels
- * - publish: publish messages to channels
+ * - subscribe: subscribe to global event channels
+ * - publish: publish messages to global event channels
  * - unsubscribe: unsubscribe from channels
  * 
  * @param {Object} cache - Service cache
@@ -20,22 +20,21 @@ import { createSubscriptionManager } from './subscription-manager.js'
  * @returns {Object} Context object
  */
 export function buildContext(cache, serviceName = 'anonymous', serviceLocation = null) {
-  // Create subscription manager for this service
-  const subscriptionManager = serviceLocation 
-    ? createSubscriptionManager(serviceName, serviceLocation)
+  const pubSubManager = serviceLocation 
+    ? createPubSubManager(serviceName, serviceLocation)
     : null
   
   return {
     // Service-to-service RPC
     call: callServiceWithCache.bind(null, cache),
     
-    // PubSub methods (only if location provided)
-    subscribe: subscriptionManager?.subscribe,
-    publish: subscriptionManager?.publish,
-    unsubscribe: subscriptionManager?.unsubscribe,
+    // Global PubSub methods
+    subscribe: pubSubManager?.subscribe,
+    publish: pubSubManager?.publish,
+    unsubscribe: pubSubManager?.unsubscribe,
     
-    // Internal - for cleanup and message routing
-    _subscriptionManager: subscriptionManager
+    // Internal: PubSub manager for message routing and cleanup
+    _pubSubManager: pubSubManager
   }
 }
 
@@ -92,7 +91,7 @@ export function updateContext(context, cache) {
   context.call = callServiceWithCache.bind(null, cache)
   
   // Keep track of protected keys (built-in methods)
-  const protectedKeys = new Set(['call', 'subscribe', 'publish', 'unsubscribe', '_subscriptionManager'])
+  const protectedKeys = new Set(['call', 'subscribe', 'publish', 'unsubscribe', '_pubSubManager'])
   
   // Remove old service stubs that no longer exist
   const currentServices = new Set(Object.keys(cache.services || {}))

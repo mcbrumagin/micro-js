@@ -17,7 +17,10 @@ export function createServiceState() {
     services: {},
     
     // location -> service name (reverse lookup)
-    addresses: {}
+    addresses: {},
+
+    // type -> Set<handler function> // use fn.name or a short hash of `fn.toString()` as key?
+    subscriptions: {}
   }
 }
 

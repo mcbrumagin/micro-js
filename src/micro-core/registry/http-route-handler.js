@@ -69,7 +69,7 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
     // Use buffered proxy - backward compatible for JSON/text payloads
     result = await proxyServiceCall(state, { 
       name: service, 
-      payload: requestBody || {}, 
+      payload: requestBody, 
       request, 
       response 
     })
@@ -110,7 +110,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody, re
   } else {
     result = await proxyServiceCall(state, { 
       name: service, 
-      payload: { url, ...(requestBody || {}) }, 
+      payload: requestBody, 
       request, 
       response 
     })
@@ -155,6 +155,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   
   let requestBody = null
   if (payload && typeof payload === 'object') {
+    logger.warn('resolvePossibleRoute - payload:', payload && payload.name || payload.className)
     requestBody = payload.payload || payload
   }
   
@@ -165,7 +166,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   
   const controllerInfo = findControllerRoute(state, url)
   if (controllerInfo) {
-    logger.debug('controller match:', controllerInfo.pattern)
+    logger.debug('controller match:', controllerInfo.service)
     return handleControllerRoute(state, controllerInfo, url, requestBody, request, response)
   }
   

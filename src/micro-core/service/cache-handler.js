@@ -79,16 +79,16 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     if (isSubscriptionMessage(request)) {
       const { pubsubChannel } = parseCommandHeaders(request.headers)
       
-      if (context._subscriptionManager) {
-        // Check if subscription manager has handlers for this channel
-        const subscriptions = context._subscriptionManager.listSubscriptions()
+      if (context._pubSubManager) {
+        // Check if pubsub manager has handlers for this channel
+        const subscriptions = context._pubSubManager.listSubscriptions()
         if (subscriptions[pubsubChannel]) {
-          // Route to subscription manager handlers
-          return await context._subscriptionManager.handleSubscriptionMessage(pubsubChannel, payload)
+          // Route to pubsub manager handlers
+          return await context._pubSubManager.handleIncomingMessage(pubsubChannel, payload)
         }
       }
       
-      // No subscription manager or no handlers for this channel
+      // No pubsub manager or no handlers for this channel
       // Pass through to normal service handler (for direct registry subscriptions)
       // The service handler is called directly and should return its result
       return await serviceFn(payload, request, response)
