@@ -436,8 +436,7 @@ export async function proxyServiceCall(state, { name, payload, request, response
   location = `${location}${request.url}`
   logger.debug('proxyServiceCall - location:', location)
   
-  if (payload) {
-    logger.warn('proxyServiceCall - payload:', payload && payload.name || payload.className)
+  if (payload != null) {
     options.body = payload
   }
   const serviceResponse = await httpRequest(location, options)

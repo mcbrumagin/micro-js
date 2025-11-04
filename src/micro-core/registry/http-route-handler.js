@@ -155,7 +155,6 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   
   let requestBody = null
   if (payload && typeof payload === 'object') {
-    logger.warn('resolvePossibleRoute - payload:', payload && payload.name || payload.className)
     requestBody = payload.payload || payload
   }
   

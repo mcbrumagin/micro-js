@@ -107,11 +107,11 @@ async function testRouteInlineServiceCreation() {
 async function testRouteControllerWildcard() {
   await terminateAfter(
     await startRegistry(),
-    await createRoute('/api/*', async function apiController(payload) {
+    await createRoute('/api/*', async function apiController(payload, request) {
       return {
         status: 200,
         dataType: 'application/json',
-        payload: JSON.stringify({ path: payload.url, message: 'API response' })
+        payload: JSON.stringify({ path: request.url, message: 'API response' })
       }
     }),
     async ([registry]) => {
