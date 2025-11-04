@@ -8,7 +8,7 @@
  *   node examples/pubsub-cli-example.js myChannel '{"hello":"world"}'
  */
 
-import { publishMessage } from '../src/index.js'
+import { publishMessage } from '../../src/index.js'
 
 async function main() {
   const [,, channel, messageJson] = process.argv
