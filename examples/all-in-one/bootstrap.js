@@ -23,15 +23,35 @@ test-upload-1234\r
 async function main() {
   let registry = await registryServer()
   let cacheService = await createCacheService({ expireTime: 10000, evictionInterval: 1000 })
-  let staticFileService = await createStaticFileService({ rootDir: 'files', fileMap: { '/': 'index.html' } })
   let authService = await createAuthService()
-
-
-  // TODO update dir handling similar to static file service
+  
+  // File upload service with automatic event publishing
   let fileUploadService = await createFileUploadService({
     uploadDir: path.join(process.cwd(), 'files'),
     fileFieldName: 'file',
-    useAuthService: authService
+    useAuthService: authService,
+    publishFileEvents: true,  // Publish micro:file-uploaded events
+    urlPathPrefix: '/files'  // URL path prefix for uploaded files
+  })
+  
+  // Static file service with auto-refresh in hybrid mode
+  // - PubSub: Real-time updates when files are uploaded via fileUploadService
+  // - Interval: Periodic scanning for external file additions (every 30s)
+  let staticFileService = await createStaticFileService({ 
+    rootDir: 'files', 
+    fileMap: { '/': 'index.html' },
+    autoRefresh: {
+      mode: 'hybrid',  // Both pubsub and interval
+      pubsubChannel: 'micro:file-uploaded',
+      deletionChannel: 'micro:file-deleted',
+      intervalMs: 30000,  // Check for external changes every 30s
+      onFileAdded: (fileInfo) => {
+        console.info(`📁 File added to index: ${fileInfo.urlPath}`)
+      },
+      onRefreshComplete: (stats) => {
+        console.info(`🔄 Index refreshed: +${stats.added} -${stats.removed} files (${stats.duration}ms)`)
+      }
+    }
   })
 
   const getHealth = () => ({ status: 'ok' })
@@ -62,6 +82,16 @@ async function main() {
   // static file service example
   console.info(`file: ${await staticFileService.getFile({ url: '/' })}`)
   
+  // Demonstrate auto-refresh API
+  console.info('Static file service stats:', staticFileService.getIndexStats())
+  
+  // Manual refresh API (useful for build processes or external file changes)
+  // await staticFileService.refreshIndex()  // Full rescan
+  // await staticFileService.refreshPath('uploads')  // Rescan specific directory
+  // staticFileService.addFile('/files/newfile.txt', './files/newfile.txt')  // Add single file
+  // staticFileService.removeFile('/files/oldfile.txt')  // Remove file from index
+  // staticFileService.pauseAutoRefresh()  // Pause interval scanning
+  // staticFileService.resumeAutoRefresh()  // Resume interval scanning
 
   // custom service example
   let fileCacheService = await createService('custom-file-cache-service', async function customFileCache(payload) {

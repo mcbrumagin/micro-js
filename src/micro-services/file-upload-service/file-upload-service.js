@@ -93,8 +93,9 @@ function handleStreamingUpload(_payload, req, res, options) {
         fields: formData
       }
 
+      // Call onSuccess callback (will be the wrapped version from the service)
       if (onSuccess) {
-        onSuccess(successData, req, res)
+        await onSuccess(successData, req, res)
       } else {
         if (!res.headersSent) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -382,7 +383,10 @@ export default async function createFileUploadService({
   validateFile = null,
   onSuccess = null,
   onError = null,
-  useAuthService = null
+  useAuthService = null,
+  publishFileEvents = true,  // NEW: auto-publish upload events
+  eventChannel = 'micro:file-uploaded',  // NEW: customizable channel
+  urlPathPrefix = '/uploads'  // NEW: URL path prefix for uploaded files
 } = {}) {
   // Ensure upload directory exists
   await ensureUploadDir(uploadDir)
@@ -391,13 +395,52 @@ export default async function createFileUploadService({
   const server = await createService('file-upload-service', async function fileUploadService(payload, request, response) {
     // The service is designed to work with HTTP multipart requests
     // It handles the response internally and returns false to signal this
+    
+    // Wrap onSuccess to publish file events
+    const wrappedOnSuccess = async (successData, req, res) => {
+      // Publish file uploaded event
+      if (publishFileEvents && this.publish) {
+        try {
+          const { file } = successData
+          const urlPath = path.join(urlPathPrefix, file.savedName).replace(/\\/g, '/')
+          
+          const fileEvent = {
+            urlPath,
+            filePath: file.path,
+            size: file.size,
+            mimeType: file.mimeType,
+            originalName: file.originalName,
+            savedName: file.savedName,
+            timestamp: Date.now()
+          }
+          
+          await this.publish(eventChannel, fileEvent)
+        } catch (err) {
+          logger.error('Failed to publish file event:', err)
+        }
+      }
+      
+      // Call original onSuccess if provided
+      if (onSuccess) {
+        onSuccess(successData, req, res)
+      } else {
+        // Default success response
+        if (!res.headersSent) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+        }
+        if (!res.writableEnded) {
+          res.end(JSON.stringify(successData))
+        }
+      }
+    }
+    
     handleStreamingUpload(payload, request, response, {
       uploadDir,
       fileFieldName,
       textFields,
       getFileName,
       validateFile,
-      onSuccess,
+      onSuccess: wrappedOnSuccess,
       onError
     })
     
@@ -414,6 +457,47 @@ export default async function createFileUploadService({
   server.ensureUploadDir = ensureUploadDir
   server.listUploadedFiles = () => listUploadedFiles(uploadDir)
   server.getUploadDir = () => uploadDir
+
+  /**
+   * Helper to manually upload a file and publish event
+   * @param {string} filePath - Full path where file should be written
+   * @param {string|Buffer} fileData - File content to write
+   */
+  server.uploadFile = async function uploadFile(filePath, fileData) {
+    await fsPromises.writeFile(filePath, fileData)
+
+    if (publishFileEvents) {
+      const fileName = path.basename(filePath)
+      const urlPath = path.join(urlPathPrefix, fileName).replace(/\\/g, '/')
+      
+      await server.context.publish(eventChannel, {
+        urlPath,
+        filePath,
+        fileName,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  /**
+   * Helper to manually delete a file and publish event
+   * @param {string} filePath - Full path to file to delete
+   */
+  server.deleteFile = async function deleteFile(filePath) {
+    await fsPromises.unlink(filePath)
+    
+    if (publishFileEvents) {
+      const fileName = path.basename(filePath)
+      const urlPath = path.join(urlPathPrefix, fileName).replace(/\\/g, '/')
+      
+      await server.context.publish('micro:file-deleted', {
+        urlPath,
+        filePath,
+        fileName,
+        timestamp: Date.now()
+      })
+    }
+  }
 
   // Override terminate to log cleanup
   const originalTerminate = server.terminate.bind(server)

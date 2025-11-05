@@ -101,6 +101,7 @@ import advancedAuthTests from './cases/services/advanced-auth-tests.js'
 import registryTokenTests from './cases/registry-token-tests.js'
 import cryptoTests from './cases/crypto-tests.js'
 import subscriptionTests from './cases/subscription-tests.js'
+import autoRefreshTests from './cases/services/autorefresh-tests.js'
 
 // TODO solo support for test suites
 // TODO cli support for test runs by name or suite
@@ -125,7 +126,8 @@ let testFns = mergeAllTestsSafely(
   authTests,
   advancedAuthTests,
   registryTokenTests,
-  cryptoTests
+  cryptoTests,
+  autoRefreshTests
 )
 
 // TODO update readme for test object support, merge helper, solo/mute flags

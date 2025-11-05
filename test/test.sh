@@ -8,7 +8,7 @@ export ENVIRONMENT=dev
 export MICRO_REGISTRY_TOKEN=dev-test-token-12345
 
 # TODO dynamically set to info for full test run
-export LOG_LEVEL=info
+# export LOG_LEVEL=info
 export MUTE_LOG_GROUP_OUTPUT=true
 export LOG_INCLUDE_LINES=true
 export LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true

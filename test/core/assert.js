@@ -15,9 +15,13 @@ export class AssertError extends Error {
     this.name = 'AssertError'
 
     const getValString = () => {
-      if (typeof val === 'object') val = JSON.stringify(val)
-      else return `val = ${val}`
+      if (typeof val === 'object') {
+        val = JSON.stringify(val)
+        return val
+      } else return `val = ${val}`
     }
+
+    // logger.warn('getValString:', getValString())
 
     const getErrString = () => `err = ${val.message}` // TODO stack?
 
@@ -64,6 +68,7 @@ export async function assert(valOrFn, ...assertFns) {
   let result
   if (typeof valOrFn === 'function') result = await valOrFn()
   else result = valOrFn
+  // logger.warn('result:', result)
 
   // Handle single assertion function (backward compatibility)
   if (assertFns.length === 1) {

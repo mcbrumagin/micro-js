@@ -16,15 +16,17 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
   let [testFn, ...serverFns] = args
   if (typeof testFn !== 'function') throw new Error('terminateAfter last argument must be a function')
   
-  let servers = await Promise.all(serverFns)
-  for (let server of servers) {
-    if (server && server.length > 0) {
-      let index = servers.indexOf(server)
-      servers.splice(index, 1)
-      servers.push(...server)
-    }
-  }
+  let servers
   try {
+    servers = await Promise.all(serverFns)
+    for (let server of servers) {
+      if (server && server.length > 0) {
+        let index = servers.indexOf(server)
+        servers.splice(index, 1)
+        servers.push(...server)
+      }
+    }
+
     let result = await testFn(servers)
     return result
   } finally {
