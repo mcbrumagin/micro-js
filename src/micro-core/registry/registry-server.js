@@ -55,7 +55,9 @@ export default async function createRegistryServer(port) {
       
       return result
     } catch (err) {
-      logger.debugErr('Registry command failed:', err)
+      if (!payload || !payload.muteInternalError) {
+        logger.debugErr('Registry command failed:', err)
+      }
       err.status = err.status || 500
       throw err
     }
