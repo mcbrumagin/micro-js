@@ -14,6 +14,7 @@ A lightweight, zero-dependency microservices framework for Node.js with built-in
 🔄 **Load Balancing** - Round-robin and random distribution strategies  
 🛣️ **HTTP Routing** - Direct and wildcard route support  
 💾 **Built-in Services** - Cache, auth, static files, and file upload services  
+🌍 **Multi-Language Support** - Python client available, Go coming soon  
 🧪 **Fully Tested** - Comprehensive tests with 85%+ coverage  
 📦 **Modular Architecture** - Clean, maintainable codebase  
 
@@ -198,6 +199,66 @@ const uploadService = await createFileUploadService({
 
 **Note:** File services require external dependencies (`busboy` for uploads), while the core framework remains dependency-free.
 
+## Multi-Language Support
+
+Micro-JS supports multiple programming languages, allowing you to build polyglot microservice architectures. All clients communicate with the same registry using a standard HTTP protocol.
+
+### Python Client
+
+Full-featured Python client with support for all core features:
+
+```python
+from microjs import create_service_sync, call_service_sync
+import os
+
+os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+
+# Create a Python service
+def my_service(payload):
+    return {"message": f"Hello from Python: {payload.get('name')}!"}
+
+service = create_service_sync("my_service", my_service)
+
+# Call other services (Node.js or Python)
+result = call_service_sync("other_service", {"data": "test"})
+```
+
+**Features:**
+- ✅ Service creation and registration
+- ✅ Service-to-service calls
+- ✅ HTTP routes
+- ✅ Pub/sub messaging
+- ✅ Async/sync APIs
+
+**Documentation:** See [languages/python/README.md](./languages/python/README.md)  
+**Examples:** See [examples/python-services/](./examples/python-services/)
+
+### Go Client (Coming Soon)
+
+Go client library is currently in development.
+
+**Documentation:** See [languages/go/README.md](./languages/go/README.md)
+
+### Creating Services in Multiple Languages
+
+Services can seamlessly communicate regardless of implementation language:
+
+```javascript
+// Node.js service
+await createService(function nodeService(payload) {
+  // Call Python service
+  return await this.call('pythonService', payload)
+})
+```
+
+```python
+# Python service
+async def python_service(self, payload):
+    # Call Node.js service
+    result = await self.call('nodeService', payload)
+    return result
+```
+
 ## Load Balancing
 
 Automatic load balancing when multiple instances of the same service exist:
@@ -328,6 +389,8 @@ Handle multipart file uploads with validation. **Requires `busboy` dependency.**
 - [x] Load balancing
 - [x] Comprehensive tests
 - [x] Modular architecture
+- [x] Python client library
+- [ ] Go client library
 - [ ] Read-only (cache-control) support
 - [ ] CLI tools
 - [ ] Multi-container integration tests
@@ -342,6 +405,7 @@ Handle multipart file uploads with validation. **Requires `busboy` dependency.**
 - [ ] Rate limiting
 - [ ] Circuit breakers
 - [ ] API gateway features
+- [ ] Additional language clients (Ruby, C#, Java, Rust)
 
 ## Contributing
 
