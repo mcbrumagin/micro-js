@@ -376,6 +376,7 @@ const validators = {
  * @returns {Promise<Service>} The created service
  */
 export default async function createFileUploadService({
+  serviceName = 'file-upload-service',
   uploadDir = path.join(process.cwd(), 'uploads'),
   fileFieldName = 'file',
   textFields = [],
@@ -392,7 +393,7 @@ export default async function createFileUploadService({
   await ensureUploadDir(uploadDir)
   logger.info(`File upload service configured with uploadDir: ${uploadDir}`)
 
-  const server = await createService('file-upload-service', async function fileUploadService(payload, request, response) {
+  const server = await createService(serviceName, async function fileUploadService(payload, request, response) {
     // The service is designed to work with HTTP multipart requests
     // It handles the response internally and returns false to signal this
     

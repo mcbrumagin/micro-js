@@ -104,13 +104,14 @@ export function createInMemoryCache({
 }
 
 export default async function createCacheService({
+  serviceName = 'cache-service',
   expireTime = 60000 * 10,
   evictionInterval = 30000,
   useAuthService = null
 } = {}) {
   let { cacheService, evictionIntervalId } = initializeCacheService(expireTime, evictionInterval)
 
-  let server = await createService('cache', cacheService, { useAuthService })
+  let server = await createService(serviceName, cacheService, { useAuthService })
 
   // Override terminate to clean up interval
   let originalTerminate = server.terminate.bind(server)

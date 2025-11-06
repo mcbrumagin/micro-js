@@ -28,7 +28,8 @@ The source will just need to be configured to create, update, delete users,
 
 // encryptPassword fn will default to use scrypt (TODO, implement in crypto library)
 export async function createUserService({
-  useCustomDataSource = false,
+  serviceName = 'user-service',
+  useCustomDataSource = false
 }) {
   let createUser, readUser, updateUser, deleteUser, encryptPassword
   if (useCustomDataSource) {

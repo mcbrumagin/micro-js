@@ -28,7 +28,9 @@ const TEST_ADMIN_SECRET = process.env.ADMIN_SECRET
 async function testAuthServiceWithSessions() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService(true), // Enable sessions
+    await createAuthService({
+      useSessions: true
+    }),
     async ([registry, authServer]) => {
       // Login and get access token
       const authResult = await callService('auth-service', {
@@ -60,7 +62,9 @@ async function testAuthServiceWithSessions() {
 async function testAuthServiceWithRefreshOnlySessions() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService('refresh-only'), // Only track refresh tokens
+    await createAuthService({
+      useSessions: 'refresh-only'
+    }),
     async ([registry, authServer]) => {
       // Login and get access token
       const authResult = await callService('auth-service', {
@@ -92,7 +96,9 @@ async function testAuthServiceWithRefreshOnlySessions() {
 async function testAuthServiceStateless() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService(false), // No sessions (stateless)
+    await createAuthService({
+      useSessions: false
+    }), // No sessions (stateless)
     async ([registry, authServer]) => {
       // Login and get access token
       const authResult = await callService('auth-service', {
@@ -280,7 +286,9 @@ async function testXForwardedForHeader() {
 async function testSessionInvalidation() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService(true), // Enable sessions
+    await createAuthService({
+      useSessions: true
+    }), // Enable sessions
     async ([registry, authService]) => {
       // Login and get access token
       const authResult = await callService('auth-service', {
@@ -393,7 +401,9 @@ async function testConcurrentTokenValidation() {
 async function testRefreshTokenWithSessions() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService(true), // Enable sessions
+    await createAuthService({
+      useSessions: true
+    }), // Enable sessions
     async ([registry, authService]) => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
@@ -490,7 +500,9 @@ async function testMissingRefreshToken() {
 async function testProtectedServiceWithSessionAuth() {
   await terminateAfter(
     await startRegistry(),
-    await createAuthService(true), // Enable sessions
+    await createAuthService({
+      useSessions: true
+    }), // Enable sessions
     await createService('protected-service', async function(payload) {
       return { message: 'Protected data', data: payload }
     }, { useAuthService: 'auth-service' }),

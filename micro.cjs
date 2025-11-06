@@ -2,7 +2,7 @@
 
 const cliArgs = require('./src/utils/cli-parser.cjs')
 const { callService, publishMessage } = require('./src/index.js')
-const httpRequest = require('./src/http-primitives/http-request.js').default
+const httpRequest = require('./src/index.js').httpRequest
 
 // console.log({cliArgs})
 

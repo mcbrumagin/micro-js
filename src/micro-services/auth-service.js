@@ -32,7 +32,10 @@ const logger = new Logger({ logGroup: 'micro-services' })
 
 
 // eventually will be backed by a database
-export default async function createAuthService(useSessions = false) {
+export default async function createAuthService({
+  serviceName = 'auth-service',
+  useSessions = false
+} = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
   }
@@ -174,7 +177,7 @@ export default async function createAuthService(useSessions = false) {
     return { isValid, status: 'valid access token' }
   }
 
-  const server = await createService('auth-service', async function authService(payload, request, response) {
+  const server = await createService(serviceName, async function authService(payload, request, response) {
     if (payload.authenticate) return authenticate(payload.authenticate, request, response)
     // TODO verify access token header
     else if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
