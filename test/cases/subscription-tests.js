@@ -357,16 +357,16 @@ async function testSubscriptionStartsClean() {
 }
 
 /**
- * Test subscription creation middleware on normal service
+ * Test subscription creation on regular service
  */
-async function testSubscriptionCreationMiddleware() {
+async function testSubscriptionCreationOnRegularService() {
+  const messages = []
   await terminateAfter(
     await startRegistry(),
-    async ([registry]) => {
-      let messages = []
-      const service = await createService('regular-service', async () => {
-        return { totalMessages: messages.length }
-      })
+    await createService('regular-service', async () => {
+      return { totalMessages: messages.length }
+    }),
+    async ([registry, service]) => {
 
       await service.createSubscription({
         'middleware-channel': async (message) => {
@@ -386,6 +386,89 @@ async function testSubscriptionCreationMiddleware() {
   )
 }
 
+/**
+ * Test subscription creation on regular service with middleware
+ */
+async function testSubscriptionCreationOnMiddlewareService() {
+  const messages = []
+  await terminateAfter(
+    await startRegistry(),
+    await createService('middleware-service', async (payload) => {
+      return { totalMessages: messages.length, ...payload }
+    }),
+    async ([registry, service]) => {
+
+      service.before(async (payload, request, response) => {
+        payload.before = true
+        return payload
+      })
+
+      await service.createSubscription({
+        'middleware-channel': async (message) => {
+          messages.push(message)
+        }
+      })
+
+      await publishMessage('middleware-channel', { data: 'test message' })
+      let result = await callService('middleware-service', { call: 'test' })
+
+      await assert([messages, result],
+        ([m, r]) => m.length === 1,
+        ([m, r]) => m[0].data === 'test message',
+        ([m, r]) => r.totalMessages === 1,
+        ([m, r]) => r.call === 'test',
+        ([m, r]) => r.before === true
+      )
+    }
+  )
+}
+
+
+/**
+ * Test subscription creation on regular service with middleware
+ */
+async function testSubscriptionCreationBeforeMiddlewareOverride() {
+  const messages = []
+  await terminateAfter(
+    await startRegistry(),
+    await createService('middleware-service', async (payload) => {
+      return { totalMessages: messages.length, ...payload }
+    }),
+    async ([registry, service]) => {
+
+      await service.createSubscription({
+        'middleware-channel': async (message) => {
+          messages.push(message)
+        }
+      })
+
+      await publishMessage('middleware-channel', { data: 'test message 1' })
+      let beforeOverrideResult = await callService('middleware-service', { call: 'test1' })
+
+      service.before(async (payload, request, response) => {
+        payload.before = true
+        return payload
+      })
+
+
+      await publishMessage('middleware-channel', { data: 'test message 2' })
+      let afterOverrideResult = await callService('middleware-service', { call: 'test2' })
+
+      await assert([messages, beforeOverrideResult, afterOverrideResult],
+        ([m, r1, r2]) => m.length === 2,
+        ([m, r1, r2]) => m[0].data === 'test message 1',
+        ([m, r1, r2]) => m[1].data === 'test message 2',
+        ([m, r1, r2]) => r1.totalMessages === 1,
+        ([m, r1, r2]) => r1.call === 'test1',
+        ([m, r1, r2]) => r1.before === undefined,
+        ([m, r1, r2]) => r2.totalMessages === 2,
+        ([m, r1, r2]) => r2.call === 'test2',
+        ([m, r1, r2]) => r2.before === true
+      )
+    }
+  )
+}
+
 export default {
   testBasicSubscription,
   testMultipleSubscriptionsToSameChannel,
@@ -397,5 +480,7 @@ export default {
   testSubscriptionPublishResults,
   testConcurrentMessages,
   testSubscriptionStartsClean,
-  testSubscriptionCreationMiddleware
+  testSubscriptionCreationOnRegularService,
+  testSubscriptionCreationOnMiddlewareService,
+  testSubscriptionCreationBeforeMiddlewareOverride
 }

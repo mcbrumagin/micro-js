@@ -14,6 +14,7 @@ import { validateServiceName, extractPort, validateServiceLocation } from '../se
 import { createServiceBatch } from '../service/service-batch.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
 import { isSubscriptionMessage } from '../service/cache-handler.js'
+import { Next } from '../http-primitives/next.js'
 import {
   createAndRegisterService,
   unregisterServiceFromRegistry
@@ -117,6 +118,9 @@ export default async function createService(name, serviceFn, options = {}) {
   let pubSubManager = null
   let subscriptionIds = {}
 
+  let pubsubHandler = null
+  let overrideHandler = null
+
   // TODO this should use addMiddleware instead, after multiple middleware support is added
   server.createSubscription = async function createSubscriptionForService(channelMap) {
     if (!pubSubManager) {
@@ -127,29 +131,35 @@ export default async function createService(name, serviceFn, options = {}) {
       subscriptionIds[channel] = await pubSubManager.subscribe(channel, handler)
     }
 
-    server.handler = async function(payload, request, response) {
-      logger.debug(`Handling request for channel: ${JSON.stringify(request.headers, null, 2)}`)
+    pubsubHandler = async function(payload, request, response) {
       if (isSubscriptionMessage(request)) {
         logger.debug(`Handling subscription message for channel: ${request.headers['micro-pubsub-channel']}`)
         return await pubSubManager.handleIncomingMessage(request.headers['micro-pubsub-channel'], payload)
+      } else if (overrideHandler) {
+        return await overrideHandler(payload, request, response)
       } else {
         return await originalHandler(payload, request, response)
       }
     }
 
+    server.handler = pubsubHandler
     return subscriptionIds
   }
 
-  server.resetHandler = () => server.handler = originalHandler
-  server.addMiddleware = function (middlewareFn) {
-    server.handler = async function(payload, request, response) {
+  server.before = function (middlewareFn) {
+    overrideHandler = async function middleware(payload, request, response) {
+      logger.debug('calling middleware', payload)
       let middlewareResult = await middlewareFn(payload, request, response)
       if (middlewareResult instanceof Next || response.isEnded) {
         return middlewareResult
       } else {
+        logger.debug('calling original handler', middlewareResult)
         return await originalHandler(middlewareResult, request, response)
       }
     }
+    if (!pubsubHandler) {
+      server.handler = overrideHandler
+    } // else, we already have a reference setup
   }
 
   // override terminate to gracefully unregister

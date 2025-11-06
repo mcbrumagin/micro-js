@@ -805,6 +805,35 @@ async function testMultipleAnonymousServices() {
   )
 }
 
+
+/**
+ * Test subscription creation on regular service with middleware
+ */
+async function testServiceWithMiddleware() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('middleware-service', async (payload) => {
+      payload.service = true
+      return payload
+    }),
+    async ([registry, service]) => {
+
+      service.before(async (payload, request, response) => {
+        payload.before = true
+        return payload
+      })
+
+      let result = await callService('middleware-service', { begin: 'test' })
+
+      await assert(result,
+        r => r.service === true,
+        r => r.before === true,
+        r => r.begin === 'test'
+      )
+    }
+  )
+}
+
 export default {
   testCreateService,
   testCallService,
@@ -835,5 +864,6 @@ export default {
   testAnonymousAsyncFunctionService,
   testAnonymousArrowFunctionService,
   testAnonymousWithContextCall,
-  testMultipleAnonymousServices
+  testMultipleAnonymousServices,
+  testServiceWithMiddleware
 }
