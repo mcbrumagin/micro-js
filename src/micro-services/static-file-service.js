@@ -533,8 +533,12 @@ export default async function createStaticFileService({
     // PubSub mode - subscribe to file upload/deletion events
     if (mode === 'pubsub' || mode === 'hybrid') {
       try {
-        await server.context.subscribe(pubsubChannel, handleFileUploadEvent)
-        await server.context.subscribe(deletionChannel, handleFileDeletionEvent)
+        // await server.context.subscribe(pubsubChannel, handleFileUploadEvent)
+        // await server.context.subscribe(deletionChannel, handleFileDeletionEvent)
+        await server.createSubscription({
+          [pubsubChannel]: handleFileUploadEvent,
+          [deletionChannel]: handleFileDeletionEvent
+        })
         logger.info(`Auto-refresh subscribed to: ${pubsubChannel}, ${deletionChannel}`)
       } catch (err) {
         logger.error('Failed to subscribe to file events:', err)

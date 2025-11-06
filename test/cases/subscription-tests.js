@@ -1,12 +1,14 @@
 /**
- * Subscription Tests
- * Tests for standalone createSubscription functionality
+ * Subscription Service Tests
+ * Tests for createSubscriptionService functionality
  */
 
 import { assert, assertErr, terminateAfter, startRegistry, sleep } from '../core/index.js'
 
 import {
-  createSubscription,
+  createService,
+  callService,
+  createSubscriptionService,
   publishMessage,
   Logger
 } from '../../src/index.js'
@@ -22,17 +24,15 @@ async function testBasicSubscription() {
     async ([registry]) => {
       const messages = []
       
-      const subscription = await createSubscription('test-channel', async (message) => {
-        messages.push(message)
-        return { received: true }
+      const subscription = await createSubscriptionService('test-subscription', {
+        'test-channel': async (message) => {
+          messages.push(message)
+          return { received: true }
+        }
       })
-      
-      // Give subscription time to register
-      await sleep(50)
       
       // Publish a message
       await publishMessage('test-channel', { data: 'test message 1' })
-      await sleep(50)
       
       await assert(messages,
         m => m.length === 1,
@@ -41,7 +41,6 @@ async function testBasicSubscription() {
       
       // Publish another message
       await publishMessage('test-channel', { data: 'test message 2' })
-      await sleep(50)
       
       await assert(messages,
         m => m.length === 2,
@@ -51,11 +50,11 @@ async function testBasicSubscription() {
       // Verify subscription object structure
       await assert(subscription,
         s => typeof s.terminate === 'function',
-        s => typeof s.channel === 'string',
-        s => s.channel === 'test-channel',
+        s => Array.isArray(s.channels),
+        s => s.channels.includes('test-channel'),
         s => typeof s.location === 'string',
-        s => typeof s.serviceName === 'string',
-        s => s.serviceName.startsWith('subscription_test-channel_')
+        s => typeof s.name === 'string',
+        s => s.name === 'test-subscription'
       )
       
       await subscription.terminate()
@@ -64,7 +63,7 @@ async function testBasicSubscription() {
 }
 
 /**
- * Test multiple subscriptions to the same channel
+ * Test multiple subscription services to the same channel
  */
 async function testMultipleSubscriptionsToSameChannel() {
   await terminateAfter(
@@ -73,19 +72,20 @@ async function testMultipleSubscriptionsToSameChannel() {
       const messages1 = []
       const messages2 = []
       
-      const subscription1 = await createSubscription('shared-channel', async (message) => {
-        messages1.push(message)
+      const subscription1 = await createSubscriptionService('sub1', {
+        'shared-channel': async (message) => {
+          messages1.push(message)
+        }
       })
       
-      const subscription2 = await createSubscription('shared-channel', async (message) => {
-        messages2.push(message)
+      const subscription2 = await createSubscriptionService('sub2', {
+        'shared-channel': async (message) => {
+          messages2.push(message)
+        }
       })
-      
-      await sleep(50)
       
       // Publish a message - both should receive it
       await publishMessage('shared-channel', { data: 'broadcast' })
-      await sleep(50)
       
       await assert([messages1, messages2],
         ([m1, m2]) => m1.length === 1,
@@ -101,7 +101,7 @@ async function testMultipleSubscriptionsToSameChannel() {
 }
 
 /**
- * Test subscription to multiple different channels
+ * Test subscription service with multiple channels
  */
 async function testMultipleChannelSubscriptions() {
   await terminateAfter(
@@ -110,20 +110,18 @@ async function testMultipleChannelSubscriptions() {
       const channelAMessages = []
       const channelBMessages = []
       
-      const subA = await createSubscription('channel-a', async (message) => {
-        channelAMessages.push(message)
+      const sub = await createSubscriptionService('multi-channel-sub', {
+        'channel-a': async (message) => {
+          channelAMessages.push(message)
+        },
+        'channel-b': async (message) => {
+          channelBMessages.push(message)
+        }
       })
-      
-      const subB = await createSubscription('channel-b', async (message) => {
-        channelBMessages.push(message)
-      })
-      
-      await sleep(50)
       
       // Publish to different channels
       await publishMessage('channel-a', { source: 'A' })
       await publishMessage('channel-b', { source: 'B' })
-      await sleep(50)
       
       await assert([channelAMessages, channelBMessages],
         ([a, b]) => a.length === 1,
@@ -132,8 +130,7 @@ async function testMultipleChannelSubscriptions() {
         ([a, b]) => b[0].source === 'B'
       )
       
-      await subA.terminate()
-      await subB.terminate()
+      await sub.terminate()
     }
   )
 }
@@ -147,25 +144,22 @@ async function testSubscriptionTermination() {
     async ([registry]) => {
       const messages = []
       
-      const subscription = await createSubscription('term-channel', async (message) => {
-        messages.push(message)
+      const subscription = await createSubscriptionService('term-service', {
+        'term-channel': async (message) => {
+          messages.push(message)
+        }
       })
-      
-      await sleep(50)
       
       // Send first message
       await publishMessage('term-channel', { id: 1 })
-      await sleep(50)
       
       await assert(messages, m => m.length === 1)
       
       // Terminate subscription
       await subscription.terminate()
-      await sleep(50)
       
       // Send second message - should NOT be received
       await publishMessage('term-channel', { id: 2 })
-      await sleep(50)
       
       await assert(messages,
         m => m.length === 1, // Still only 1 message
@@ -183,18 +177,18 @@ async function testInvalidHandler() {
     await startRegistry(),
     async ([registry]) => {
       await assertErr(
-        () => createSubscription('test-channel', 'not-a-function'),
-        err => err.message.includes('handler must be a function')
+        () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
+        err => err.message.includes('must be a function')
       )
       
       await assertErr(
-        () => createSubscription('test-channel', null),
-        err => err.message.includes('handler must be a function')
+        () => createSubscriptionService('test-service2', { 'test-channel': null }),
+        err => err.message.includes('must be a function')
       )
       
       await assertErr(
-        () => createSubscription('test-channel', undefined),
-        err => err.message.includes('handler must be a function')
+        () => createSubscriptionService('test-service3', {}),
+        err => err.message.includes('at least one channel')
       )
     }
   )
@@ -206,23 +200,22 @@ async function testInvalidHandler() {
 async function testSubscriptionHandlerError() {
   await terminateAfter(
     await startRegistry(),
-    await createSubscription('error-channel', async (message) => {
-      if (message.shouldError) {
-        throw new Error('Intentional handler error')
+    await createSubscriptionService('error-service', {
+      'error-channel': async (message) => {
+        if (message.shouldError) {
+          throw new Error('Intentional handler error')
+        }
+        return { success: true }
       }
-      return { success: true }
     }),
     async ([registry, subscription]) => {
-      await sleep(50)
-      
       // Publish message that causes handler error
       const result = await publishMessage('error-channel', { shouldError: true })
       
       // Check that error is captured in errors array
-      // TODO do we want an errors array? seems bad
       await assert(result,
-        r => r.errors && r.errors.length > 0,
-        r => r.errors[0].status === 500
+        r => r.results && r.results.length > 0,
+        r => r.results[0].errors && r.results[0].errors.length > 0
       )
     }
   )
@@ -236,11 +229,12 @@ async function testComplexMessagePayloads() {
   
   await terminateAfter(
     await startRegistry(),
-    await createSubscription('complex-channel', async (message) => {
-      messages.push(message)
+    await createSubscriptionService('complex-service', {
+      'complex-channel': async (message) => {
+        messages.push(message)
+      }
     }),
     async ([registry, subscription]) => {
-      await sleep(50)
       
       // Send various complex payloads
       await publishMessage('complex-channel', {
@@ -255,8 +249,6 @@ async function testComplexMessagePayloads() {
         boolean: true,
         null: null
       })
-      
-      await sleep(50)
       
       await assert(messages,
         m => m.length === 2,
@@ -273,31 +265,26 @@ async function testComplexMessagePayloads() {
 }
 
 /**
- * Test subscription request/response pattern
+ * Test subscription publish results
  */
-async function testSubscriptionRequestResponse() {
+async function testSubscriptionPublishResults() {
   await terminateAfter(
     await startRegistry(),
-    await createSubscription('rpc-channel', async (message, request, response) => {
-      // Handler can access request and response objects
-      await assert([message, request, response],
-        ([msg, req, res]) => msg !== undefined,
-        ([msg, req, res]) => req !== undefined,
-        ([msg, req, res]) => res !== undefined
-      )
-      
-      return { echo: message, processed: true }
+    await createSubscriptionService('rpc-service', {
+      'rpc-channel': async (message) => {
+        return { echo: message, processed: true }
+      }
     }),
     async ([registry, subscription]) => {
-      await sleep(50)
       
       // Publish returns results from all handlers
       const result = await publishMessage('rpc-channel', { test: 'data' })
       
+      console.log(JSON.stringify(result, null, 2))
       await assert(result,
         r => r.results.length === 1,
-        r => r.results[0].echo.test === 'data',
-        r => r.results[0].processed === true
+        r => r.results[0].results[0].echo.test === 'data',
+        r => r.results[0].results[0].processed === true
       )
     }
   )
@@ -311,13 +298,13 @@ async function testConcurrentMessages() {
   
   await terminateAfter(
     await startRegistry(),
-    await createSubscription('concurrent-channel', async (message) => {
-      await sleep(10) // Simulate async processing
-      messages.push(message.id)
+    await createSubscriptionService('concurrent-service', {
+      'concurrent-channel': async (message) => {
+        await sleep(10) // Simulate async processing
+        messages.push(message.id)
+      }
     }),
     async ([registry, subscription]) => {
-      await sleep(50)
-      
       // Send multiple messages concurrently
       const promises = []
       for (let i = 0; i < 5; i++) {
@@ -325,7 +312,6 @@ async function testConcurrentMessages() {
       }
       
       await Promise.all(promises)
-      await sleep(100) // Wait for all handlers to complete
       
       await assert(messages,
         m => m.length === 5,
@@ -347,20 +333,18 @@ async function testSubscriptionStartsClean() {
     async ([registry]) => {
       // Publish before subscription exists
       await publishMessage('clean-channel', { id: 0 })
-      await sleep(50)
       
-      const subscription = await createSubscription('clean-channel', async (message) => {
-        messages.push(message)
+      const subscription = await createSubscriptionService('clean-service', {
+        'clean-channel': async (message) => {
+          messages.push(message)
+        }
       })
-      
-      await sleep(50)
       
       // Should not receive the message sent before subscription
       await assert(messages, m => m.length === 0)
       
       // But should receive new messages
       await publishMessage('clean-channel', { id: 1 })
-      await sleep(50)
       
       await assert(messages,
         m => m.length === 1,
@@ -368,32 +352,36 @@ async function testSubscriptionStartsClean() {
       )
       
       await subscription.terminate()
-      await sleep(50) // Give time for cleanup
     }
   )
 }
 
 /**
- * Test multiple terminate calls are safe
+ * Test subscription creation middleware on normal service
  */
-async function testMultipleTerminateCalls() {
+async function testSubscriptionCreationMiddleware() {
   await terminateAfter(
     await startRegistry(),
-    await createSubscription('multi-term-channel', async (message) => {
-      return { received: true }
-    }),
-    async ([registry, subscription]) => {
-      await sleep(50)
-      
-      // Multiple terminate calls should not error
-      await subscription.terminate()
-      await sleep(20)
-      await subscription.terminate()
-      await sleep(20)
-      await subscription.terminate()
-      
-      // No assertion needed - just shouldn't throw
-      await assert(true, t => t === true)
+    async ([registry]) => {
+      let messages = []
+      const service = await createService('regular-service', async () => {
+        return { totalMessages: messages.length }
+      })
+
+      await service.createSubscription({
+        'middleware-channel': async (message) => {
+          messages.push(message)
+        }
+      })
+
+      await publishMessage('middleware-channel', { data: 'test message' })
+      let result = await callService('regular-service')
+
+      await assert([messages, result],
+        ([m, r]) => m.length === 1,
+        ([m, r]) => m[0].data === 'test message',
+        ([m, r]) => r.totalMessages === 1
+      )
     }
   )
 }
@@ -406,9 +394,8 @@ export default {
   testInvalidHandler,
   testSubscriptionHandlerError,
   testComplexMessagePayloads,
-  testSubscriptionRequestResponse,
+  testSubscriptionPublishResults,
   testConcurrentMessages,
   testSubscriptionStartsClean,
-  testMultipleTerminateCalls
+  testSubscriptionCreationMiddleware
 }
-

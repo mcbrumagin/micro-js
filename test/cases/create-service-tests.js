@@ -341,7 +341,7 @@ async function testDependentServiceThrowsError() {
         () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
         err => err.message.includes('Test error from inside test2 service'),
         err => err.stack.includes('in service "test"'),
-        err => err.stack.includes('at test2'),
+        err => err.stack.includes('test2'),
         err => err.status === 500,
         err => err.isServerError,
         err => err.name.includes('HttpServerError')

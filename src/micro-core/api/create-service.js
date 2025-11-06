@@ -4,24 +4,20 @@
  * Refactored into modular components for better maintainability
  */
 
-import httpServer from '../http-primitives/http-server.js'
-import httpRequest from '../http-primitives/http-request.js'
 import Logger from '../../utils/logger.js'
 import envConfig from '../shared/env-config.js'
-import retry from '../shared/retry-helper.js'
-import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../shared/micro-headers.js'
 
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildContext, buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
-import {
-  getRegistryHost,
-  determineServiceHome,
-  extractPort,
-  validateServiceLocation,
-  validateServiceName
-} from '../service/service-validator.js'
+import { validateServiceName, extractPort, validateServiceLocation } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
+import { createPubSubManager } from '../service/pubsub-manager.js'
+import { isSubscriptionMessage } from '../service/cache-handler.js'
+import {
+  createAndRegisterService,
+  unregisterServiceFromRegistry
+} from './service-helpers.js'
 
 import crypto from 'crypto'
 
@@ -36,52 +32,6 @@ const DEFAULT_CONFIG = {
   muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false),
   sharedCache: null, // Optional pre-created cache for batch operations
   streamPayload: false // If true, don't buffer request body - pass raw stream to handler
-}
-
-/**
- * Setup service with registry (allocate port)
- * @private
- */
-async function setupServiceWithRegistry(name, serviceHome, registryHost, config) {
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
-  
-  return await retry(
-    async () => {
-      const location = await httpRequest(registryHost, {
-        headers: buildSetupHeaders(name, serviceHome, registryToken)
-      })
-      return location
-    },
-    {
-      maxAttempts: config.tryRegisterLimit,
-      initialDelay: config.retryInitialDelay,
-      muteWarnings: config.muteRetryWarnings
-    }
-  )
-}
-
-/**
- * Register service with registry
- * @private
- */
-async function registerServiceWithRegistry(name, location, registryHost, useAuthService) {
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
-  
-  return await httpRequest(registryHost, {
-    headers: buildRegisterHeaders(name, location, useAuthService, registryToken)
-  })
-}
-
-/**
- * Unregister service from registry
- * @private
- */
-async function unregisterServiceFromRegistry(name, location, registryHost) {
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
-  
-  return await httpRequest(registryHost, {
-    headers: buildUnregisterHeaders(name, location, registryToken)
-  })
 }
 
 /**
@@ -123,62 +73,90 @@ export default async function createService(name, serviceFn, options = {}) {
 
   validateServiceName(name)
 
-  const registryHost = getRegistryHost()
-  const serviceHome = determineServiceHome(registryHost)
-
   const config = { ...DEFAULT_CONFIG, ...options }
   config.useAuthService = config.useAuthService?.name || config.useAuthService
   
-  // get allocated runtime port, if not hardcoded
-  const location = await setupServiceWithRegistry(name, serviceHome, registryHost, config)
-  const port = extractPort(location)
-  validateServiceLocation(location, port)
-
   // TODO test sharedCache override... seems sketchy
   const cache = config.sharedCache || createServiceState()
   
-  // Build context with location for subscription support
-  const context = buildEnhancedContext(cache, name, location)
+  // Build context without location initially (no subscriptions in regular services)
+  const context = buildEnhancedContext(cache, name, null)
   const boundServiceFn = bindServiceFunction(serviceFn, context)
   const handler = createCacheAwareHandler(boundServiceFn, cache, context)
 
   // override handler name
   Object.defineProperty(handler, 'name', { value: name, writable: false })
 
-  let server
+  // Setup service infrastructure using shared helpers
+  let result
   try {
-    server = await httpServer(port, handler, { streamPayload: config.streamPayload })
-    server.name = name
+    result = await createAndRegisterService(name, handler, config)
   } catch (err) {
     if (err.message.includes('listen EADDRINUSE')) {
+      // Retry on port collision
       return createService(name, serviceFn, options)
     } else {
       throw err
     }
   }
 
-  const registryData = await registerServiceWithRegistry(name, location, registryHost, config.useAuthService)
+  const { location, server, registryData } = result
+  
   updateCache(cache, registryData)
 
   logger.info(`Service "${name}" running at ${location}`)
-  logger.debug('createService - registryHost:', registryHost)
+  
+  // Add metadata
+  server.name = name
   server.service = name
   server.location = location
-  
-  // for binding service stubs to context
   server.cache = cache
   server.context = context
 
-  // override terminate to gracefully unregister and cleanup subscriptions
+  let originalHandler = server.handler
+  let pubSubManager = null
+  let subscriptionIds = {}
+
+  // TODO this should use addMiddleware instead, after multiple middleware support is added
+  server.createSubscription = async function createSubscriptionForService(channelMap) {
+    if (!pubSubManager) {
+      pubSubManager = createPubSubManager(name, location)
+    }
+
+    for (let [channel, handler] of Object.entries(channelMap)) {
+      subscriptionIds[channel] = await pubSubManager.subscribe(channel, handler)
+    }
+
+    server.handler = async function(payload, request, response) {
+      logger.debug(`Handling request for channel: ${JSON.stringify(request.headers, null, 2)}`)
+      if (isSubscriptionMessage(request)) {
+        logger.debug(`Handling subscription message for channel: ${request.headers['micro-pubsub-channel']}`)
+        return await pubSubManager.handleIncomingMessage(request.headers['micro-pubsub-channel'], payload)
+      } else {
+        return await originalHandler(payload, request, response)
+      }
+    }
+
+    return subscriptionIds
+  }
+
+  server.resetHandler = () => server.handler = originalHandler
+  server.addMiddleware = function (middlewareFn) {
+    server.handler = async function(payload, request, response) {
+      let middlewareResult = await middlewareFn(payload, request, response)
+      if (middlewareResult instanceof Next || response.isEnded) {
+        return middlewareResult
+      } else {
+        return await originalHandler(middlewareResult, request, response)
+      }
+    }
+  }
+
+  // override terminate to gracefully unregister
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
-    // Cleanup subscriptions first
-    if (context._pubSubManager) {
-      await context._pubSubManager.cleanup()
-    }
-    
     removeFromCache(cache, { service: name, location })
-    await unregisterServiceFromRegistry(name, location, registryHost)
+    await unregisterServiceFromRegistry(name, location)
     await httpServerTerminate()
   }
 

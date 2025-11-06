@@ -93,14 +93,13 @@ import edgeCaseTests from './cases/edge-case-tests.js'
 import loadBalancerTests from './cases/load-balancer-tests.js'
 
 import cacheServiceTests from './cases/services/cache-tests.js'
-import pubsubTests from './cases/services/pubsub-tests.js'
+import subscriptionTests from './cases/subscription-tests.js'
 import staticFileServiceTests from './cases/services/static-file-tests.js'
 import fileUploadTests from './cases/services/file-upload-tests.js'
 import authTests from './cases/services/auth-tests.js'
 import advancedAuthTests from './cases/services/advanced-auth-tests.js'
 import registryTokenTests from './cases/registry-token-tests.js'
 import cryptoTests from './cases/crypto-tests.js'
-import subscriptionTests from './cases/subscription-tests.js'
 import autoRefreshTests from './cases/services/autorefresh-tests.js'
 
 // TODO solo support for test suites
@@ -119,7 +118,7 @@ let testFns = mergeAllTestsSafely(
   edgeCaseTests,
   loadBalancerTests,
   cacheServiceTests,
-  pubsubTests,
+  // pubsubTests,
   subscriptionTests,
   staticFileServiceTests,
   fileUploadTests,

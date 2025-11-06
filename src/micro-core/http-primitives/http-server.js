@@ -83,7 +83,7 @@ export default async function createServer(port, serverFn, options = {}) {
 
         // TODO pipe request to serverFn for file uploads?
         
-        let result = await serverFn(body, request, response)
+        let result = await server.handler(body, request, response)
         if (result instanceof fs.ReadStream) {
           return result.pipe(response) // TODO VERIFY THIS WORKS
         } else if (result !== false) {
@@ -143,6 +143,9 @@ export default async function createServer(port, serverFn, options = {}) {
         }
       }
     })
+
+    // store our handler so we can override w/ "middleware"
+    server.handler = serverFn
 
     server.on('error', err => {
       logger.warn(`server "${serverFn.name}" failed to start at port ${port}`)
