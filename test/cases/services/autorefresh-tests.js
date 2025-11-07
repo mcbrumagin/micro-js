@@ -84,7 +84,7 @@ async function testPubSubMode() {
       fileMap: { '/*': 'data' },
       autoRefresh: {
         mode: 'pubsub',
-        pubsubChannel: 'test:file-uploaded',
+        updateChannel: 'test:file-updated',
         onFileAdded: (fileInfo) => {
           fileAddedCalled = true
         }
@@ -104,7 +104,7 @@ async function testPubSubMode() {
 
       await fs.writeFileSync(testFilePath, '<html>test</html>')
       try {
-        await publishMessage('test:file-uploaded', {
+        await publishMessage('test:file-updated', {
           urlPath: '/test-pubsub.html',
           filePath: testFilePath
         })
@@ -140,7 +140,7 @@ async function testFileDeletionEvent() {
       fileMap: { '/*': 'data' },
       autoRefresh: {
         mode: 'pubsub',
-        pubsubChannel: 'test:file-uploaded',
+        updateChannel: 'test:file-updated',
         deletionChannel: 'test:file-deleted',
         onFileRemoved: (fileInfo) => {
           fileRemovedCalled = true
@@ -276,7 +276,7 @@ async function testIntegratedUploadAndStatic() {
     await createFileUploadService({
       uploadDir: path.join(testDir, 'data'),  // Upload directly to data dir
       publishFileEvents: true,
-      eventChannel: 'test:upload-event',
+      updateChannel: 'test:upload-event',
       urlPathPrefix: '/'  // URLs will be like /uploaded.txt
     }),
     await createStaticFileService({
@@ -284,7 +284,7 @@ async function testIntegratedUploadAndStatic() {
       fileMap: { '/*': 'data' },  // Maps /* to data directory
       autoRefresh: {
         mode: 'pubsub',
-        pubsubChannel: 'test:upload-event',
+        updateChannel: 'test:upload-event',
         onFileAdded: () => fileAddedCount++
       }
     }),

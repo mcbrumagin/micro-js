@@ -84,7 +84,7 @@ export default async function createRegistryServer(port) {
       response.end(body)
       
     } catch (err) {
-      if (!request.headers['mute-internal-error']) {
+      if (!request || !request.headers['mute-internal-error']) {
         logger.debugErr('Registry command failed:', err)
       }
       const status = err.status || 500

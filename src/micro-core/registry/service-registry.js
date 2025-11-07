@@ -355,6 +355,11 @@ const headerWhitelist = [
   'sec-ch-ua-mobile',
   'sec-ch-ua-platform',
 
+  // Range request headers for streaming media
+  'range',
+  'if-range',
+  'accept-ranges',
+
   // TODO verify relevant micro-headers are forwarded
   'cookie', // TODO only for auth services
   'micro-command',

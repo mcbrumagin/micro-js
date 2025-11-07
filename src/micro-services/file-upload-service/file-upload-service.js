@@ -386,7 +386,8 @@ export default async function createFileUploadService({
   onError = null,
   useAuthService = null,
   publishFileEvents = true,  // NEW: auto-publish upload events
-  eventChannel = 'micro:file-uploaded',  // NEW: customizable channel
+  updateChannel = 'micro:file-updated',  // NEW: customizable channel
+  deleteChannel = 'micro:file-deleted',  // NEW: customizable channel
   urlPathPrefix = '/uploads'  // NEW: URL path prefix for uploaded files
 } = {}) {
   // Ensure upload directory exists
@@ -415,7 +416,8 @@ export default async function createFileUploadService({
             timestamp: Date.now()
           }
           
-          await this.publish(eventChannel, fileEvent)
+          logger.info('publishing file event:', fileEvent)
+          await this.publish(updateChannel, fileEvent)
         } catch (err) {
           logger.error('Failed to publish file event:', err)
         }
@@ -471,7 +473,7 @@ export default async function createFileUploadService({
       const fileName = path.basename(filePath)
       const urlPath = path.join(urlPathPrefix, fileName).replace(/\\/g, '/')
       
-      await server.context.publish(eventChannel, {
+      await server.context.publish(updateChannel, {
         urlPath,
         filePath,
         fileName,
@@ -491,7 +493,7 @@ export default async function createFileUploadService({
       const fileName = path.basename(filePath)
       const urlPath = path.join(urlPathPrefix, fileName).replace(/\\/g, '/')
       
-      await server.context.publish('micro:file-deleted', {
+      await server.context.publish(deleteChannel, {
         urlPath,
         filePath,
         fileName,

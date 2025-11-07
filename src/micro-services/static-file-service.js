@@ -184,38 +184,16 @@ async function getRangeData(filePath, range) {
   const fileSize = fs.statSync(filePath).size
   const parts = range.replace(/bytes=/, "").split("-")
   const start = parseInt(parts[0], 10)
-  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1 // TODO cache size
+  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+  
+  // Validate range
+  if (isNaN(start) || isNaN(end) || start < 0 || end >= fileSize || start > end) {
+    return { invalid: true, fileSize }
+  }
+  
   const chunksize = (end - start) + 1
-  return { start, end, chunksize, fileSize }
+  return { start, end, chunksize, fileSize, invalid: false }
 }
-
-
-
-// const parts = range.replace(/bytes=/, "").split("-");
-// const start = parseInt(parts[0], 10);
-// const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-// const chunksize = (end - start) + 1;
-
-// // Check for invalid ranges
-// if (start >= fileSize || end >= fileSize || start < 0 || end < start) {
-//     res.writeHead(416, { 'Content-Range': `bytes */${fileSize}` });
-//     res.end();
-//     return;
-// }
-
-// const fileStream = fs.createReadStream(filePath, { start, end });
-
-// res.writeHead(206, {
-//     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-//     'Accept-Ranges': 'bytes',
-//     'Content-Length': chunksize,
-//     'Content-Type': 'video/mp4', // Adjust Content-Type as needed
-// });
-
-// fileStream.pipe(res);
-
-
-
 
 // TODO dev mode default returns quickLookup path urls
 const $404 = () => new HttpError(404, 'Not found')
@@ -316,21 +294,59 @@ export default async function createStaticFileService({
     const isLocalHelperCall = !response
     if (isLocalHelperCall) return fs.createReadStream(filePath)
     else {
+      const fileStats = fs.statSync(filePath)
+      const fileSize = fileStats.size
+      
+      // Always advertise range support for all files
+      response.setHeader('accept-ranges', 'bytes')
       response.setHeader('content-type', contentType)
-      response.setHeader('content-length', fs.statSync(filePath).size)
       response.setHeader('last-modified', getLastModified(filePath))
 
-
+      // Handle range requests
       if (request?.headers?.range) {
-        let { start, end, chunksize, fileSize } = await getRangeData(filePath, request.headers.range)
-        response.setHeader('content-range', `bytes ${start}-${end}/${fileSize}`)
-        response.setHeader('accept-ranges', 'bytes')
-        response.setHeader('content-length', chunksize)
-        response.setHeader('content-type', contentType)
-        response.setHeader('last-modified', getLastModified(filePath))
-        response.writeHead(206)
-        fs.createReadStream(filePath, { start, end }).pipe(response)
-      } else fs.createReadStream(filePath).pipe(response)
+        // Check If-Range precondition (RFC 7233)
+        // If-Range can be either an ETag or a date (Last-Modified)
+        const ifRange = request.headers['if-range']
+        let shouldProcessRange = true
+        
+        if (ifRange) {
+          const lastModified = getLastModified(filePath)
+          // Simple date comparison - if file was modified, ignore range and send full file
+          if (ifRange !== lastModified) {
+            shouldProcessRange = false
+            logger.debug('If-Range condition failed, sending full file')
+          }
+        }
+        
+        if (shouldProcessRange) {
+          const rangeData = await getRangeData(filePath, request.headers.range)
+          
+          // Handle invalid range (416 Range Not Satisfiable)
+          if (rangeData.invalid) {
+            response.setHeader('content-range', `bytes */${rangeData.fileSize}`)
+            response.writeHead(416)
+            response.end()
+            return next({ reason: 'invalid range', file: filePath })
+          }
+          
+          // Valid range - send partial content (206)
+          const { start, end, chunksize } = rangeData
+          response.setHeader('content-range', `bytes ${start}-${end}/${fileSize}`)
+          response.setHeader('content-length', chunksize)
+          response.writeHead(206)
+          fs.createReadStream(filePath, { start, end }).pipe(response)
+        } else {
+          // If-Range condition failed - send full file
+          response.setHeader('content-length', fileSize)
+          response.writeHead(200)
+          fs.createReadStream(filePath).pipe(response)
+        }
+      } else {
+        // Normal request - send full file (200)
+        response.setHeader('content-length', fileSize)
+        response.writeHead(200)
+        fs.createReadStream(filePath).pipe(response)
+      }
 
       // TODO return next()? preventDefault()? next({ preventDefault: true })?
       return next({ reason: 'streaming file', file: filePath })
@@ -537,6 +553,7 @@ export default async function createStaticFileService({
    * Handle file upload event from pubsub
    */
   async function handleFileUploadEvent(event) {
+    logger.debug('staticFileService - handleFileUploadEvent:', event)
     try {
       const { urlPath, filePath } = event
       addFile(urlPath, filePath)
@@ -549,6 +566,7 @@ export default async function createStaticFileService({
    * Handle file deletion event from pubsub
    */
   async function handleFileDeletionEvent(event) {
+    logger.debug('staticFileService - handleFileUploadEvent:', event)
     try {
       const { urlPath } = event
       removeFile(urlPath)
@@ -574,7 +592,7 @@ export default async function createStaticFileService({
   // --- Setup auto-refresh based on mode -------------------------------------
   if (autoRefresh && autoRefresh.mode) {
     const mode = autoRefresh.mode
-    const pubsubChannel = autoRefresh.pubsubChannel || 'micro:file-uploaded'
+    const updateChannel = autoRefresh.updateChannel || 'micro:file-updated'
     const deletionChannel = autoRefresh.deletionChannel || 'micro:file-deleted'
     const intervalMs = autoRefresh.intervalMs || 10000
     
@@ -583,13 +601,13 @@ export default async function createStaticFileService({
     // PubSub mode - subscribe to file upload/deletion events
     if (mode === 'pubsub' || mode === 'hybrid') {
       try {
-        // await server.context.subscribe(pubsubChannel, handleFileUploadEvent)
+        // await server.context.subscribe(updateChannel, handleFileUploadEvent)
         // await server.context.subscribe(deletionChannel, handleFileDeletionEvent)
         await server.createSubscription({
-          [pubsubChannel]: handleFileUploadEvent,
+          [updateChannel]: handleFileUploadEvent,
           [deletionChannel]: handleFileDeletionEvent
         })
-        logger.info(`Auto-refresh subscribed to: ${pubsubChannel}, ${deletionChannel}`)
+        logger.info(`Auto-refresh subscribed to: ${updateChannel}, ${deletionChannel}`)
       } catch (err) {
         logger.error('Failed to subscribe to file events:', err)
       }

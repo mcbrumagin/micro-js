@@ -70,7 +70,7 @@ async function request(address, {
     if (error.name === 'AbortError') {
       throw new HttpError(408, 'Request timeout')
     }
-    if (!request ||!request.headers['mute-internal-error']) {
+    if (!headers || !headers['mute-internal-error']) {
       logger.debugErr(`Fetch failed at "${address}" - Error: ${error.message}`)
     }
     throw error

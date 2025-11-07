@@ -30,7 +30,7 @@ async function main() {
     uploadDir: path.join(process.cwd(), 'files'),
     fileFieldName: 'file',
     useAuthService: authService,
-    publishFileEvents: true,  // Publish micro:file-uploaded events
+    publishFileEvents: true,  // Publish micro:file-updated events
     urlPathPrefix: '/files'  // URL path prefix for uploaded files
   })
   
@@ -42,7 +42,7 @@ async function main() {
     fileMap: { '/': 'index.html' },
     autoRefresh: {
       mode: 'hybrid',  // Both pubsub and interval
-      pubsubChannel: 'micro:file-uploaded',
+      updateChannel: 'micro:file-updated',
       deletionChannel: 'micro:file-deleted',
       intervalMs: 30000,  // Check for external changes every 30s
       onFileAdded: (fileInfo) => {

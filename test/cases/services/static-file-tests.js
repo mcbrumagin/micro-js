@@ -330,6 +330,242 @@ async function testStaticFileDirectoryTreePopulation() {
   }
 }
 
+async function testStaticFileRangeHeaderAdvertisement() {
+  const tempDir = await createTempTestFiles()
+  
+  // Create a test audio file
+  const audioContent = Buffer.alloc(1000, 'audio-data-')
+  fs.writeFileSync(path.join(tempDir, 'test.mp3'), audioContent)
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: { '/audio.mp3': 'test.mp3' },
+        externalRootDir: true
+      }),
+      async () => {
+        // Test that Accept-Ranges header is present on initial request
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service'
+          }
+        })
+        
+        await assert(response,
+          r => r.status === 200,
+          r => r.headers.get('accept-ranges') === 'bytes',
+          r => r.headers.get('content-length') === '1000',
+          r => !!r.headers.get('last-modified')
+        )
+        
+        logger.info('✓ Accept-Ranges header properly advertised')
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testStaticFileRangeRequest() {
+  const tempDir = await createTempTestFiles()
+  
+  // Create a test audio file with known content
+  const audioContent = Buffer.from('0123456789'.repeat(100)) // 1000 bytes
+  fs.writeFileSync(path.join(tempDir, 'test.mp3'), audioContent)
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: { '/audio.mp3': 'test.mp3' },
+        externalRootDir: true
+      }),
+      async () => {
+        // Test partial content request (bytes 100-199)
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            'Range': 'bytes=100-199'
+          }
+        })
+        
+        await assert(response,
+          r => r.status === 206, // Partial Content
+          r => r.headers.get('content-range') === 'bytes 100-199/1000',
+          r => r.headers.get('content-length') === '100',
+          r => r.headers.get('accept-ranges') === 'bytes'
+        )
+        
+        const body = await response.arrayBuffer()
+        const bodyString = Buffer.from(body).toString()
+        
+        // Verify we got the correct byte range
+        await assert(bodyString,
+          s => s.length === 100,
+          s => s === '0123456789'.repeat(10) // bytes 100-199 should be this pattern
+        )
+        
+        logger.info('✓ Range request properly handled (206 Partial Content)')
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testStaticFileInvalidRangeRequest() {
+  const tempDir = await createTempTestFiles()
+  
+  const audioContent = Buffer.alloc(1000, 'x')
+  fs.writeFileSync(path.join(tempDir, 'test.mp3'), audioContent)
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: { '/audio.mp3': 'test.mp3' },
+        externalRootDir: true
+      }),
+      async () => {
+        // Test invalid range (beyond file size)
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            'Range': 'bytes=2000-3000' // File is only 1000 bytes
+          }
+        })
+        
+        await assert(response,
+          r => r.status === 416, // Range Not Satisfiable
+          r => r.headers.get('content-range') === 'bytes */1000'
+        )
+        
+        logger.info('✓ Invalid range request properly rejected (416)')
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testStaticFileRangeWithIfRange() {
+  const tempDir = await createTempTestFiles()
+  
+  const audioContent = Buffer.from('0123456789'.repeat(100))
+  const filePath = path.join(tempDir, 'test.mp3')
+  fs.writeFileSync(filePath, audioContent)
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: { '/audio.mp3': 'test.mp3' },
+        externalRootDir: true
+      }),
+      async () => {
+        // First, get the Last-Modified header
+        let initialResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service'
+          }
+        })
+        
+        const lastModified = initialResponse.headers.get('last-modified')
+        await assert(lastModified, lm => !!lm)
+        
+        // Test If-Range with matching Last-Modified (should return partial content)
+        let rangeResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            'Range': 'bytes=100-199',
+            'If-Range': lastModified
+          }
+        })
+        
+        await assert(rangeResponse,
+          r => r.status === 206, // Should return partial content
+          r => r.headers.get('content-range') === 'bytes 100-199/1000'
+        )
+        
+        // Test If-Range with non-matching date (should return full file)
+        let fullResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            'Range': 'bytes=100-199',
+            'If-Range': 'Wed, 01 Jan 2020 00:00:00 GMT' // Old date
+          }
+        })
+        
+        await assert(fullResponse,
+          r => r.status === 200, // Should return full file
+          r => r.headers.get('content-length') === '1000'
+        )
+        
+        logger.info('✓ If-Range conditional requests properly handled')
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+async function testStaticFileOpenEndedRangeRequest() {
+  const tempDir = await createTempTestFiles()
+  
+  const audioContent = Buffer.from('0123456789'.repeat(100)) // 1000 bytes
+  fs.writeFileSync(path.join(tempDir, 'test.mp3'), audioContent)
+  
+  try {
+    await terminateAfter(
+      await startRegistry(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: { '/audio.mp3': 'test.mp3' },
+        externalRootDir: true
+      }),
+      async () => {
+        // Test open-ended range request (bytes 900- means from 900 to end)
+        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            'Range': 'bytes=900-'
+          }
+        })
+        
+        await assert(response,
+          r => r.status === 206,
+          r => r.headers.get('content-range') === 'bytes 900-999/1000',
+          r => r.headers.get('content-length') === '100'
+        )
+        
+        const body = await response.arrayBuffer()
+        await assert(body, b => b.byteLength === 100)
+        
+        logger.info('✓ Open-ended range request properly handled')
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
 // TODO write a new file and test that it can be found (and added to quicklookup?)
 // async function testStaticFileWithEagerLookup() {}
 
@@ -344,5 +580,10 @@ export default {
   testStaticFileUrlSanitization,
   testStaticFileWithDefaultRequestUrl,
   testStaticFileResponseHeaders,
-  testStaticFileDirectoryTreePopulation
+  testStaticFileDirectoryTreePopulation,
+  testStaticFileRangeHeaderAdvertisement,
+  testStaticFileRangeRequest,
+  testStaticFileInvalidRangeRequest,
+  testStaticFileRangeWithIfRange,
+  testStaticFileOpenEndedRangeRequest
 }
