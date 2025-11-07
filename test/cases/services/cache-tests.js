@@ -496,6 +496,329 @@ function testCacheMemoryOnly() {
   )
 }
 
+/**
+ * Test cache with expireTime set to 'None'
+ * Items should never expire automatically
+ */
+async function testExpireTimeNone() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 'None', evictionInterval: 50 }),
+    async () => {
+      // Set value with expiration (should be ignored since expireTime is 'None')
+      await callService('cache-service', { setex: { persistKey: 'persistValue' } })
+      
+      // Wait longer than a typical expiration would be
+      await sleep(200)
+      
+      // Value should still exist since expireTime is 'None'
+      const value = await callService('cache-service', { get: 'persistKey' })
+      await assert(value, v => v === 'persistValue')
+      
+      logger.info('✓ expireTime: "None" - items persist indefinitely')
+    }
+  )
+}
+
+/**
+ * Test cache with evictionInterval set to 'None'
+ * Expired items should not be automatically cleaned up
+ */
+async function testEvictionIntervalNone() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 100, evictionInterval: 'None' }),
+    async () => {
+      // Set value with expiration
+      await callService('cache-service', { setex: { expiredKey: 'expiredValue' } })
+      
+      // Wait for expiration time to pass
+      await sleep(150)
+      
+      // Value should still be in cache (not evicted since evictionInterval is 'None')
+      const value = await callService('cache-service', { get: 'expiredKey' })
+      // Note: It's still there because no eviction ran, even though it's "expired"
+      await assert(value, v => v === 'expiredValue')
+      
+      logger.info('✓ evictionInterval: "None" - expired items not cleaned up')
+    }
+  )
+}
+
+/**
+ * Test cache with both expireTime and evictionInterval set to 'None'
+ * Cache should grow indefinitely with no automatic cleanup
+ */
+async function testBothSettingsNone() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 'None', evictionInterval: 'None' }),
+    async () => {
+      // Set multiple values
+      await callService('cache-service', { 
+        set: { 
+          key1: 'value1',
+          key2: 'value2',
+          key3: 'value3'
+        } 
+      })
+      
+      // Wait to ensure no cleanup happens
+      await sleep(200)
+      
+      // All values should still exist
+      const all = await callService('cache-service', { get: '*' })
+      await assert(all,
+        v => Object.keys(v).length === 3,
+        v => v.key1 === 'value1',
+        v => v.key2 === 'value2',
+        v => v.key3 === 'value3'
+      )
+      
+      logger.info('✓ Both settings "None" - cache persists indefinitely')
+    }
+  )
+}
+
+/**
+ * Test runtime toggling of expireTime from number to 'None' and back
+ */
+async function testToggleExpireTimeAtRuntime() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 100, evictionInterval: 50 }),
+    async () => {
+      // Set value with expiration (should expire)
+      await callService('cache-service', { setex: { tempKey: 'tempValue' } })
+      
+      // Wait for expiration
+      await sleep(150)
+      
+      // Value should be evicted
+      const afterExpire = await callService('cache-service', { get: 'tempKey' })
+      await assert(afterExpire, v => v === null)
+      
+      // Toggle expireTime to 'None'
+      await callService('cache-service', { settings: { expireTime: 'None' } })
+      
+      // Set new value
+      await callService('cache-service', { setex: { persistKey: 'persistValue' } })
+      
+      // Wait
+      await sleep(150)
+      
+      // Value should persist (expireTime is now 'None')
+      const persistValue = await callService('cache-service', { get: 'persistKey' })
+      await assert(persistValue, v => v === 'persistValue')
+      
+      // Toggle back to a number
+      await callService('cache-service', { settings: { expireTime: 100 } })
+      
+      // Set another value
+      await callService('cache-service', { setex: { expireAgain: 'expireValue' } })
+      
+      // Wait for expiration
+      await sleep(150)
+      
+      // Value should be evicted again
+      const afterToggleBack = await callService('cache-service', { get: 'expireAgain' })
+      await assert(afterToggleBack, v => v === null)
+      
+      logger.info('✓ Runtime toggle of expireTime works correctly')
+    }
+  )
+}
+
+/**
+ * Test runtime toggling of evictionInterval from number to 'None' and back
+ */
+async function testToggleEvictionIntervalAtRuntime() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 100, evictionInterval: 50 }),
+    async () => {
+      // Set value with expiration
+      await callService('cache-service', { setex: { key1: 'value1' } })
+      
+      // Wait for eviction
+      await sleep(150)
+      
+      // Value should be evicted
+      const afterEviction = await callService('cache-service', { get: 'key1' })
+      await assert(afterEviction, v => v === null)
+      
+      // Toggle evictionInterval to 'None'
+      await callService('cache-service', { settings: { evictionInterval: 'None' } })
+      
+      // Set new value with expiration
+      await callService('cache-service', { setex: { key2: 'value2' } })
+      
+      // Wait past expiration time
+      await sleep(150)
+      
+      // Value should still exist (no eviction running)
+      const noEviction = await callService('cache-service', { get: 'key2' })
+      await assert(noEviction, v => v === 'value2')
+      
+      // Toggle back to a number
+      await callService('cache-service', { settings: { evictionInterval: 50 } })
+      
+      // Wait for new eviction to run
+      await sleep(100)
+      
+      // Now the value should be evicted
+      const afterToggleBack = await callService('cache-service', { get: 'key2' })
+      await assert(afterToggleBack, v => v === null)
+      
+      logger.info('✓ Runtime toggle of evictionInterval works correctly')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid expireTime values
+ */
+async function testInvalidExpireTimeValidation() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      // Test negative expireTime
+      await assertErr(
+        () => createCacheService({ expireTime: -100 }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
+      )
+      
+      // Test invalid type (string that's not 'None')
+      await assertErr(
+        () => createCacheService({ expireTime: 'invalid' }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be a number or \'None\'')
+      )
+      
+      // Test zero expireTime
+      await assertErr(
+        () => createCacheService({ expireTime: 0 }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
+      )
+      
+      logger.info('✓ expireTime validation works correctly')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid evictionInterval values
+ */
+async function testInvalidEvictionIntervalValidation() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      // Test negative evictionInterval
+      await assertErr(
+        () => createCacheService({ evictionInterval: -100 }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
+      )
+      
+      // Test invalid type
+      await assertErr(
+        () => createCacheService({ evictionInterval: 'invalid' }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be a number or \'None\'')
+      )
+      
+      // Test zero evictionInterval
+      await assertErr(
+        () => createCacheService({ evictionInterval: 0 }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
+      )
+      
+      logger.info('✓ evictionInterval validation works correctly')
+    }
+  )
+}
+
+/**
+ * Test validation during runtime settings update
+ */
+async function testRuntimeValidation() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    async () => {
+      // Try to update to invalid expireTime
+      await assertErr(
+        () => callService('cache-service', { settings: { expireTime: -100 } }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
+      )
+      
+      // Try to update to invalid evictionInterval
+      await assertErr(
+        () => callService('cache-service', { settings: { evictionInterval: 0 } }),
+        err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
+      )
+      
+      // Valid updates should still work
+      const validUpdate = await callService('cache-service', { 
+        settings: { 
+          expireTime: 2000,
+          evictionInterval: 1000
+        } 
+      })
+      
+      await assert(validUpdate,
+        s => s.expireTime === 2000,
+        s => s.evictionInterval === 1000
+      )
+      
+      logger.info('✓ Runtime validation works correctly')
+    }
+  )
+}
+
+/**
+ * Test updating multiple settings at once including 'None' values
+ */
+async function testBulkSettingsUpdate() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    async () => {
+      // Update both settings to 'None'
+      const noneSettings = await callService('cache-service', { 
+        settings: { 
+          expireTime: 'None',
+          evictionInterval: 'None'
+        } 
+      })
+      
+      await assert(noneSettings,
+        s => s.expireTime === 'None',
+        s => s.evictionInterval === 'None'
+      )
+      
+      // Set a value and verify it persists
+      await callService('cache-service', { set: { testKey: 'testValue' } })
+      await sleep(200)
+      
+      const value = await callService('cache-service', { get: 'testKey' })
+      await assert(value, v => v === 'testValue')
+      
+      // Update both back to numbers
+      const numericSettings = await callService('cache-service', { 
+        settings: { 
+          expireTime: 100,
+          evictionInterval: 50
+        } 
+      })
+      
+      await assert(numericSettings,
+        s => s.expireTime === 100,
+        s => s.evictionInterval === 50
+      )
+      
+      logger.info('✓ Bulk settings update works correctly')
+    }
+  )
+}
+
 export default {
   testBasicSetAndGet,
   testSetMultipleKeys,
@@ -511,5 +834,14 @@ export default {
   testConcurrentOperations,
   testCacheUpdateWithHeaders,
   testServiceRegistrationCacheUpdate,
-  testCacheMemoryOnly
+  testCacheMemoryOnly,
+  testExpireTimeNone,
+  testEvictionIntervalNone,
+  testBothSettingsNone,
+  testToggleExpireTimeAtRuntime,
+  testToggleEvictionIntervalAtRuntime,
+  testInvalidExpireTimeValidation,
+  testInvalidEvictionIntervalValidation,
+  testRuntimeValidation,
+  testBulkSettingsUpdate
 }
