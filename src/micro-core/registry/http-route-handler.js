@@ -6,7 +6,7 @@
 import { Buffer } from 'node:buffer'
 import Logger from '../../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
-import { proxyServiceCall, streamProxyServiceCall } from './service-registry.js'
+import { streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
 import { Next } from '../http-primitives/next.js'
 
@@ -49,7 +49,7 @@ function sendBufferedResponse(response, result) {
 /**
  * Handle a direct route (exact path match)
  */
-async function handleDirectRoute(state, routeInfo, url, requestBody, request, response) {
+async function handleDirectRoute(state, routeInfo, url, requestBody /* TODO REMOVE */, request, response) {
   const { service, dataType } = routeInfo
   logger.debug('directRoute - streaming proxy for:', service)
   let result = await streamProxyServiceCall(state, { 
@@ -74,7 +74,7 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
 /**
  * Handle a controller route (prefix match)
  */
-async function handleControllerRoute(state, controllerInfo, url, requestBody, request, response) {
+async function handleControllerRoute(state, controllerInfo, url, requestBody /* TODO REMOVE */, request, response) {
   const { service, dataType } = controllerInfo
   let result = await streamProxyServiceCall(state, { 
     name: service, 

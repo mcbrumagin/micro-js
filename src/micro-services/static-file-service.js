@@ -181,6 +181,7 @@ const prettyPrintQuickLookup = (quickLookup) => {
 
 
 async function getRangeData(filePath, range) {
+  // TODO promise
   const fileSize = fs.statSync(filePath).size
   const parts = range.replace(/bytes=/, "").split("-")
   const start = parseInt(parts[0], 10)

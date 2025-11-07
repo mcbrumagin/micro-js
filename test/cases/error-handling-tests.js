@@ -299,6 +299,65 @@ async function testErrorPropagationThroughChain() {
 //   )
 // }
 
+/**
+ * Test that registry doesn't crash when calling non-existent service
+ * This verifies that unhandled rejections don't crash the registry
+ * and that it can continue to process requests after errors
+ */
+async function testRegistryStaysHealthyAfterServiceCallError() {
+  await terminateAfter(
+    await startRegistry(),
+    await createService('test-service', async () => ({ status: 'ok' })),
+    async () => {
+      // Try to call non-existent service (this used to cause unhandled rejection)
+      try {
+        await callService('/health', {})
+      } catch (err) {
+        // Expected to fail
+        await assert(err.message, m => m.includes('No service by name'))
+      }
+      
+      // Verify registry is still healthy and can process subsequent requests
+      const result = await callService('test-service', {})
+      await assert(result, r => r.status === 'ok')
+      
+      // Try another bad call to verify registry is still handling errors properly
+      try {
+        await callService('another-non-existent-service', {})
+      } catch (err) {
+        // Expected to fail
+        await assert(err.message, m => m.includes('No service by name'))
+      }
+      
+      // Verify registry still works
+      const result2 = await callService('test-service', {})
+      await assert(result2, r => r.status === 'ok')
+      
+      logger.info('✓ Registry remained healthy after service call errors')
+    }
+  )
+}
+
+/**
+ * Test that calling a service with a URL-like name (starting with /) 
+ * is handled properly and doesn't crash the registry
+ */
+async function testServiceCallWithUrlLikeName() {
+  await terminateAfter(
+    await startRegistry(),
+    async () => {
+      // Service name with leading slash (mimics the user's bug report)
+      await assertErr(
+        () => callService('/health', {}),
+        err => err.message.includes('No service by name'),
+        err => err.message.includes('/health')
+      )
+      
+      logger.info('✓ URL-like service names handled properly')
+    }
+  )
+}
+
 export default {
   testServiceWithEmptyName,
   testServiceWithSpacesInName,
@@ -313,6 +372,8 @@ export default {
   testBinaryContentTypeDetection,
   testMultipleContentTypes,
   testErrorPropagationThroughChain,
+  testRegistryStaysHealthyAfterServiceCallError,
+  testServiceCallWithUrlLikeName
   // testRequestTimeout
 }
 

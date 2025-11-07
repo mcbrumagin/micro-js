@@ -21,6 +21,23 @@ export default async function createRegistryServer(port) {
   validateRegistryEnvironment()
   const state = createRegistryState()
   
+  // Add global unhandled rejection handler to prevent registry crashes
+  // This is a safety net - errors should be caught at their source
+  const unhandledRejectionHandler = (reason, promise) => {
+    logger.error(logger.writeColor('magenta', 'Unhandled Promise Rejection in Registry (this should not happen): ', reason))
+    // logger.error(logger.writeColor('magenta', 'Promise:'), promise)
+    console.trace(promise) // TODO logger support
+    // Don't crash the registry - log and continue
+  }
+  
+  const uncaughtExceptionHandler = (err) => {
+    logger.error('Uncaught Exception in Registry (this should not happen):', err)
+    // Don't crash the registry - log and continue
+  }
+  
+  process.on('unhandledRejection', unhandledRejectionHandler)
+  process.on('uncaughtException', uncaughtExceptionHandler)
+  
   // Determine port from argument or environment
   if (!port) {
     const registryHost = process.env.MICRO_REGISTRY_URL
@@ -96,10 +113,15 @@ export default async function createRegistryServer(port) {
     }
   })
   
-  // Override terminate to clean up state
+  // Override terminate to clean up state and handlers
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
     logger.info('Registry shutting down')
+    
+    // Remove global error handlers
+    process.off('unhandledRejection', unhandledRejectionHandler)
+    process.off('uncaughtException', uncaughtExceptionHandler)
+    
     resetState(state)
     await httpServerTerminate()
   }

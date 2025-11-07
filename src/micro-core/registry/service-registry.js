@@ -430,7 +430,12 @@ export async function streamProxyServiceCall(state, { name, request, response })
         if (!response.writableEnded) {
           response.end()
         }
-        reject(err)
+        // Don't reject if response already ended - just resolve to prevent unhandled rejection
+        if (response.writableEnded) {
+          resolve(false)
+        } else {
+          reject(err)
+        }
       })
     })
 
@@ -439,14 +444,27 @@ export async function streamProxyServiceCall(state, { name, request, response })
       if (!response.headersSent) {
         response.writeHead(502)
         response.end('Bad Gateway')
+        reject(err)
+      } else {
+        // Response already started - log error but don't reject to avoid unhandled rejection
+        logger.error('Proxy request error after response started:', err)
+        if (!response.writableEnded) {
+          response.end()
+        }
+        resolve(false)
       }
-      reject(err)
     })
 
     request.on('error', (err) => {
       logger.debugErr('Request stream error:', err)
       proxyReq.destroy()
-      reject(err)
+      if (!response.headersSent) {
+        reject(err)
+      } else {
+        // Response already started - log but don't reject
+        logger.error('Request stream error after response started:', err)
+        resolve(false)
+      }
     })
 
     request.on('end', () => {
@@ -456,55 +474,18 @@ export async function streamProxyServiceCall(state, { name, request, response })
     // Pipe request body directly to service (no buffering)
     // Make sure to properly end the proxy request when input ends
     request.pipe(proxyReq, { end: true })
-  })
-}
-
-/**
- * Proxy a call to a service (with load balancing)
- * Supports transparent streaming when service returns non-JSON content
- */
-export async function proxyServiceCall(state, { name, payload, request, response }) {
-  
-  validateServiceCall(state, name)
-
-  // Verify auth token if service requires authentication
-  const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
-  await verifyAuthToken(state, name, authToken)
-
-  // use round-robin for proxy calls
-  let location = selectServiceLocation(state, name, 'round-robin')
-
-  let options = setProxyRequestOptions(request, response)
-  
-  location = `${location}${request.url}`
-  logger.debug('proxyServiceCall - location:', location)
-  
-  if (payload != null) {
-    options.body = payload
-  }
-  const serviceResponse = await httpRequest(location, options)
-  
-  let printHeaders = []
-  for (let [key, value] of serviceResponse.headers.entries()) {
-    printHeaders.push(`"${key}": "${value}"`)
-  }
-  logger.debug(`serviceResponse headers ${printHeaders.join(', ')}`)
-
-  // Forward any Set-Cookie headers to the client
-  // if (serviceResponse.headers.get('Set-Cookie')) {
-  //   response.setHeader('Set-Cookie', serviceResponse.headers.get('Set-Cookie'))
-  // }
-
-  
-  response.writeHead(serviceResponse.status, serviceResponse.headers)
-
-  if (options?.stream && serviceResponse instanceof Response) {
-    const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')
-    if (isStreamable && serviceResponse.body) {
-      return await handleStreamingResponse(serviceResponse, response)
+  }).catch(err => {
+    // Additional safety: catch any unhandled rejections in the promise chain
+    logger.debugErr('Caught unhandled error in streamProxyServiceCall:', err)
+    if (!response.headersSent && !response.writableEnded) {
+      try {
+        response.writeHead(500, { 'content-type': 'text/plain' })
+        response.end(err.message || 'Internal Server Error')
+      } catch (writeErr) {
+        logger.error('Failed to send error response:', writeErr)
+      }
     }
-  }
-
-  // non-streaming mode (backward compatibility)
-  return tryParseJson(await serviceResponse.text())
+    // Return false to indicate response was handled
+    return false
+  })
 }
