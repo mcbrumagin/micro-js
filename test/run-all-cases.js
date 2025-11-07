@@ -84,6 +84,7 @@ async function testMultipleAssertionFailures() {
 
 import serviceTests from './cases/create-service-tests.js'
 import routesTests from './cases/route-tests.js'
+import callRouteTests from './cases/call-route-tests.js'
 import loggerTests from './cases/logger-tests.js'
 import registryModuleTests from './cases/registry-module-tests.js'
 import streamingTests from './cases/streaming-tests.js'
@@ -111,6 +112,7 @@ let testFns = mergeAllTestsSafely(
   registryModuleTests,
   serviceTests,
   routesTests,
+  callRouteTests,
   loggerTests,
   streamingTests,
   headerCommandTests,

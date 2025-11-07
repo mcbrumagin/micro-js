@@ -52,12 +52,18 @@ export default async function createServer(port, serverFn, options = {}) {
       try {
         let body
         const contentType = request.headers['content-type'] || ''
+        const method = request.method.toUpperCase()
+        
+        // Methods that should not have a body
+        const methodsWithoutBody = ['GET', 'HEAD', 'DELETE', 'OPTIONS']
         
         // Auto-detect if we should stream based on content-type (for multipart uploads)
         const shouldStream = streamPayload || contentType.includes('multipart/')
         
-        // If streamPayload is true or multipart detected, don't buffer the request
-        if (shouldStream) {
+        // If method doesn't support body, pass empty object for service compatibility
+        if (methodsWithoutBody.includes(method)) {
+          body = {}
+        } else if (shouldStream) {
           body = null
         } else {
           body = await readStream(request)

@@ -58,7 +58,16 @@ async function request(address, {
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeout)
-  let options = { method, headers, body, signal: controller.signal }
+  
+  // Build fetch options
+  let options = { method, headers, signal: controller.signal }
+  
+  // GET and HEAD methods cannot have a body
+  // Don't include body property at all for these methods
+  const methodsWithoutBody = ['GET', 'HEAD']
+  if (!methodsWithoutBody.includes(method.toUpperCase())) {
+    options.body = body
+  }
   
   try {
     let response = await fetch(address, options)
