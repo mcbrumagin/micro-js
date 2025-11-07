@@ -108,11 +108,7 @@ async function testRouteControllerWildcard() {
   await terminateAfter(
     await startRegistry(),
     await createRoute('/api/*', async function apiController(payload, request) {
-      return {
-        status: 200,
-        dataType: 'application/json',
-        payload: JSON.stringify({ path: request.url, message: 'API response' })
-      }
+      return { path: request.url, message: 'API response' }
     }),
     async ([registry]) => {
       let response = await fetch(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}/api/users`)

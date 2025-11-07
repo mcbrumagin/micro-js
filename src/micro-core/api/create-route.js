@@ -34,8 +34,10 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     const functionName = serviceNameOrFn.name
     
     const existingLocation = functionName && await falseOnFailure(async () => await httpRequest(registryHost, {
-      headers: buildLookupHeaders(functionName),
-      body: { muteInternalError: true } // keep logs clean, we're expecting a not found error
+      headers: {
+        'mute-internal-error': true,
+        ...buildLookupHeaders(functionName)
+      }
     }))
 
     if (existingLocation) {

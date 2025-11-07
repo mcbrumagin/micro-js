@@ -335,7 +335,10 @@ async function testAuthRefreshCommand() {
             password: TEST_ADMIN_SECRET
           }
         }),
-        headers: buildAuthLoginHeaders()
+        headers: {
+          ...buildAuthLoginHeaders(),
+          'Content-Type': 'application/json'
+        }
       })
 
       if (response.status !== 200) {

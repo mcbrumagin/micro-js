@@ -339,6 +339,39 @@ const handleStreamingResponse = async (serviceResponse, response) => {
   return false // signal that response was handled
 }
 
+const headerWhitelist = [
+  'accept',
+  'accept-language',
+  'connection',
+  'content-type',
+  'origin',
+  'referer',
+  'forwarded',
+  'sec-fetch-dest',
+  'sec-fetch-mode',
+  'sec-fetch-site',
+  'user-agent',
+  'sec-ch-ua',
+  'sec-ch-ua-mobile',
+  'sec-ch-ua-platform',
+
+  // TODO verify relevant micro-headers are forwarded
+  'cookie', // TODO only for auth services
+  'micro-command',
+  'micro-service-name',
+  'micro-auth-token',
+  'micro-registry-token'
+]
+
+const filterForUsefulHeaders = (headers) => {
+  const filteredHeaders = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (!headerWhitelist.includes(key.toLowerCase())) continue
+    filteredHeaders[key] = value
+  }
+  return filteredHeaders
+}
+
 /**
  * Stream proxy a call to a service (for large payloads, multipart, etc.)
  * Pipes the request stream directly to the service without buffering
@@ -354,10 +387,13 @@ export async function streamProxyServiceCall(state, { name, request, response })
 
   // use round-robin for proxy calls
   const location = selectServiceLocation(state, name, 'round-robin')
-  const url = new URL(location)
+  const endpoint = request.url
+  const url = new URL(location + (endpoint ? endpoint : ''))
 
   logger.debug('streamProxyServiceCall - location:', location)
 
+  const headers = filterForUsefulHeaders(request.headers)
+  writeForwardedHeaders(request, headers) // TODO functional approach?
   return new Promise((resolve, reject) => {
     const options = {
       hostname: url.hostname,
@@ -365,10 +401,12 @@ export async function streamProxyServiceCall(state, { name, request, response })
       path: url.pathname,
       method: request.method,
       headers: {
-        ...request.headers,
+        ...headers,
         host: url.host // Override host header for target service
       }
     }
+
+    // logger.debug('streamProxyServiceCall - options:', options)
 
     const proxyReq = http.request(options, (proxyRes) => {
       // Forward status code and headers to client
@@ -448,9 +486,12 @@ export async function proxyServiceCall(state, { name, payload, request, response
   logger.debug(`serviceResponse headers ${printHeaders.join(', ')}`)
 
   // Forward any Set-Cookie headers to the client
-  if (serviceResponse.headers.get('Set-Cookie')) {
-    response.setHeader('Set-Cookie', serviceResponse.headers.get('Set-Cookie'))
-  }
+  // if (serviceResponse.headers.get('Set-Cookie')) {
+  //   response.setHeader('Set-Cookie', serviceResponse.headers.get('Set-Cookie'))
+  // }
+
+  
+  response.writeHead(serviceResponse.status, serviceResponse.headers)
 
   if (options?.stream && serviceResponse instanceof Response) {
     const isStreamable = !serviceResponse.headers.get('content-type')?.includes('application/json')

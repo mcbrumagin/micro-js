@@ -51,31 +51,13 @@ function sendBufferedResponse(response, result) {
  */
 async function handleDirectRoute(state, routeInfo, url, requestBody, request, response) {
   const { service, dataType } = routeInfo
-
-  // TODO create helper function to handle streaming and buffered proxy calls
-
-  const contentType = request.headers['content-type'] || ''
-  const useStreaming = contentType.includes('multipart/')
-  
-  let result
-  if (useStreaming) {
-    logger.debug('directRoute - streaming proxy for:', service)
-    result = await streamProxyServiceCall(state, { 
-      name: service, 
-      request, 
-      response 
-    })
-  } else {
-    // Use buffered proxy - backward compatible for JSON/text payloads
-    result = await proxyServiceCall(state, { 
-      name: service, 
-      payload: requestBody, 
-      request, 
-      response 
-    })
-  }
-  // TODO done() instead of next()? preventDefault()?
-  if (result instanceof Next || result === false /* TODO remove */) {
+  logger.debug('directRoute - streaming proxy for:', service)
+  let result = await streamProxyServiceCall(state, { 
+    name: service, 
+    request, 
+    response 
+  })
+  if (result instanceof Next || result === false /* TODO remove? */) {
     return result
   }
 
@@ -94,35 +76,17 @@ async function handleDirectRoute(state, routeInfo, url, requestBody, request, re
  */
 async function handleControllerRoute(state, controllerInfo, url, requestBody, request, response) {
   const { service, dataType } = controllerInfo
-  
-  // TODO create helper function to handle streaming and buffered proxy calls
-
-  const contentType = request.headers['content-type'] || ''
-  const useStreaming = contentType.includes('multipart/')
-
-  let result
-  if (useStreaming) {
-    result = await streamProxyServiceCall(state, { 
-      name: service, 
-      request, 
-      response 
-    })
-  } else {
-    result = await proxyServiceCall(state, { 
-      name: service, 
-      payload: requestBody, 
-      request, 
-      response 
-    })
-  }
-  // TODO done() instead of next()? preventDefault()?
+  let result = await streamProxyServiceCall(state, { 
+    name: service, 
+    request, 
+    response 
+  })
   if (result instanceof Next || result === false /* TODO remove */) {
     return result
   }
 
   const normalizedResult = normalizeResult(result, url)
   
-  // console.log('response.end.toString()', response.end.toString())
   if (!response.isEnded) {
     response.writeHead(normalizedResult?.status || 200, { 
       'content-type': normalizedResult?.dataType || dataType 

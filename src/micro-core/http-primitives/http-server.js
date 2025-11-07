@@ -80,8 +80,6 @@ export default async function createServer(port, serverFn, options = {}) {
             }
           }
         }
-
-        // TODO pipe request to serverFn for file uploads?
         
         let result = await server.handler(body, request, response)
         if (result instanceof fs.ReadStream) {
@@ -108,8 +106,6 @@ export default async function createServer(port, serverFn, options = {}) {
             responseBody = JSON.stringify(result)
           }
           
-          // TODO remove this log and x-test-header
-          // logger.info('writing response headers - x-test-header:', response.getHeader('x-test-header'))
           response.writeHead(200, {
             'content-type': contentType,
             // Modern security headers

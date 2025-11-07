@@ -179,6 +179,44 @@ const prettyPrintQuickLookup = (quickLookup) => {
   return prettyString
 }
 
+
+async function getRangeData(filePath, range) {
+  const fileSize = fs.statSync(filePath).size
+  const parts = range.replace(/bytes=/, "").split("-")
+  const start = parseInt(parts[0], 10)
+  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1 // TODO cache size
+  const chunksize = (end - start) + 1
+  return { start, end, chunksize, fileSize }
+}
+
+
+
+// const parts = range.replace(/bytes=/, "").split("-");
+// const start = parseInt(parts[0], 10);
+// const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+// const chunksize = (end - start) + 1;
+
+// // Check for invalid ranges
+// if (start >= fileSize || end >= fileSize || start < 0 || end < start) {
+//     res.writeHead(416, { 'Content-Range': `bytes */${fileSize}` });
+//     res.end();
+//     return;
+// }
+
+// const fileStream = fs.createReadStream(filePath, { start, end });
+
+// res.writeHead(206, {
+//     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+//     'Accept-Ranges': 'bytes',
+//     'Content-Length': chunksize,
+//     'Content-Type': 'video/mp4', // Adjust Content-Type as needed
+// });
+
+// fileStream.pipe(res);
+
+
+
+
 // TODO dev mode default returns quickLookup path urls
 const $404 = () => new HttpError(404, 'Not found')
 
@@ -238,6 +276,7 @@ export default async function createStaticFileService({
     // eager lookup should also update quickLookup if it's not already present
     // quickLookup should have the option to be backed up by a cache service with eviction
 
+
     if (!filePath) {
       logger.debug(`file not found in lookup for url: "${url}"`)
       if (resolverFn) {
@@ -281,7 +320,17 @@ export default async function createStaticFileService({
       response.setHeader('content-length', fs.statSync(filePath).size)
       response.setHeader('last-modified', getLastModified(filePath))
 
-      fs.createReadStream(filePath).pipe(response)
+
+      if (request?.headers?.range) {
+        let { start, end, chunksize, fileSize } = await getRangeData(filePath, request.headers.range)
+        response.setHeader('content-range', `bytes ${start}-${end}/${fileSize}`)
+        response.setHeader('accept-ranges', 'bytes')
+        response.setHeader('content-length', chunksize)
+        response.setHeader('content-type', contentType)
+        response.setHeader('last-modified', getLastModified(filePath))
+        response.writeHead(206)
+        fs.createReadStream(filePath, { start, end }).pipe(response)
+      } else fs.createReadStream(filePath).pipe(response)
 
       // TODO return next()? preventDefault()? next({ preventDefault: true })?
       return next({ reason: 'streaming file', file: filePath })
@@ -301,10 +350,11 @@ export default async function createStaticFileService({
     urlPath = normalizePath(urlPath)
     
     // Security check
-    if (!filePath.startsWith(rootDir)) {
-      logger.warn(`Rejecting file outside rootDir: ${filePath}`)
-      return false
-    }
+    // TODO whitelist other directories
+    // if (!filePath.startsWith(rootDir)) {
+    //   logger.warn(`Rejecting file outside rootDir: ${filePath}`)
+    //   return false
+    // }
     
     if (!fs.existsSync(filePath)) {
       logger.warn(`Attempting to add non-existent file: ${filePath}`)

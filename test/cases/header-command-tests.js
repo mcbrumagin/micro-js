@@ -512,8 +512,6 @@ async function testPubSubPublishWithHeaders() {
           }
         }
       )
-
-      console.warn('publishResult:', publishResult.results)
       
       await assert(publishResult,
         r => r !== undefined,

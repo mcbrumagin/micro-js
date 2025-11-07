@@ -10,8 +10,7 @@ import {
   allocateServicePort, 
   registerService, 
   unregisterService, 
-  findServiceLocation, 
-  proxyServiceCall,
+  findServiceLocation,
   streamProxyServiceCall
 } from './service-registry.js'
 import { registerRoute, findControllerRoute } from './route-registry.js'
@@ -162,26 +161,12 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return findServiceLocation(state, serviceName)
     
     case COMMANDS.SERVICE_CALL:
-      // Detect if we should use streaming proxy (for multipart uploads, large files, etc.)
-      const contentType = request.headers['content-type'] || ''
-      const useStreaming = contentType.includes('multipart/')
-      
-      if (useStreaming) {
-        logger.debug('SERVICE_CALL - useStreaming:', true, 'service:', serviceName)
-        return streamProxyServiceCall(state, { 
-          name: serviceName, 
-          request, 
-          response 
-        })
-      } else {
-        // Use buffered proxy - backward compatible for JSON/text payloads
-        return proxyServiceCall(state, { 
-          name: serviceName, 
-          payload, 
-          request, 
-          response 
-        })
-      }
+      logger.debug('service call:', serviceName)
+      return streamProxyServiceCall(state, { 
+        name: serviceName, 
+        request, 
+        response 
+      })
     
     case COMMANDS.PUBSUB_PUBLISH:
       if (!pubsubChannel) {
@@ -225,9 +210,8 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       }
       
       // Proxy the auth request to the auth service
-      return proxyServiceCall(state, { 
+      return streamProxyServiceCall(state, { 
         name: authServiceName, 
-        payload, 
         request, 
         response 
       })

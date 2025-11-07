@@ -7,6 +7,7 @@ import envConfig from '../micro-core/shared/env-config.js'
 import Logger from '../utils/logger.js'
 import { next } from '../micro-core/http-primitives/next.js'
 import { ref } from 'process'
+import readStream from '../micro-core/http-primitives/read-stream.js'
 
 
 const logger = new Logger({ logGroup: 'micro-services' })
@@ -178,8 +179,8 @@ export default async function createAuthService({
   }
 
   const server = await createService(serviceName, async function authService(payload, request, response) {
+    // TODO bearer token?
     if (payload.authenticate) return authenticate(payload.authenticate, request, response)
-    // TODO verify access token header
     else if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
     else return getNewAccessToken(payload, request, response)
   })
