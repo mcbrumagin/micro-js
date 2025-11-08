@@ -27,11 +27,20 @@ const DEFAULT_RETRY_CONFIG = {
  * @returns {Object} { registryHost, registryToken, serviceHome }
  */
 export function getRegistryConfig() {
+  const serviceHost = envConfig.get('MICRO_SERVICE_URL')
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
-  const serviceHome = registryHost.replace(/:\d+$/, '')
+
+  let serviceHome
+  if (serviceHost) {
+    logger.info(`setting service home for serivceHost ${serviceHost}`)
+    serviceHome = serviceHost.replace(/:\d+$/, '')
+  } else {
+    logger.info(`setting service home for registryHost ${registryHost}`)
+    serviceHome = registryHost.replace(/:\d+$/, '')
+  }
   
-  return { registryHost, registryToken, serviceHome }
+  return { serviceHost, registryHost, registryToken, serviceHome }
 }
 
 /**
