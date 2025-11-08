@@ -19,12 +19,23 @@ export default async function callService (name, payload, {
   authToken = null
 } = {}) {
   let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+
+  let customHeaders
+  if (payload?.body && payload?.headers) {
+    logger.debug(`callService ${name} using custom headers`)
+    customHeaders = payload.headers
+    payload = payload.body
+  }
   
   logger.debug('callService - name:', name)
+  let headers = buildCallHeaders(name, authToken)
+
+  if (customHeaders) headers = Object.assign(headers, customHeaders)
+  else headers['content-type'] = contentType
   
   let result = await httpRequest(registryHost, {
     body: payload,
-    headers: { ...buildCallHeaders(name, authToken), 'content-type': contentType }
+    headers
   })
   
   return result

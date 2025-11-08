@@ -6,7 +6,7 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-const logger = new Logger({ logGroup: 'micro-services' })
+let logger = new Logger({ logGroup: 'file-upload-service' })
 
 /**
  * Handles streaming multipart file upload
@@ -390,6 +390,7 @@ export default async function createFileUploadService({
   deleteChannel = 'micro:file-deleted',  // NEW: customizable channel
   urlPathPrefix = '/uploads'  // NEW: URL path prefix for uploaded files
 } = {}) {
+  let logger = new Logger({ logGroup: serviceName })
   // Ensure upload directory exists
   await ensureUploadDir(uploadDir)
   logger.info(`File upload service configured with uploadDir: ${uploadDir}`)

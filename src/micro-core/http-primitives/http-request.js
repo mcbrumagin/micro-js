@@ -12,7 +12,6 @@ async function request(address, {
   stream = false, // If true, return raw Response for streaming
   timeout = 30000 // TODO override
 } = {}) {
-
   // Handle different body types
   if (Buffer.isBuffer(body)) {
 
@@ -80,7 +79,7 @@ async function request(address, {
       throw new HttpError(408, 'Request timeout')
     }
     if (!headers || !headers['mute-internal-error']) {
-      logger.debugErr(`Fetch failed at "${address}" - Error: ${error.message}`)
+      logger.debugErr(`Fetch failed at "${address}" - Error: ${error.stack}`)
     }
     throw error
   } finally {

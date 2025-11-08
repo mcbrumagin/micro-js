@@ -6,7 +6,7 @@ import fs from 'fs'
 import { next } from '../micro-core/http-primitives/next.js'
 import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
-const logger = new Logger({ logGroup: 'micro-services' })
+let logger = new Logger({ logGroup: 'static-file-service' })
 
 /* --- example filemap ---
 {
@@ -211,6 +211,7 @@ export default async function createStaticFileService({
   useAuthService = null,
   autoRefresh = false  // NEW: false | { mode, ...options }
 }, resolverFn, defaultFn = $404) {
+  let logger = new Logger({ logGroup: serviceName })
 
   if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
     // assume this is a relative path
@@ -602,8 +603,6 @@ export default async function createStaticFileService({
     // PubSub mode - subscribe to file upload/deletion events
     if (mode === 'pubsub' || mode === 'hybrid') {
       try {
-        // await server.context.subscribe(updateChannel, handleFileUploadEvent)
-        // await server.context.subscribe(deletionChannel, handleFileDeletionEvent)
         await server.createSubscription({
           [updateChannel]: handleFileUploadEvent,
           [deletionChannel]: handleFileDeletionEvent
