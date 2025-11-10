@@ -89,6 +89,17 @@ async function verifyAuthToken(state, serviceName, authToken) {
   }
 }
 
+// TODO logger support for Map, etc
+function printState(state) {
+  for (let prop in state) {
+    let map = state[prop]
+    logger.debug(`map[${prop}]`)
+    for (let [key, val] of map.entries()) {
+      logger.debug(`  ${key}: ${val}`)
+    }
+  }
+}
+
 /**
  * Allocate a port for a new service instance
  */
@@ -97,11 +108,85 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
   let serviceHome = home || domain
   logger.debug('allocateServicePort - service:', service)
   
+  /**
+   * TODO need bug analysis and fix for dynamic ports
+   * when running multiple services at localhost:4000-4018
+   * orchestrating second service run (using 127.0.0.1:3998 to simulate a different host)
+   * the registry leaves some 
+   * 
+    micro-registry | map[domainPorts]
+    micro-registry |   http://localhost: 4019 <--- normal initial registry home + services run
+    micro-registry |   http://127.0.0.1:3998: 4001 <--- problem state, will cause more errors for next service
+    micro-registry |   http://127.0.0.1:4000: 4020 <--- this service home doesn't make sense though either
+
+    ---another example with 127.0.0.1:3999---
+    micro-registry | map[domainPorts]
+    micro-registry |   http://localhost: 4019
+    micro-registry |   http://127.0.0.1:3999: 4002
+    micro-registry |   http://127.0.0.1:4000: 4020
+    micro-registry |   http://127.0.0.1:4001: 4021
+
+    --- another example with 127.0.0.1:3999 but running the script immediately after main ---
+    --- this is ironically better as far as setup failures, but the state in the registry is hideous ---
+    micro-registry | map[domainPorts]
+    micro-registry |   http://localhost: 4019
+    micro-registry |   http://127.0.0.1:3999: 4002
+    micro-registry |   http://127.0.0.1:4000: 4003
+    micro-registry |   http://127.0.0.1:4001: 4004
+    micro-registry |   http://localhost:4002: 4007
+    micro-registry |   http://localhost:4003: 4006
+    micro-registry |   http://localhost:4005: 4008
+    micro-registry |   http://localhost:4006: 4009
+    micro-registry |   http://localhost:4007: 4010
+    micro-registry |   http://localhost:4008: 4011
+    micro-registry |   http://localhost:4009: 4012
+    micro-registry |   http://localhost:4010: 4013
+    micro-registry |   http://localhost:4011: 4014
+    micro-registry |   http://localhost:4012: 4015
+    micro-registry |   http://localhost:4013: 4016
+    micro-registry |   http://localhost:4014: 4017
+    micro-registry |   http://localhost:4015: 4018
+    micro-registry |   http://localhost:4016: 4019
+    micro-registry |   http://localhost:4017: 4020
+    micro-registry |   http://localhost:4018: 4021
+
+    ---------------------------------------------------------------------------------
+    WE CAN EITHER PATCH THIS DIRECTLY OR IMPLEMENT A MORE EXPLICIT PORT BLACKLIST
+    blacklisted ports could be purged or individually cleared using registry commands
+    additionally, we could have a ping for service home addresses to obtain a real ip to store
+    then this particular port conflict will be avoided as it will resolve to the same domain
+    however, for two external service stacks sharing the same network, the issue will persist
+    without a blacklist or domaintPorts fix
+    it may also be beneficial to create a map of external service homes/real-ips?
+
+    this also may become a non-issue by migrating to a node-handler system
+    an initial createService call checks if the registry is on the same system
+    if not, it creates a node (compute, container, etc) handler service
+    the node handler serves system health, acts as the middleman for cache updates, etc
+    a node handler could essentially be a registry replica
+    but then we need to determine how that works (raft?)
+    seems like too much too soon idk
+    ---------------------------------------------------------------------------------
+   *
+   */
+
   // if serviceHome has a port already, use it
-  let port = serviceHome.split(':')[2]
+  let port = Number(serviceHome.split(':')[2])
+  logger.warn('test',{serviceHome})
   if (port) {
-    serviceHome = serviceHome.split(':').slice(0, 2).join(':')
-    state.domainPorts.set(serviceHome, port)
+    // if the port is already in use for the domain, increment
+    //   until we get a free one to return from setup call
+    // if  (state.domainPorts.has(serviceHome)) // TODO
+
+
+    let nextPort = state.domainPorts.get(serviceHome)
+    if (nextPort) {
+      port = nextPort
+    }
+
+    // save the full home (with port) so we can increment off it separately
+    state.domainPorts.set(serviceHome, port + 1)
+
   }
   
   if (!state.domainPorts.has(serviceHome)) {
@@ -113,9 +198,13 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
     state.domainPorts.set(serviceHome, port + 1)
   }
   
+  serviceHome = serviceHome.split(':').slice(0, 2).join(':')
+  if (serviceHome.includes('http,')) console.warn('BAD') && process.exit(1)
   const location = `${serviceHome}:${port}`
   logger.debug('allocateServicePort - location:', location)
   
+  console.log('state:', printState(state))
+
   return location
 }
 

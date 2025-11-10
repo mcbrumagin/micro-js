@@ -93,8 +93,10 @@ export default async function createService(name, serviceFn, options = {}) {
   try {
     result = await createAndRegisterService(name, handler, config)
   } catch (err) {
+    // TODO remove?
     if (err.message.includes('listen EADDRINUSE')) {
       // Retry on port collision
+      logger.warn(name, options)
       return createService(name, serviceFn, options)
     } else {
       throw err

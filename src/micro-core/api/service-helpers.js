@@ -34,22 +34,15 @@ export function getRegistryConfig() {
   let serviceHome
   if (serviceHost) {
     logger.info(`setting service home for serivceHost ${serviceHost}`)
-    serviceHome = serviceHost.replace(/:\d+$/, '')
+    serviceHome = serviceHost // include port so the registry can figure out what this host has setup already
+    // NOTE skip port remove? // TODO REFACTOR
+    // serviceHome = serviceHost.replace(/:\d+$/, '')
   } else {
     logger.info(`setting service home for registryHost ${registryHost}`)
     serviceHome = registryHost.replace(/:\d+$/, '')
   }
   
   return { serviceHost, registryHost, registryToken, serviceHome }
-}
-
-/**
- * Extract port from location string
- * @param {string} location - Location string (e.g. 'http://localhost:3001')
- * @returns {string} Port number
- */
-export function extractPortFromLocation(location) {
-  return location.split(':')[2]
 }
 
 /**
@@ -164,14 +157,36 @@ export async function createServiceHttpServer(port, handler, options = {}) {
  * @param {Object} options - Configuration options
  * @returns {Promise<Object>} Service instance with { name, location, port, server, registryData }
  */
-export async function createAndRegisterService(serviceName, handler, options = {}) {
+const serviceRegistrationRetryLimit = envConfig.get('MICRO_REGISTRATION_RETRY_LIMIT', 50)
+export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
   validateServiceName(serviceName)
   
-  const { serviceHome } = getRegistryConfig()
+  /**
+   * TODO need bug analysis and fix for dynamic ports
+   * when running multiple services at localhost:4000-4018
+   * orchestrating second service run (using 127.0.0.1:3998 to simulate a different host)
+   * the registry leaves some 
+   * 
+    micro-registry | map[domainPorts]
+    micro-registry |   http://localhost: 4019 <--- normal initial registry home + services run
+    micro-registry |   http://127.0.0.1:3998: 4001 <--- problem state, will cause more errors for next service
+    micro-registry |   http://127.0.0.1:4000: 4020 <--- this service home doesn't make sense though either
+
+    ---another example with 127.0.0.1:3999---
+    micro-registry | map[domainPorts]
+    micro-registry |   http://localhost: 4019
+    micro-registry |   http://127.0.0.1:3999: 4002
+    micro-registry |   http://127.0.0.1:4000: 4020
+    micro-registry |   http://127.0.0.1:4001: 4021
+   *
+   */
+  const { serviceHome } = retryInfo || getRegistryConfig()
+
+  logger.warn('serviceHome:',serviceHome)
   
   // 1. Setup with registry (allocate port)
   const location = await setupServiceWithRegistry(serviceName, serviceHome, options)
-  const port = extractPortFromLocation(location)
+  const port = location.split(':')[2]
   validateServiceLocation(location, port)
   
   // 2. Create HTTP server
@@ -183,8 +198,19 @@ export async function createAndRegisterService(serviceName, handler, options = {
   } catch (err) {
     // Handle port collision - retry with new port
     if (err.message.includes('listen EADDRINUSE')) {
-      logger.debug(`Port ${port} in use, retrying...`)
-      throw err // Let caller handle retry
+      // TODO need to tell registry the setup failed so it can clean up and blacklist ports
+      // the actual service registrations are valid, but the domainPorts map gets ugly
+      logger.debug(`Port ${port} in use, retrying w/ ${port+1}`)
+      if (!retryInfo) {
+        retryInfo = {
+          attempts: 0,
+          limit: serviceRegistrationRetryLimit,
+          serviceHome: location.split(':').slice(0,2).join(':') + ':' + port // NOTE registry increments port on setup... maybe it shouldn't?
+        }
+      } else retryInfo.attempts++
+      if (retryInfo.attempts >= retryInfo.limit) throw err
+      return await createAndRegisterService(serviceName, handler, options, retryInfo)
+      // throw err // Let caller handle retry
     }
     throw err
   }

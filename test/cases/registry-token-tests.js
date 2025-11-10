@@ -89,6 +89,7 @@ async function testRegistryWarnsInNonDevWithoutToken() {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
         
+        throw new Error('No proper log assertion')
         await assert(result,
           r => r.status === 'ready'
         )
