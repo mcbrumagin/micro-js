@@ -181,8 +181,6 @@ export async function createAndRegisterService(serviceName, handler, options = {
    *
    */
   const { serviceHome } = retryInfo || getRegistryConfig()
-
-  logger.warn('serviceHome:',serviceHome)
   
   // 1. Setup with registry (allocate port)
   const location = await setupServiceWithRegistry(serviceName, serviceHome, options)
@@ -205,7 +203,8 @@ export async function createAndRegisterService(serviceName, handler, options = {
         retryInfo = {
           attempts: 0,
           limit: serviceRegistrationRetryLimit,
-          serviceHome: location.split(':').slice(0,2).join(':') + ':' + port // NOTE registry increments port on setup... maybe it shouldn't?
+          serviceHome: location.split(':').slice(0,2).join(':') + ':' + port
+          // NOTE registry increments port on setup... maybe it shouldn't?
         }
       } else retryInfo.attempts++
       if (retryInfo.attempts >= retryInfo.limit) throw err

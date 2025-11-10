@@ -172,12 +172,10 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
 
   // if serviceHome has a port already, use it
   let port = Number(serviceHome.split(':')[2])
-  logger.warn('test',{serviceHome})
+  
   if (port) {
     // if the port is already in use for the domain, increment
     //   until we get a free one to return from setup call
-    // if  (state.domainPorts.has(serviceHome)) // TODO
-
 
     let nextPort = state.domainPorts.get(serviceHome)
     if (nextPort) {
@@ -203,7 +201,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
   const location = `${serviceHome}:${port}`
   logger.debug('allocateServicePort - location:', location)
   
-  console.log('state:', printState(state))
+  // console.log('state:', printState(state))
 
   return location
 }
