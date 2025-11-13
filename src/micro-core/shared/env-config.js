@@ -36,7 +36,7 @@ class EnvConfig {
       try {
         return JSON.parse(value)
       } catch {
-        cosole.warn(`Failed to parse JSON environment variable: ${value}`)
+        console.warn(`Failed to parse JSON environment variable: ${value}`)
       }
     }
     
