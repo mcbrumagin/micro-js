@@ -24,7 +24,11 @@ async function testBasicSetAndGet() {
     async ([registry, cache]) => {
       // Set a value
       const setResult = await callService('cache-service', { set: { key1: 'value1' } })
-      await assert(setResult, r => r === true)
+      await assert(setResult, 
+        r => r.success === true,
+        r => r.action === 'set',
+        r => r.keys.includes('key1')
+      )
 
       // Get the value
       const getValue = await callService('cache-service', { get: 'key1' })
@@ -75,7 +79,11 @@ async function testCacheExpiration() {
     await createCacheService({ expireTime: 200, evictionInterval: 20 }),
     async () => {
       // Set value with expiration
-      await callService('cache-service', { setex: { tempKey: 'tempValue' } })
+      const setexResult = await callService('cache-service', { setex: { tempKey: 'tempValue' } })
+      await assert(setexResult, 
+        r => r.success === true,
+        r => r.action === 'setex'
+      )
       
       // Value should exist immediately
       const valueBeforeExpire = await callService('cache-service', { get: 'tempKey' })
@@ -142,7 +150,7 @@ async function testRemoveExpiration() {
       await assert(expireBefore, t => typeof t === 'number')
       
       // Remove expiration
-      await callService('cache-service', { rex: { persistKey: true } })
+      await callService('cache-service', { rex: 'persistKey' })
       
       // Verify expiration is removed
       const expireAfter = await callService('cache-service', { getex: 'persistKey' })
@@ -175,13 +183,45 @@ async function testDeleteKeys() {
       })
       
       // Delete one key
-      await callService('cache-service', { del: { deleteMe: true } })
+      await callService('cache-service', { del: 'deleteMe' })
       
       // Verify deletion
       const deletedValue = await callService('cache-service', { get: 'deleteMe' })
       const keptValue = await callService('cache-service', { get: 'keepMe' })
       
       await assert(deletedValue, v => v === null)
+      await assert(keptValue, v => v === 'value2')
+    }
+  )
+}
+
+
+/**
+ * Test deleting keys
+ */
+async function testDeleteMultipleKeys() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Set some values
+      await callService('cache-service', { 
+        set: { 
+          deleteMe1: 'value1',
+          deleteMe2: 'value2',
+          keepMe: 'value2'
+        } 
+      })
+      
+      // Delete one key
+      await callService('cache-service', { del: ['deleteMe1', 'deleteMe2'] })
+      
+      // Verify deletion
+      const deletedValue = await callService('cache-service', { get: 'deleteMe1' })
+      const deletedValue2 = await callService('cache-service', { get: 'deleteMe2' })
+      const keptValue = await callService('cache-service', { get: 'keepMe' })
+      
+      await assert([deletedValue, deletedValue2], v => v.every(v => v === null))
       await assert(keptValue, v => v === 'value2')
     }
   )
@@ -212,7 +252,12 @@ async function testClearCache() {
       )
       
       // Clear cache
-      await callService('cache-service', { clear: true })
+      const clearResult = await callService('cache-service', { clear: true })
+      await assert(clearResult,
+        r => r.success === true,
+        r => r.action === 'clear',
+        r => r.keysCleared === 3
+      )
       
       // Verify cache is empty
       const afterClear = await callService('cache-service', { get: '*' })
@@ -488,7 +533,7 @@ async function testServiceRegistrationCacheUpdate() {
 
 function testCacheMemoryOnly() {
   let cache = createInMemoryCache({ isMemoryOnly: true })
-  cache.set('test', 'value1')
+  const setResult = cache.set('test', 'value1')
   let value = cache.get('test')
   
   return assert(value,
@@ -819,6 +864,166 @@ async function testBulkSettingsUpdate() {
   )
 }
 
+/**
+ * Test validation of invalid get action
+ */
+async function testInvalidGetAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test get with invalid type (number)
+      await assertErr(
+        () => callService('cache-service', { get: 123 }),
+        err => err.message.includes('get action requires a string key')
+      )
+      
+      logger.info('✓ Invalid get action validation works')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid set action
+ */
+async function testInvalidSetAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test set with invalid type (string)
+      await assertErr(
+        () => callService('cache-service', { set: 'invalid' }),
+        err => err.message.includes('set action requires an object')
+      )
+      
+      // Test set with null
+      await assertErr(
+        () => callService('cache-service', { set: null }),
+        err => err.message.includes('set action requires an object')
+      )
+      
+      logger.info('✓ Invalid set action validation works')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid setex action
+ */
+async function testInvalidSetexAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test setex with invalid type
+      await assertErr(
+        () => callService('cache-service', { setex: 'invalid' }),
+        err => err.message.includes('setex action requires an object')
+      )
+      
+      logger.info('✓ Invalid setex action validation works')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid ex action
+ */
+async function testInvalidExAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test ex with invalid type
+      await assertErr(
+        () => callService('cache-service', { ex: 'invalid' }),
+        err => err.message.includes('ex action requires an object')
+      )
+      
+      logger.info('✓ Invalid ex action validation works')
+    }
+  )
+}
+
+/**
+ * Test validation of invalid del action
+ */
+async function testInvalidDelAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test del with invalid type
+      await assertErr(
+        () => callService('cache-service', { del: {'invalid': true} }),
+        err => err.message.includes('del action requires a key-string or array of strings')
+      )
+      
+      logger.info('✓ Invalid del action validation works')
+    }
+  )
+}
+
+/**
+ * Test validation of unknown action
+ */
+async function testUnknownAction() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test unknown action
+      await assertErr(
+        () => callService('cache-service', { unknownAction: 'test' }),
+        err => err.message.includes('Unknown cache action')
+      )
+      
+      logger.info('✓ Unknown action validation works')
+    }
+  )
+}
+
+/**
+ * Test action result structures
+ */
+async function testActionResults() {
+  await terminateAfter(
+    await startRegistry(),
+    await createCacheService(),
+    async () => {
+      // Test set result
+      const setResult = await callService('cache-service', { set: { key1: 'value1', key2: 'value2' } })
+      await assert(setResult,
+        r => r.success === true,
+        r => r.action === 'set',
+        r => Array.isArray(r.keys),
+        r => r.keys.length === 2,
+        r => r.keys.includes('key1'),
+        r => r.keys.includes('key2')
+      )
+      
+      // Test ex result
+      const exResult = await callService('cache-service', { ex: { key1: 1000 } })
+      await assert(exResult,
+        r => r.success === true,
+        r => r.action === 'ex',
+        r => r.keys.includes('key1')
+      )
+      
+      // Test del result
+      const delResult = await callService('cache-service', { del: 'key1' })
+      await assert(delResult,
+        r => r.success === true,
+        r => r.action === 'del',
+        r => r.keys.key1 === 1
+      )
+      
+      logger.info('✓ Action results have proper structure')
+    }
+  )
+}
+
 export default {
   testBasicSetAndGet,
   testSetMultipleKeys,
@@ -843,5 +1048,12 @@ export default {
   testInvalidExpireTimeValidation,
   testInvalidEvictionIntervalValidation,
   testRuntimeValidation,
-  testBulkSettingsUpdate
+  testBulkSettingsUpdate,
+  testInvalidGetAction,
+  testInvalidSetAction,
+  testInvalidSetexAction,
+  testInvalidExAction,
+  testInvalidDelAction,
+  testUnknownAction,
+  testActionResults
 }

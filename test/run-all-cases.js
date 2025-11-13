@@ -120,7 +120,6 @@ let testFns = mergeAllTestsSafely(
   edgeCaseTests,
   loadBalancerTests,
   cacheServiceTests,
-  // pubsubTests,
   subscriptionTests,
   staticFileServiceTests,
   fileUploadTests,

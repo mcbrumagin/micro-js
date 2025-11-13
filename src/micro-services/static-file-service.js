@@ -3,6 +3,7 @@ import Logger from '../utils/logger.js'
 import HttpError from '../micro-core/http-primitives/http-error.js'
 import path from 'path'
 import fs from 'fs'
+import fsAsync from 'fs/promises'
 import { next } from '../micro-core/http-primitives/next.js'
 import { detectContentType } from '../micro-core/registry/content-type-detector.js'
 
@@ -237,6 +238,17 @@ export default async function createStaticFileService({
   }
   let refreshInterval = null
   let isPaused = false
+
+  async function getLocalFile(url) {
+
+    const filePath = quickLookup[normalizePath(url)]
+
+    if (!filePath) {
+      logger.debug(`file not found in lookup for url: "${url}"`)
+    }
+
+    return await fsAsync.readFile(filePath)
+  }
   
   async function getFile(payload, request, response) {
     const url = payload?.url || request?.url
@@ -582,7 +594,7 @@ export default async function createStaticFileService({
 
   // Attach lookup map and helper functions
   server.quickLookup = quickLookup
-  server.getFile = getFile
+  server.getFile = getLocalFile
   server.refreshIndex = refreshIndex
   server.refreshPath = refreshPath
   server.addFile = addFile

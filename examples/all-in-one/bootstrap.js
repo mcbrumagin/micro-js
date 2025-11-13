@@ -1,4 +1,14 @@
-import { registryServer, createService, createRoutes, callService, Logger, overrideConsoleGlobally, createSubscription, publishMessage } from '../../src/index.js'
+import {
+  registryServer,
+  createService,
+  createRoutes,
+  callService,
+  Logger,
+  overrideConsoleGlobally,
+  createSubscriptionService,
+  publishMessage,
+  HttpError
+} from '../../src/index.js'
 import createCacheService from '../../src/micro-services/cache-service.js'
 import createStaticFileService from '../../src/micro-services/static-file-service.js'
 import createFileUploadService from '../../src/micro-services/file-upload-service/file-upload-service.js'
@@ -68,11 +78,11 @@ async function main() {
 
 
   // pubsub example using standalone subscription
-  const subscription1 = await createSubscription('test', async (message) => {
+  const subscription1 = await createSubscriptionService('sub1', 'test', async (message) => {
     console.info(`subscription received message: ${JSON.stringify(message)}`)
   })
   
-  const subscription2 = await createSubscription('test', async (message) => {
+  const subscription2 = await createSubscriptionService('sub2', 'test', async (message) => {
     console.info(`subscription2 received message: ${JSON.stringify(message)}`)
   })
   
@@ -80,7 +90,8 @@ async function main() {
 
 
   // static file service example
-  console.info(`file: ${await staticFileService.getFile({ url: '/' })}`)
+  let file = await staticFileService.getFile('/')
+  console.info(`file: ${file.slice(0, 100)}...\n<etc>\n...`)
   
   // Demonstrate auto-refresh API
   console.info('Static file service stats:', staticFileService.getIndexStats())
@@ -104,7 +115,7 @@ async function main() {
       return file
     } else {
       console.info(`custom file cache service - fetching file for url: ${payload.url}`)
-      file = await staticFileService.getFile(payload)
+      file = await staticFileService.getFile(payload.url)
       cacheService.set(prependCacheNamespace(payload.url), file)
       return file
     }
@@ -134,7 +145,8 @@ async function main() {
     try {
       await fileCacheService.terminate()
       await cacheService.terminate()
-      await pubsubService.terminate()
+      await subscription1.terminate()
+      await subscription2.terminate()
       await staticFileService.terminate()
       await fileUploadService.terminate()
 

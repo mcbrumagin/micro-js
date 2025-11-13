@@ -1,5 +1,6 @@
 import createService from '../micro-core/api/create-service.js'
 import Logger from '../utils/logger.js'
+import { HttpError } from '../micro-core/http-primitives/index.js'
 
 let logger = new Logger({ logGroup: 'micro-services' })
 
@@ -25,7 +26,7 @@ function validateSettings(expireTime, evictionInterval) {
   if (errors.length > 0) {
     // TODO: Using ' - ' separator instead of '\n' because HttpError truncates multiline messages
     // See http-error.js line 4 - only first line is preserved when errors cross service boundaries
-    throw new Error(`Cache service validation failed: ${errors.join(' - ')}`)
+    throw new HttpError(400, `Cache service validation failed: ${errors.join(' - ')}`)
   }
 }
 
@@ -136,22 +137,119 @@ function initializeCacheService(expireTime, evictionInterval) {
   function cacheService(payload) {
     logger.debug(`cache service received payload: ${JSON.stringify(payload)}`)
 
-    if (payload.get === '*') return cache
-    else if (payload.get) return cache[payload.get] || null
-    else if (payload.getex) return expireCache[payload.getex] || null
-    else if (payload.set) for (let key in payload.set) cache[key] = payload.set[key]
-    else if (payload.ex) for (let key in payload.ex) expireCache[key] = getExpire(payload.ex[key])
-    else if (payload.setex) for (let key in payload.setex) {
-      cache[key] = payload.setex[key]
-      // expireCache[key] = getExpire()
-      expireCache[key] = getExpire(payload.expire)
+    // Validate payload
+    if (!payload || typeof payload !== 'object') {
+      throw new HttpError(400, 'Cache service requires a valid payload object')
     }
-    else if (payload.rex) for (let key in payload.rex) delete expireCache[key]
-    else if (payload.del) for (let key in payload.del) delete cache[key] && delete expireCache[key]
-    else if (payload.settings) return reloadSettings(payload.settings)
-    else if (payload.clear) cache = {}
-    else return false && logger.warn(`cache service failed to process: ${payload}`)
-    return true
+
+    // Dynamic action handling with validation and proper return values
+    
+    // GET operations - return requested data
+    if (payload.get !== undefined) {
+      if (payload.get === '*') {
+        return cache
+      } else if (typeof payload.get === 'string') {
+        return cache[payload.get] || null
+      } else {
+        throw new HttpError(400, 'get action requires a string key or "*"')
+      }
+    }
+    
+    if (payload.getex !== undefined) {
+      if (typeof payload.getex !== 'string') {
+        throw new HttpError(400, 'getex action requires a string key')
+      }
+      return expireCache[payload.getex] || null
+    }
+    
+    // SET operations - return success status
+    if (payload.set !== undefined) {
+      if (typeof payload.set !== 'object' || payload.set === null) {
+        throw new HttpError(400, 'set action requires an object with key-value pairs')
+      }
+      const keys = []
+      for (let key in payload.set) {
+        cache[key] = payload.set[key]
+        keys.push(key)
+      }
+      return { success: true, action: 'set', keys }
+    }
+    
+    if (payload.ex !== undefined) {
+      if (typeof payload.ex !== 'object' || payload.ex === null) {
+        throw new HttpError(400, 'ex action requires an object with key-expire pairs')
+      }
+      const keys = []
+      for (let key in payload.ex) {
+        expireCache[key] = getExpire(payload.ex[key])
+        keys.push(key)
+      }
+      return { success: true, action: 'ex', keys }
+    }
+    
+    if (payload.setex !== undefined) {
+      if (typeof payload.setex !== 'object' || payload.setex === null) {
+        throw new HttpError(400, 'setex action requires an object with key-value pairs')
+      }
+      const keys = []
+      for (let key in payload.setex) {
+        cache[key] = payload.setex[key]
+        expireCache[key] = getExpire(payload.expire)
+        keys.push(key)
+      }
+      return { success: true, action: 'setex', keys }
+    }
+    
+    if (payload.rex !== undefined) {
+      if (typeof payload.rex !== 'string' && !Array.isArray(payload.rex)) {
+        throw new HttpError(400, 'rex action requires a key-string or array of strings')
+      }
+      if (typeof payload.rex === 'string') {
+        payload.rex = [payload.rex]
+      }
+      const deletedKeys = []
+      for (let key of payload.rex) {
+        deletedKeys[key] = cache[key] ? 1 : 0
+        delete expireCache[key]
+      }
+      return { success: true, action: 'rex', keys: deletedKeys }
+    }
+    
+    // DELETE operations - return success status
+    if (payload.del !== undefined) {
+      if (typeof payload.del !== 'string' && !Array.isArray(payload.del)) {
+        throw new HttpError(400, 'del action requires a key-string or array of strings')
+      }
+      if (typeof payload.del === 'string') {
+        payload.del = [payload.del]
+      }
+      const deletedKeys = {}
+      for (let key of payload.del) {
+        deletedKeys[key] = cache[key] ? 1 : 0
+        delete cache[key]
+        delete expireCache[key]
+      }
+      return { success: true, action: 'del', keys: deletedKeys }
+    }
+    
+    if (payload.clear !== undefined) {
+      const keyCount = Object.keys(cache).length
+      cache = {}
+      expireCache = {}
+      return { success: true, action: 'clear', keysCleared: keyCount }
+    }
+    
+    // SETTINGS operations - return updated settings
+    if (payload.settings !== undefined) {
+      if (typeof payload.settings !== 'object' || payload.settings === null) {
+        throw new HttpError(400, 'settings action requires an object')
+      }
+      return reloadSettings(payload.settings)
+    }
+    
+    // No valid action found
+    logger.warn(`cache service received unknown action: ${JSON.stringify(payload)}`)
+    throw new HttpError(400, `Unknown cache action. Valid actions: get, getex, set, setex, ex, rex, del, clear, settings`)
   }
 
   
